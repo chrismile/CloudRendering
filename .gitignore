@@ -30,3 +30,69 @@
 *.exe
 *.out
 *.app
+
+# CMake
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+# VS Code
+.vscode/*
+/Debug/*
+
+# Eclipse
+.cproject
+.project
+.settings/*
+
+# Doxygen
+docs/html/*
+docs/latex/*
+
+/Debug/
+/build/*
+/build-*
+
+# CLion
+.idea/*
+cmake-build-*/
+
+# Custom for models
+*.blend
+*.mtl
+*.obj
+*.binmesh
+*.binmesh_tri
+*.binmesh_lines
+*.voxel
+*.nc
+*.hair
+*.binpath
+*.camera
+*.binlines
+*.vtk
+*.mesh
+
+Data/CloudDataSets/*
+Data/CameraPaths/*
+Data/Checkpoints/*
+Data/Screenshots/*
+Data/Videos/*
+Data/TransferFunctions/*
+Data/ReplayScripts/__pycache__/*
+
+Data/ControlPoints.txt
+imgui.ini
+
+# Build script
+Shipping/*
+.build/*
+.build_*
+third_party/*
+
+dependencies/*
