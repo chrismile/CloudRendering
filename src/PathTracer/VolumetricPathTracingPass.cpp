@@ -275,6 +275,17 @@ void VolumetricPathTracingPass::renderGui() {
     bool optionChanged = false;
 
     if (ImGui::Begin("VPT Renderer", &showWindow)) {
+        std::string numSamplesText = "Number of Samples: " + std::to_string(frameInfo.frameCount);
+        // + "##numSamplesText";
+        ImGui::Text("%s", numSamplesText.c_str());
+        ImGui::SameLine();
+        if (ImGui::Button(" = ")) {
+            reachedTarget = false;
+            reRender = true;
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(220.0f);
+        ImGui::InputInt("##targetNumSamples", &targetNumSamples);
         if (ImGui::ColorEdit3("Sunlight Color", &SUNLIGHT_COLOR.x)) {
             optionChanged = true;
         }
@@ -347,6 +358,18 @@ void VolumetricPathTracingPass::renderGui() {
     if (optionChanged) {
         frameInfo.frameCount = 0;
         reRender = true;
+    }
+
+    if (!reachedTarget) {
+        if (frameInfo.frameCount > targetNumSamples) {
+            frameInfo.frameCount = 0;
+        }
+        if (frameInfo.frameCount < targetNumSamples) {
+            reRender = true;
+        }
+        if (frameInfo.frameCount == targetNumSamples) {
+            reachedTarget = true;
+        }
     }
 }
 

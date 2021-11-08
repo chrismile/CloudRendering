@@ -89,6 +89,9 @@ private:
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
 
+    int targetNumSamples = 1024;
+    bool reachedTarget = true;
+
     glm::vec3 SUNLIGHT_COLOR = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float SUNLIGHT_INTENSITY = 2.6f;
     glm::vec3 SUNLIGHT_DIR = glm::normalize(glm::vec3(0.5826f, 0.7660f, 0.2717f));
