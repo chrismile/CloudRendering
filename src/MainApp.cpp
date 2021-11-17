@@ -233,7 +233,7 @@ void MainApp::renderSceneSettingsGui() {
     }
 
     SciVisApp::renderSceneSettingsGuiPre();
-    ImGui::Checkbox("Show Transfer Function Window", &transferFunctionWindow.getShowTransferFunctionWindow());
+    ImGui::Checkbox("Show Transfer Function Window", &transferFunctionWindow.getShowWindow());
 
     SciVisApp::renderSceneSettingsGuiPost();
 }
@@ -255,7 +255,7 @@ void MainApp::update(float dt) {
 
     moveCameraKeyboard(dt);
     if (sgl::Keyboard->isKeyDown(SDLK_u)) {
-        transferFunctionWindow.setShow(showSettingsWindow);
+        transferFunctionWindow.setShowWindow(showSettingsWindow);
     }
 
     if (io.WantCaptureMouse) {
@@ -288,14 +288,14 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
     }
 
     glm::mat4 transformationMatrix = sgl::matrixIdentity();
-    glm::mat4* transformationMatrixPtr = nullptr;
+    //glm::mat4* transformationMatrixPtr = nullptr;
     if (selectedDataSetInformation.hasCustomTransform) {
         transformationMatrix *= selectedDataSetInformation.transformMatrix;
-        transformationMatrixPtr = &transformationMatrix;
+        //transformationMatrixPtr = &transformationMatrix;
     }
     if (rotateModelBy90DegreeTurns != 0) {
         transformationMatrix *= glm::rotate(rotateModelBy90DegreeTurns * sgl::HALF_PI, modelRotationAxis);
-        transformationMatrixPtr = &transformationMatrix;
+        //transformationMatrixPtr = &transformationMatrix;
     }
 
     CloudDataPtr cloudData(new CloudData);

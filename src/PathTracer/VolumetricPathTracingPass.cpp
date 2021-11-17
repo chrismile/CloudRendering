@@ -86,11 +86,13 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
     blitPrimaryRayMomentTexturePass->setOutputImage(imageView);
     blitScatterRayMomentTexturePass->setOutputImage(imageView);
 
-    denoiser->setFeatureMap(
-            "color", std::make_shared<sgl::vk::Texture>(resultImageView, samplerSettings));
-    denoiser->setFeatureMap("position", firstXTexture);
-    denoiser->setFeatureMap("normal", firstWTexture);
-    denoiser->setOutputImage(denoisedImageView);
+    if (denoiser) {
+        denoiser->setFeatureMap(
+                "color", std::make_shared<sgl::vk::Texture>(resultImageView, samplerSettings));
+        denoiser->setFeatureMap("position", firstXTexture);
+        denoiser->setFeatureMap("normal", firstWTexture);
+        denoiser->setOutputImage(denoisedImageView);
+    }
 
     frameInfo.frameCount = 0;
     setDataDirty();
@@ -138,7 +140,7 @@ void VolumetricPathTracingPass::updateVptMode() {
         superVoxelGrid = std::make_shared<SuperVoxelGrid>(
                 device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
                 cloudData->getGridSizeZ(), cloudData->getDensityField(),
-                (CLOUD_EXTINCTION_BASE * CLOUD_EXTINCTION_SCALE).x, superVoxelSize);
+                (cloudExtinctionBase * cloudExtinctionScale).x, superVoxelSize);
     } else {
         superVoxelGrid = std::shared_ptr<SuperVoxelGrid>();
     }
@@ -196,19 +198,19 @@ void VolumetricPathTracingPass::createComputeData(
 }
 
 void VolumetricPathTracingPass::_render() {
-    uniformData.proj2world = glm::inverse(renderer->getProjectionMatrix() * renderer->getViewMatrix());
+    uniformData.inverseViewProjMatrix = glm::inverse(renderer->getProjectionMatrix() * renderer->getViewMatrix());
     VkExtent3D gridExtent = {
             cloudData->getGridSizeX(),
             cloudData->getGridSizeY(),
             cloudData->getGridSizeZ()
     };
     uint32_t maxDim = std::max(gridExtent.width, std::max(gridExtent.height, gridExtent.depth));
-    uniformData.box_maxim = glm::vec3(gridExtent.width, gridExtent.height, gridExtent.depth) * 0.25f / float(maxDim);
-    uniformData.box_minim = -uniformData.box_maxim;
-    uniformData.Extinction = CLOUD_EXTINCTION_BASE * CLOUD_EXTINCTION_SCALE;
-    uniformData.ScatteringAlbedo = CLOUD_SCATTERING_ALBEDO;
-    uniformData.SunDirection = SUNLIGHT_DIR;
-    uniformData.SunIntensity = SUNLIGHT_INTENSITY * SUNLIGHT_COLOR;
+    uniformData.boxMax = glm::vec3(gridExtent.width, gridExtent.height, gridExtent.depth) * 0.25f / float(maxDim);
+    uniformData.boxMin = -uniformData.boxMax;
+    uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
+    uniformData.scatteringAlbedo = cloudScatteringAlbedo;
+    uniformData.sunDirection = sunlightDirection;
+    uniformData.sunIntensity = sunlightIntensity * sunlightColor;
     if (superVoxelGrid) {
         uniformData.superVoxelSize = superVoxelGrid->getSuperVoxelSize();
         uniformData.superVoxelGridSize = superVoxelGrid->getSuperVoxelGridSize();
@@ -286,22 +288,22 @@ void VolumetricPathTracingPass::renderGui() {
         ImGui::SameLine();
         ImGui::SetNextItemWidth(220.0f);
         ImGui::InputInt("##targetNumSamples", &targetNumSamples);
-        if (ImGui::ColorEdit3("Sunlight Color", &SUNLIGHT_COLOR.x)) {
+        if (ImGui::ColorEdit3("Sunlight Color", &sunlightColor.x)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat("Sunlight Intensity", &SUNLIGHT_INTENSITY, 0.0f, 10.0f)) {
+        if (ImGui::SliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat3("Sunlight Direction", &SUNLIGHT_DIR.x, 0.0f, 1.0f)) {
+        if (ImGui::SliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat("Extinction Scale", &CLOUD_EXTINCTION_SCALE, 1.0f, 2048.0f)) {
+        if (ImGui::SliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat3("Extinction Base", &CLOUD_EXTINCTION_BASE.x, 0.01f, 1.0f)) {
+        if (ImGui::SliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
             optionChanged = true;
         }
-        if (ImGui::ColorEdit3("Scattering Albedo", &CLOUD_SCATTERING_ALBEDO.x)) {
+        if (ImGui::ColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
             optionChanged = true;
         }
         if (ImGui::SliderFloat("G", &uniformData.G, 0.0f, 1.0f)) {
@@ -361,13 +363,13 @@ void VolumetricPathTracingPass::renderGui() {
     }
 
     if (!reachedTarget) {
-        if (frameInfo.frameCount > targetNumSamples) {
+        if (int(frameInfo.frameCount) > targetNumSamples) {
             frameInfo.frameCount = 0;
         }
-        if (frameInfo.frameCount < targetNumSamples) {
+        if (int(frameInfo.frameCount) < targetNumSamples) {
             reRender = true;
         }
-        if (frameInfo.frameCount == targetNumSamples) {
+        if (int(frameInfo.frameCount) == targetNumSamples) {
             reachedTarget = true;
         }
     }
@@ -409,7 +411,7 @@ bool BlitMomentTexturePass::renderGui(bool& shallRecreateMomentTexture, bool& mo
     momentTypeChanged = false;
 
     std::string headerName = prefix;
-    if (ImGui::CollapsingHeader(headerName.c_str(), NULL, ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader(headerName.c_str(), nullptr, ImGuiTreeNodeFlags_DefaultOpen)) {
         std::string momentTypeName = "Moment Type## (" + prefix + ")";
         if (ImGui::Combo(
                 momentTypeName.c_str(), (int*)&momentType, MOMENT_TYPE_NAMES,

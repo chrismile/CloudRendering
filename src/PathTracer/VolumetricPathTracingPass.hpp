@@ -92,12 +92,12 @@ private:
     int targetNumSamples = 1024;
     bool reachedTarget = true;
 
-    glm::vec3 SUNLIGHT_COLOR = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
-    float SUNLIGHT_INTENSITY = 2.6f;
-    glm::vec3 SUNLIGHT_DIR = glm::normalize(glm::vec3(0.5826f, 0.7660f, 0.2717f));
-    float CLOUD_EXTINCTION_SCALE = 1024.0f;
-    glm::vec3 CLOUD_EXTINCTION_BASE = glm::vec3(1.0, 1.0, 1.0);
-    glm::vec3 CLOUD_SCATTERING_ALBEDO = glm::vec3(1.0, 1.0, 1.0);
+    glm::vec3 sunlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
+    float sunlightIntensity = 2.6f;
+    glm::vec3 sunlightDirection = glm::normalize(glm::vec3(0.5826f, 0.7660f, 0.2717f));
+    float cloudExtinctionScale = 1024.0f;
+    glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
+    glm::vec3 cloudScatteringAlbedo = glm::vec3(1.0, 1.0, 1.0);
 
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
@@ -107,16 +107,16 @@ private:
 
     // Uniform buffer object storing the camera settings.
     struct UniformData {
-        glm::mat4 proj2world;
+        glm::mat4 inverseViewProjMatrix;
 
         // Cloud properties
-        glm::vec3 box_minim; float pad0;
-        glm::vec3 box_maxim; float pad1;
-        glm::vec3 Extinction; float pad2;
-        glm::vec3 ScatteringAlbedo;
+        glm::vec3 boxMin; float pad0;
+        glm::vec3 boxMax; float pad1;
+        glm::vec3 extinction; float pad2;
+        glm::vec3 scatteringAlbedo;
         float G = 0.875f;
-        glm::vec3 SunDirection; float pad3;
-        glm::vec3 SunIntensity; float pad4;
+        glm::vec3 sunDirection; float pad3;
+        glm::vec3 sunIntensity; float pad4;
 
         // For residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad5;
@@ -150,8 +150,8 @@ public:
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage) override;
     void setVisualizeMomentTexture(bool visualizeMomentTexture);
-    inline MomentType getMomentType() const { return momentType; }
-    inline int getNumMoments() const { return numMoments; }
+    [[nodiscard]] inline MomentType getMomentType() const { return momentType; }
+    [[nodiscard]] inline int getNumMoments() const { return numMoments; }
     inline sgl::vk::TexturePtr getMomentTexture() { return momentTexture; }
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.

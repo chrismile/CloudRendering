@@ -33,20 +33,20 @@ layout (binding = 0, rgba32f) uniform image2D resultImage;
 layout (binding = 1) uniform sampler3D gridImage;
 
 layout (binding = 2) uniform Parameters {
-    // Transform from Projection space to world space
-    mat4 proj2world;
+    // Transform from normalized device coordinates to world space.
+    mat4 inverseViewProjMatrix;
 
-    // Cloud properties
-    vec3 box_minim;
-    vec3 box_maxim;
+    // Cloud properties.
+    vec3 boxMin;
+    vec3 boxMax;
 
     vec3 extinction;
     vec3 scatteringAlbedo;
     float phaseG;
 
-    // Sky properties
-    vec3 sun_direction;
-    vec3 sun_intensity;
+    // Sky properties.
+    vec3 sunDirection;
+    vec3 sunIntensity;
 
     // For residual ratio tracking.
     ivec3 superVoxelSize;
@@ -99,31 +99,31 @@ vec2 Multiply(vec2 LHS, vec2 RHS){
 
 
 // --- Constants
-const float pi = 3.14159265359;
-const float two_pi = 2*3.14159265359;
+const float PI = 3.14159265359;
+const float TWO_PI = 2*3.14159265359;
 
 //--- Random Number Generator (Hybrid Taus)
 
-uvec4 rng_state = uvec4(0);
-uint TausStep(uint z, int S1, int S2, int S3, uint M) { uint b = (((z << S1) ^ z) >> S2); return ((z & M) << S3) ^ b; }
-uint LCGStep(uint z, uint A, uint C) { return A * z + C; }
+uvec4 rngState = uvec4(0);
+uint tausStep(uint z, int S1, int S2, int S3, uint M) { uint b = (((z << S1) ^ z) >> S2); return ((z & M) << S3) ^ b; }
+uint lcgStep(uint z, uint A, uint C) { return A * z + C; }
 
-float random()
-{
-    rng_state.x = TausStep(rng_state.x, 13, 19, 12, 4294967294);
-    rng_state.y = TausStep(rng_state.y, 2, 25, 4, 4294967288);
-    rng_state.z = TausStep(rng_state.z, 3, 11, 17, 4294967280);
-    rng_state.w = LCGStep(rng_state.w, 1664525, 1013904223);
-    return 2.3283064365387e-10 * (rng_state.x ^ rng_state.y ^ rng_state.z ^ rng_state.w);
+float random() {
+    rngState.x = tausStep(rngState.x, 13, 19, 12, 4294967294);
+    rngState.y = tausStep(rngState.y, 2, 25, 4, 4294967288);
+    rngState.z = tausStep(rngState.z, 3, 11, 17, 4294967280);
+    rngState.w = lcgStep(rngState.w, 1664525, 1013904223);
+    return 2.3283064365387e-10 * (rngState.x ^ rngState.y ^ rngState.z ^ rngState.w);
 }
 
 void initializeRandom(uint seed) {
-    rng_state = uvec4(seed);
-    for (int i = 0; i < seed % 7 + 2; i++)
-    random();
+    rngState = uvec4(seed);
+    for (int i = 0; i < seed % 7 + 2; i++) {
+        random();
+    }
 }
 
-void CreateOrthonormalBasis(vec3 D, out vec3 B, out vec3 T) {
+void createOrthonormalBasis(vec3 D, out vec3 B, out vec3 T) {
     vec3 other = abs(D.z) >= 0.9999 ? vec3(1, 0, 0) : vec3(0, 0, 1);
     B = normalize(cross(other, D));
     T = normalize(cross(D, B));
@@ -133,54 +133,52 @@ vec3 randomDirection(vec3 D) {
     float r1 = random();
     float r2 = random() * 2 - 1;
     float sqrR2 = r2 * r2;
-    float two_pi_by_r1 = two_pi * r1;
+    float two_pi_by_r1 = TWO_PI * r1;
     float sqrt_of_one_minus_sqrR2 = sqrt(1.0 - sqrR2);
     float x = cos(two_pi_by_r1) * sqrt_of_one_minus_sqrR2;
     float y = sin(two_pi_by_r1) * sqrt_of_one_minus_sqrR2;
     float z = r2;
 
     vec3 t0, t1;
-    CreateOrthonormalBasis(D, t0, t1);
+    createOrthonormalBasis(D, t0, t1);
 
     return t0 * x + t1 * y + D * z;
 }
 
 //--- Scattering functions
 
-#define one_minus_g2 (1.0 - (GFactor) * (GFactor))
-#define one_plus_g2 (1.0 + (GFactor) * (GFactor))
-#define one_over_2g (0.5 / (GFactor))
+#define oneMinusG2 (1.0 - (GFactor) * (GFactor))
+#define onePlusG2 (1.0 + (GFactor) * (GFactor))
+#define oneOver2G (0.5 / (GFactor))
 
 float invertcdf(float GFactor, float xi) {
-    float t = (one_minus_g2) / (1.0f - GFactor + 2.0f * GFactor * xi);
-    return one_over_2g * (one_plus_g2 - t * t);
+    float t = (oneMinusG2) / (1.0f - GFactor + 2.0f * GFactor * xi);
+    return oneOver2G * (onePlusG2 - t * t);
 }
 
-vec3 ImportanceSamplePhase(float GFactor, vec3 D, out float pdf) {
+vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
     if (abs(GFactor) < 0.001) {
-        pdf = 1.0 / (4 * pi);
+        pdf = 1.0 / (4 * PI);
         return randomDirection(-D);
     }
 
-    float phi = random() * 2 * pi;
+    float phi = random() * 2 * PI;
     float cosTheta = invertcdf(GFactor, random());
     float sinTheta = sqrt(max(0, 1.0f - cosTheta * cosTheta));
 
     vec3 t0, t1;
-    CreateOrthonormalBasis(D, t0, t1);
+    createOrthonormalBasis(D, t0, t1);
 
-    pdf = 0.25 / pi * (one_minus_g2) / pow(one_plus_g2 - 2 * GFactor * cosTheta, 1.5);
+    pdf = 0.25 / PI * (oneMinusG2) / pow(onePlusG2 - 2 * GFactor * cosTheta, 1.5);
 
-    return sinTheta * sin(phi) * t0 + sinTheta * cos(phi) * t1 +
-    cosTheta * D;
+    return sinTheta * sin(phi) * t0 + sinTheta * cos(phi) * t1 + cosTheta * D;
 }
 
 
 
 //--- Tools
 
-vec3 sampleSkybox(in vec3 dir)
-{
+vec3 sampleSkybox(in vec3 dir) {
     vec3 L = dir;
 
     vec3 BG_COLORS[5] = {
@@ -208,37 +206,34 @@ vec3 sampleSkybox(in vec3 dir)
     return col;
 }
 
-vec3 sampleLight(in vec3 dir){
+vec3 sampleLight(in vec3 dir) {
     int N = 10;
     float phongNorm = (N + 2) / (2 * 3.14159);
-    return parameters.sun_intensity * pow(max(0, dot(dir, parameters.sun_direction)), N) * phongNorm;
+    return parameters.sunIntensity * pow(max(0, dot(dir, parameters.sunDirection)), N) * phongNorm;
 }
 
-float sampleCloud(in vec3 pos)
-{
+float sampleCloud(in vec3 pos) {
     ivec3 dim = textureSize(gridImage, 0);
-    vec3 coord = (pos - parameters.box_minim)/(parameters.box_maxim - parameters.box_minim);
+    vec3 coord = (pos - parameters.boxMin)/(parameters.boxMax - parameters.boxMin);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5)/ dim;
     return texture(gridImage, coord).x;
 }
 
-void createCameraRay(in vec2 coord, out vec3 x, out vec3 w)
-{
+void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {
     vec4 ndcP = vec4(coord, 0, 1);
     vec4 ndcT = ndcP + vec4(0, 0, 1, 0);
 
-    vec4 viewP = parameters.proj2world * ndcP;
+    vec4 viewP = parameters.inverseViewProjMatrix * ndcP;
     viewP.xyz /= viewP.w;
-    vec4 viewT = parameters.proj2world * ndcT;
+    vec4 viewT = parameters.inverseViewProjMatrix * ndcT;
     viewT.xyz /= viewT.w;
 
     x = viewP.xyz;
     w = normalize(viewT.xyz - viewP.xyz);
 }
 
-bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out float tMax)
-{
-    // un-parallelize D
+bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out float tMax) {
+    // Un-parallelize D.
     D.x = abs(D).x <= 0.000001 ? 0.000001 : D.x;
     D.y = abs(D).y <= 0.000001 ? 0.000001 : D.y;
     D.z = abs(D).z <= 0.000001 ? 0.000001 : D.z;
@@ -255,14 +250,12 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
 
 //--- Volume Pathtracer
 
-float maxComponent(vec3 v)
-{
+float maxComponent(vec3 v) {
     return max(v.x, max(v.y, v.z));
 }
 
-// Pathtracing with Delta tracking and Spectral tracking
-vec3 PathtraceSpectral(vec3 x, vec3 w)
-{
+// Pathtracing with Delta tracking and Spectral tracking.
+vec3 pathtraceSpectral(vec3 x, vec3 w) {
     float majorant = maxComponent(parameters.extinction);
 
     vec3 weights = vec3(1,1,1);
@@ -273,15 +266,16 @@ vec3 PathtraceSpectral(vec3 x, vec3 w)
     float PS = maxComponent (scatteringAlbedo * parameters.extinction);
 
     float tMin, tMax;
-    if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
+    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax))
     {
         x += w * tMin;
         float d = tMax - tMin;
         while (true) {
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
 
-            if (t > d)
-            break;
+            if (t > d) {
+                break;
+            }
 
             x += w * t;
 
@@ -307,22 +301,20 @@ vec3 PathtraceSpectral(vec3 x, vec3 w)
             if (xi < 1 - Pn) // scattering event
             {
                 float pdf_w;
-                w = ImportanceSamplePhase(parameters.phaseG, w, pdf_w);
-                if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
-                {
+                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
                     d = tMax - tMin;
                 }
                 weights *= sigma_s / (majorant * Ps);
-            }
-            else {
+            } else {
                 d -= t;
                 weights *= sigma_n / (majorant * Pn);
             }
         }
     }
 
-    return min(weights, vec3(100000,100000,100000)) * ( sampleSkybox(w) + sampleLight(w) );
+    return min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
 }
 
 struct ScatterEvent
@@ -332,8 +324,8 @@ struct ScatterEvent
     vec3 w; float pdf_w;
 };
 
-vec3 Pathtrace(
-        vec3 x, vec3 w, out ScatterEvent first_event
+vec3 pathtrace(
+        vec3 x, vec3 w, out ScatterEvent firstEvent
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
         , out float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1]
 #endif
@@ -345,7 +337,7 @@ vec3 Pathtrace(
     float depth = 0.0f;
 #endif
 
-    first_event = ScatterEvent( false, x, 0.0f, w, 0.0f );
+    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
@@ -354,8 +346,7 @@ vec3 Pathtrace(
     float PS = scatteringAlbedo * parameters.extinction.x;
 
     float tMin, tMax;
-    if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
-    {
+    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
         //depth += tMin;
@@ -407,45 +398,44 @@ vec3 Pathtrace(
             float sigma_s = PS * density;
             float sigma_n = majorant - parameters.extinction.x * density;
 
-            float Pa = sigma_a/majorant;
-            float Ps = sigma_s/majorant;
-            float Pn = sigma_n/majorant;
+            float Pa = sigma_a / majorant;
+            float Ps = sigma_s / majorant;
+            float Pn = sigma_n / majorant;
 
             float xi = random();
 
-            if (xi < Pa)
-            return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+            if (xi < Pa) {
+                return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+            }
 
             if (xi < 1 - Pn) // scattering event
             {
                 float pdf_w;
-                w = ImportanceSamplePhase(parameters.phaseG, w, pdf_w);
+                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
-                if (!first_event.hasValue) {
-                    first_event.x = x;
-                    first_event.pdf_x = sigma_s * pdf_x;
-                    first_event.w = w;
-                    first_event.pdf_w = pdf_w;
-                    first_event.hasValue = true;
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = sigma_s * pdf_x;
+                    firstEvent.w = w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
                 }
 
-                if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
-                {
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
                     depth += tMin;
 #endif
                     d = tMax - tMin;
                 }
-            }
-            else {
+            } else {
                 pdf_x *= exp(-parameters.extinction.x * density);
                 d -= t;
             }
         }
     }
 
-    return ( sampleSkybox(w) + sampleLight(w) );
+    return (sampleSkybox(w) + sampleLight(w));
 }
 
 
@@ -454,10 +444,10 @@ vec3 Pathtrace(
 //---------------------------------------------------------
 
 #ifdef USE_RESIDUAL_RATIO_TRACKING
-float ResidualRatioTrackingEstimator(vec3 x, vec3 w, float d)
+float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
 {
     ivec3 voxelGridSize = textureSize(gridImage, 0);
-    vec3 box_delta = parameters.box_maxim - parameters.box_minim;
+    vec3 box_delta = parameters.boxMax - parameters.boxMin;
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
@@ -466,8 +456,8 @@ float ResidualRatioTrackingEstimator(vec3 x, vec3 w, float d)
     float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
     ivec3 superVoxelIndex;
 
-    vec3 startPoint = (x - parameters.box_minim) / box_delta * voxelGridSize / parameters.superVoxelSize;
-    vec3 endPoint = (x + w * d - parameters.box_minim) / box_delta * voxelGridSize / parameters.superVoxelSize;
+    vec3 startPoint = (x - parameters.boxMin) / box_delta * voxelGridSize / parameters.superVoxelSize;
+    vec3 endPoint = (x + w * d - parameters.boxMin) / box_delta * voxelGridSize / parameters.superVoxelSize;
 
     int stepX = int(sign(endPoint.x - startPoint.x));
     if (stepX != 0)
@@ -510,7 +500,7 @@ float ResidualRatioTrackingEstimator(vec3 x, vec3 w, float d)
     //return 0.6 + sign(endPoint.z - startPoint.z) * 0.3;
     //return float(d * 1000.0);
     //return startPoint.x / float(parameters.superVoxelGridSize.x - 1.0);
-    //return (x.x - parameters.box_minim.x) / box_delta.x;
+    //return (x.x - parameters.boxMin.x) / box_delta.x;
     ivec3 step = ivec3(stepX, stepY, stepZ);
     vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
     vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
@@ -529,8 +519,8 @@ float ResidualRatioTrackingEstimator(vec3 x, vec3 w, float d)
 
         vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
         vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
-        minVoxelPos = minVoxelPos / voxelGridSize * box_delta + parameters.box_minim;
-        maxVoxelPos = maxVoxelPos / voxelGridSize * box_delta + parameters.box_minim;
+        minVoxelPos = minVoxelPos / voxelGridSize * box_delta + parameters.boxMin;
+        maxVoxelPos = maxVoxelPos / voxelGridSize * box_delta + parameters.boxMin;
         float tMinVoxel = 0.0, tMaxVoxel = 0.0;
         rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
         // TODO: Why abs necessary?
@@ -575,8 +565,8 @@ float ResidualRatioTrackingEstimator(vec3 x, vec3 w, float d)
     return T_c * T_r;
 }
 
-vec3 ResidualRatioTracking(vec3 x, vec3 w, out ScatterEvent first_event) {
-    first_event = ScatterEvent( false, x, 0.0f, w, 0.0f );
+vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
@@ -588,7 +578,7 @@ vec3 ResidualRatioTracking(vec3 x, vec3 w, out ScatterEvent first_event) {
 
     const vec3 EPSILON_VEC = vec3(1e-6);
     float tMinVal, tMaxVal;
-    if (rayBoxIntersect(parameters.box_minim + EPSILON_VEC, parameters.box_maxim - EPSILON_VEC, x, w, tMinVal, tMaxVal))
+    if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal))
     {
         x += w * tMinVal;
         float d = tMaxVal - tMinVal;
@@ -598,7 +588,7 @@ vec3 ResidualRatioTracking(vec3 x, vec3 w, out ScatterEvent first_event) {
         while (true) {
             float t = -log(max(0.0000000001, 1 - random())) / majorant;
 
-            T *= ResidualRatioTrackingEstimator(x, w, t);
+            T *= residualRatioTrackingEstimator(x, w, t);
             //return vec3(T);
 
             if (t > d)
@@ -610,31 +600,30 @@ vec3 ResidualRatioTracking(vec3 x, vec3 w, out ScatterEvent first_event) {
             float sigma_s = PS * density;
             float sigma_n = majorant - parameters.extinction.x * density;
 
-            float Ps = sigma_s/majorant;
-            float Pn = sigma_n/majorant;
+            float Ps = sigma_s / majorant;
+            float Pn = sigma_n / majorant;
 
             float xi = random();
 
             if (xi < 1 - Pn) // scattering event
             {
                 float pdf_w;
-                w = ImportanceSamplePhase(parameters.phaseG, w, pdf_w);
+                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
-                if (!first_event.hasValue) {
-                    first_event.x = x;
-                    first_event.pdf_x = sigma_s * pdf_x;
-                    first_event.w = w;
-                    first_event.pdf_w = pdf_w;
-                    first_event.hasValue = true;
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = sigma_s * pdf_x;
+                    firstEvent.w = w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
                 }
 
-                if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMinVal, tMaxVal))
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMinVal, tMaxVal))
                 {
                     x += w * tMinVal;
                     d = tMaxVal - tMinVal;
                 }
-            }
-            else {
+            } else {
                 pdf_x *= exp(-parameters.extinction.x * density);
                 d -= t;
             }
@@ -670,7 +659,7 @@ void computePrimaryRayAbsorptionMoments(
     float PS = scatteringAlbedo * parameters.extinction.x;
 
     float tMin, tMax;
-    if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
+    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax))
     {
         x += w * tMin;
         //depth += tMin;
@@ -718,9 +707,9 @@ void computePrimaryRayAbsorptionMoments(
             float sigma_s = PS * density;
             float sigma_n = majorant - parameters.extinction.x * density;
 
-            float Pa = sigma_a/majorant;
-            float Ps = sigma_s/majorant;
-            float Pn = sigma_n/majorant;
+            float Pa = sigma_a / majorant;
+            float Ps = sigma_s / majorant;
+            float Pn = sigma_n / majorant;
 
             float xi = random();
 
@@ -729,14 +718,13 @@ void computePrimaryRayAbsorptionMoments(
 
             if (xi < 1 - Pn) // scattering event
             {
-                if (rayBoxIntersect(parameters.box_minim, parameters.box_maxim, x, w, tMin, tMax))
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax))
                 {
                     x += w*tMin;
                     depth += tMin;
                     d = tMax - tMin;
                 }
-            }
-            else {
+            } else {
                 pdf_x *= exp(-parameters.extinction.x * density);
                 d -= t;
             }
@@ -770,19 +758,19 @@ void main()
 #endif
 
 #if defined(USE_DELTA_TRACKING)
-    ScatterEvent first_event;
-    vec3 result = Pathtrace(
-            x, w, first_event
+    ScatterEvent firstEvent;
+    vec3 result = pathtrace(
+            x, w, firstEvent
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
             , scatterRayAbsorptionMoments
 #endif
     );
 #elif defined(USE_SPECTRAL_DELTA_TRACKING)
-    ScatterEvent first_event = ScatterEvent( false, x, 0.0f, w, 0.0f );
-    vec3 result = PathtraceSpectral(x, w);
+    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+    vec3 result = pathtraceSpectral(x, w);
 #elif defined(USE_RESIDUAL_RATIO_TRACKING)
-    ScatterEvent first_event;
-    vec3 result = ResidualRatioTracking(x, w, first_event);
+    ScatterEvent firstEvent;
+    vec3 result = residualRatioTracking(x, w, firstEvent);
 #endif
 
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
@@ -808,13 +796,10 @@ void main()
     // return; Uncomment this if want to execute faster a while(true) loop PT
 
     // Saving the first scatter position and direction
-    if (first_event.hasValue)
-    {
-        imageStore(firstX, imageCoord, vec4(first_event.x, first_event.pdf_x));
-        imageStore(firstW, imageCoord, vec4(first_event.w, first_event.pdf_w));
-    }
-    else
-    {
+    if (firstEvent.hasValue) {
+        imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
+        imageStore(firstW, imageCoord, vec4(firstEvent.w, firstEvent.pdf_w));
+    } else {
         imageStore(firstX, imageCoord, vec4(0));
         imageStore(firstW, imageCoord, vec4(0));
     }

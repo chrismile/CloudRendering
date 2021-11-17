@@ -35,6 +35,13 @@
 
 class EAWBlitPass;
 
+/**
+ * An image denoiser based on the following paper.
+ *
+ * H. Dammertz, D. Sewtz, J. Hanika, and H. P. A. Lensch. Edge-avoiding À-trous wavelet transform for fast global
+ * illumination filtering. In Proceedings of the Conference on High Performance Graphics, HPG '10, page 67-75,
+ * Goslar, DEU, 2010. Eurographics Association.
+ */
 class EAWDenoiser : public Denoiser {
 public:
     explicit EAWDenoiser(sgl::vk::Renderer* renderer);
@@ -81,7 +88,7 @@ private:
     sgl::vk::TexturePtr positionTexture;
     sgl::vk::TexturePtr normalTexture;
 
-    int maxNumIterations = 4;
+    int maxNumIterations = 0;
     sgl::vk::TexturePtr pingPongRenderTextures[2];
     sgl::vk::FramebufferPtr framebuffersPingPong[3];
     sgl::vk::RasterDataPtr rasterDataPingPong[4];
@@ -99,12 +106,11 @@ private:
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;
 
-    float kernel[25];
+    float kernel[25]{};
     sgl::vk::BufferPtr kernelBuffer;
 
-    glm::vec2 offset[25];
+    glm::vec2 offset[25]{};
     sgl::vk::BufferPtr offsetBuffer;
-
 };
 
 #endif //CLOUDRENDERING_EAWDENOISER_HPP

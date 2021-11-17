@@ -95,7 +95,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
 #if _OPENMP >= 201107
     #pragma omp parallel for default(none) shared(densityField, totalSize) reduction(min: minVal) reduction(max: maxVal)
 #endif
-    for (int i = 0; i < totalSize; i++) {
+    for (size_t i = 0; i < totalSize; i++) {
         float val = densityField[i];
         minVal = std::min(minVal, val);
         maxVal = std::max(maxVal, val);
@@ -104,7 +104,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
 #if _OPENMP >= 201107
     #pragma omp parallel for default(none) shared(densityField, totalSize, minVal, maxVal)
 #endif
-    for (int i = 0; i < totalSize; i++) {
+    for (size_t i = 0; i < totalSize; i++) {
         densityField[i] = (densityField[i] - minVal) / (maxVal - minVal);
     }
 

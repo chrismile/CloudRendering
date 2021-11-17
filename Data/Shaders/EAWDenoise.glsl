@@ -16,7 +16,16 @@ void main() {
 #version 450
 #extension GL_EXT_scalar_block_layout : require
 
-// https://www.highperformancegraphics.org/previous/www_2010/media/RayTracing_I/HPG2010_RayTracing_I_Dammertz.pdf
+/**
+ * An image denoiser based on the following paper.
+ *
+ * H. Dammertz, D. Sewtz, J. Hanika, and H. P. A. Lensch. Edge-avoiding À-trous wavelet transform for fast global
+ * illumination filtering. In Proceedings of the Conference on High Performance Graphics, HPG '10, page 67-75,
+ * Goslar, DEU, 2010. Eurographics Association.
+ *
+ * For more details, please also refer to:
+ * https://www.highperformancegraphics.org/previous/www_2010/media/RayTracing_I/HPG2010_RayTracing_I_Dammertz.pdf
+ */
 
 layout(push_constant) uniform PushConstants {
     float stepWidth;

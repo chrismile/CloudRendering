@@ -37,11 +37,11 @@ public:
     ~CloudData();
     bool loadFromFile(const std::string& filename);
 
-    inline const std::string& getFileName() const { return gridFilename; }
-    inline float* getDensityField() const { return densityField; }
-    inline uint32_t getGridSizeX() const { return gridSizeX; }
-    inline uint32_t getGridSizeY() const { return gridSizeY; }
-    inline uint32_t getGridSizeZ() const { return gridSizeZ; }
+    [[nodiscard]] inline const std::string& getFileName() const { return gridFilename; }
+    [[nodiscard]] inline float* getDensityField() const { return densityField; }
+    [[nodiscard]] inline uint32_t getGridSizeX() const { return gridSizeX; }
+    [[nodiscard]] inline uint32_t getGridSizeY() const { return gridSizeY; }
+    [[nodiscard]] inline uint32_t getGridSizeZ() const { return gridSizeZ; }
 
     void setClearColor(const sgl::Color& clearColor) {}
     void setUseLinearRGB(bool useLinearRGB) {}
