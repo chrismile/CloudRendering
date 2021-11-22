@@ -440,6 +440,82 @@ vec3 pathtrace(
 
 
 //---------------------------------------------------------
+// Ratio tracking
+//---------------------------------------------------------
+
+#ifdef USE_RATIO_TRACKING
+vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+
+    float majorant = parameters.extinction.x;
+    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
+    float scatteringAlbedo = parameters.scatteringAlbedo.x;
+    float PA = absorptionAlbedo * parameters.extinction.x;
+    float PS = scatteringAlbedo * parameters.extinction.x;
+
+    float transmittance = 1.0;
+
+    float tMin, tMax;
+    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+        x += w * tMin;
+        float d = tMax - tMin;
+        float pdf_x = 1;
+
+        while (true) {
+            float t = -log(max(0.0000000001, 1 - random()))/majorant;
+
+            if (t > d)
+                break;
+
+            x += w * t;
+
+            float density = sampleCloud(x);
+
+            float sigma_a = PA * density;
+            float sigma_s = PS * density;
+            float sigma_n = majorant - parameters.extinction.x * density;
+
+            float Pa = sigma_a / majorant;
+            float Ps = sigma_s / majorant;
+            float Pn = sigma_n / majorant;
+
+            float xi = random();
+
+            transmittance *= 1.0 - Pa;
+            //if (xi < Pa) {
+            //    return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+            //}
+
+            if (xi < 1 - Pn) // scattering event
+            {
+                float pdf_w;
+                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = sigma_s * pdf_x;
+                    firstEvent.w = w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
+                }
+
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                    x += w*tMin;
+                    d = tMax - tMin;
+                }
+            } else {
+                pdf_x *= exp(-parameters.extinction.x * density);
+                d -= t;
+            }
+        }
+    }
+
+    return transmittance * (sampleSkybox(w) + sampleLight(w));
+}
+#endif
+
+
+//---------------------------------------------------------
 // Residual ratio tracking
 //---------------------------------------------------------
 
@@ -768,6 +844,9 @@ void main()
 #elif defined(USE_SPECTRAL_DELTA_TRACKING)
     ScatterEvent firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
     vec3 result = pathtraceSpectral(x, w);
+#elif defined(USE_RATIO_TRACKING)
+    ScatterEvent firstEvent;
+    vec3 result = ratioTracking(x, w, firstEvent);
 #elif defined(USE_RESIDUAL_RATIO_TRACKING)
     ScatterEvent firstEvent;
     vec3 result = residualRatioTracking(x, w, firstEvent);

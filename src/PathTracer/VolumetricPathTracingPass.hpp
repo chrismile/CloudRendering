@@ -73,12 +73,12 @@ private:
 
     void updateVptMode();
     enum class VptMode {
-        DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RESIDUAL_RATIO_TRACKING
+        DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, RESIDUAL_RATIO_TRACKING
     };
-    const char* const VPT_MODE_NAMES[3] = {
-            "Delta Tracking", "Delta Tracking (Spectral)", "Residual Ratio Tracking"
+    const char* const VPT_MODE_NAMES[4] = {
+            "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking", "Residual Ratio Tracking"
     };
-    VptMode vptMode = VptMode::RESIDUAL_RATIO_TRACKING;
+    VptMode vptMode = VptMode::RATIO_TRACKING;
     std::shared_ptr<SuperVoxelGrid> superVoxelGrid;
     int superVoxelSize = 8;
 

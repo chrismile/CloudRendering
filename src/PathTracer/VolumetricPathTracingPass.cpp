@@ -166,7 +166,9 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_DELTA_TRACKING", "" });
     } else if (vptMode == VptMode::SPECTRAL_DELTA_TRACKING) {
         customPreprocessorDefines.insert({ "USE_SPECTRAL_DELTA_TRACKING", "" });
-    } else if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
+    } else if (vptMode == VptMode::RATIO_TRACKING) {
+    customPreprocessorDefines.insert({ "USE_RATIO_TRACKING", "" });
+} else if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
         customPreprocessorDefines.insert({ "USE_RESIDUAL_RATIO_TRACKING", "" });
     }
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
