@@ -523,7 +523,7 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
 {
     ivec3 voxelGridSize = textureSize(gridImage, 0);
-    vec3 box_delta = parameters.boxMax - parameters.boxMin;
+    vec3 boxDelta = parameters.boxMax - parameters.boxMin;
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
@@ -532,8 +532,8 @@ float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
     float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
     ivec3 superVoxelIndex;
 
-    vec3 startPoint = (x - parameters.boxMin) / box_delta * voxelGridSize / parameters.superVoxelSize;
-    vec3 endPoint = (x + w * d - parameters.boxMin) / box_delta * voxelGridSize / parameters.superVoxelSize;
+    vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+    vec3 endPoint = (x + w * d - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
 
     int stepX = int(sign(endPoint.x - startPoint.x));
     if (stepX != 0)
@@ -576,7 +576,7 @@ float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
     //return 0.6 + sign(endPoint.z - startPoint.z) * 0.3;
     //return float(d * 1000.0);
     //return startPoint.x / float(parameters.superVoxelGridSize.x - 1.0);
-    //return (x.x - parameters.boxMin.x) / box_delta.x;
+    //return (x.x - parameters.boxMin.x) / boxDelta.x;
     ivec3 step = ivec3(stepX, stepY, stepZ);
     vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
     vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
@@ -595,8 +595,8 @@ float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
 
         vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
         vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
-        minVoxelPos = minVoxelPos / voxelGridSize * box_delta + parameters.boxMin;
-        maxVoxelPos = maxVoxelPos / voxelGridSize * box_delta + parameters.boxMin;
+        minVoxelPos = minVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
+        maxVoxelPos = maxVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
         float tMinVoxel = 0.0, tMaxVoxel = 0.0;
         rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
         // TODO: Why abs necessary?
@@ -605,18 +605,19 @@ float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
         d = d - dVoxel;
 
         float t = 0.0;
-        T_c *= exp(-mu_c * dVoxel);
+        T_c *= exp(-absorptionAlbedo * mu_c * dVoxel);
 
         do {
             float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
+            //float t = -log(clamp(1 - random(), 0.0000000001, 0.1)) / mu_r_bar;
             x += w * t;
 
             if (t >= dVoxel)
             break;
 
             float density = sampleCloud(x);
-            float mu = PA * density;
-            T_r *= (1.0 - (mu - mu_c) / mu_r_bar);
+            float mu = parameters.extinction.x * density;
+            T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
         } while(true);
 
         if (tMaxX < tMaxY) {

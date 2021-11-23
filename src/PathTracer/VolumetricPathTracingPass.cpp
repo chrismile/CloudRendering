@@ -139,8 +139,8 @@ void VolumetricPathTracingPass::updateVptMode() {
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING && cloudData) {
         superVoxelGrid = std::make_shared<SuperVoxelGrid>(
                 device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
-                cloudData->getGridSizeZ(), cloudData->getDensityField(),
-                (cloudExtinctionBase * cloudExtinctionScale).x, superVoxelSize);
+                cloudData->getGridSizeZ(), cloudData->getDensityField(), superVoxelSize);
+        superVoxelGrid->setExtinction((cloudExtinctionBase * cloudExtinctionScale).x);
     } else {
         superVoxelGrid = std::shared_ptr<SuperVoxelGrid>();
     }

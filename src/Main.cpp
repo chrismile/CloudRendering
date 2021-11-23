@@ -73,13 +73,13 @@ int main(int argc, char *argv[]) {
     device->createDeviceSwapchain(
             instance, window,
             {
-                    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-                    VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-                    VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-                    VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
-                    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-                    VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-                    VK_KHR_RAY_QUERY_EXTENSION_NAME,
+                    //VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+                    //VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+                    //VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+                    //VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME,
+                    //VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+                    //VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+                    //VK_KHR_RAY_QUERY_EXTENSION_NAME,
                     VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME
             },
             {});
