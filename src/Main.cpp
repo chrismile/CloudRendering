@@ -68,6 +68,11 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->setRenderSystem(sgl::RenderSystem::VULKAN);
     sgl::Window* window = sgl::AppSettings::get()->createWindow();
 
+    std::vector<const char*> optionalDeviceExtensions;
+#ifdef SUPPORT_OPTIX
+    optionalDeviceExtensions = sgl::vk::Device::getCudaInteropDeviceExtensions();
+#endif
+
     sgl::vk::Instance* instance = sgl::AppSettings::get()->getVulkanInstance();
     sgl::vk::Device* device = new sgl::vk::Device;
     device->createDeviceSwapchain(
@@ -82,7 +87,7 @@ int main(int argc, char *argv[]) {
                     //VK_KHR_RAY_QUERY_EXTENSION_NAME,
                     VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME
             },
-            {});
+            optionalDeviceExtensions);
     sgl::vk::Swapchain* swapchain = new sgl::vk::Swapchain(device);
     swapchain->create(window);
     sgl::AppSettings::get()->setPrimaryDevice(device);

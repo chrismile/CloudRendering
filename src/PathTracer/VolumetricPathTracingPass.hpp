@@ -82,7 +82,10 @@ private:
     std::shared_ptr<SuperVoxelGrid> superVoxelGrid;
     int superVoxelSize = 8;
 
+    uint32_t lastViewportWidth = 0, lastViewportHeight = 0;
+
     sgl::vk::ImageViewPtr resultImageView;
+    sgl::vk::TexturePtr resultImageTexture;
     sgl::vk::ImageViewPtr denoisedImageView;
     sgl::vk::TexturePtr densityFieldTexture;
     sgl::vk::TexturePtr accImageTexture;
@@ -102,6 +105,9 @@ private:
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
 
+    void createDenoiser();
+    void setDenoiserFeatureMaps();
+    DenoiserType denoiserType = DenoiserType::EAW;
     bool useDenoiser = true;
     std::shared_ptr<Denoiser> denoiser;
 

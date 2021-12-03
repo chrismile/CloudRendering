@@ -55,15 +55,14 @@ public:
             const float* voxelGridData, int superVoxelSize1D);
     ~SuperVoxelGrid();
 
-    inline const glm::ivec3& getSuperVoxelSize() const { return superVoxelSize; }
-    inline glm::ivec3 getSuperVoxelGridSize() const {
+    [[nodiscard]] inline const glm::ivec3& getSuperVoxelSize() const { return superVoxelSize; }
+    [[nodiscard]] inline glm::ivec3 getSuperVoxelGridSize() const {
         return {superVoxelGridSizeX, superVoxelGridSizeY, superVoxelGridSizeZ};
     }
     inline const sgl::vk::TexturePtr& getSuperVoxelGridTexture() { return superVoxelGridTexture; }
     inline const sgl::vk::TexturePtr& getSuperVoxelGridEmptyTexture() { return superVoxelGridEmptyTexture; }
 
     void setExtinction(float extinction);
-    void setScatteringAlbedo(float scatteringAlbedo);
     void recomputeSuperVoxels();
 
 private:

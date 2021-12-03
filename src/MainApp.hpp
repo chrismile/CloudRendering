@@ -87,6 +87,8 @@ private:
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;
 
+    bool optixInitialized = false;
+
 
     /// --- Visualization pipeline ---
 

@@ -45,6 +45,7 @@ class EAWBlitPass;
 class EAWDenoiser : public Denoiser {
 public:
     explicit EAWDenoiser(sgl::vk::Renderer* renderer);
+    DenoiserType getDenoiserType() override { return DenoiserType::EAW; }
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
     void setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) override;
     void denoise() override;

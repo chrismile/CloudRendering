@@ -55,6 +55,7 @@
 #include <ImGui/imgui_custom.h>
 #include <ImGui/imgui_stdlib.h>
 
+#include "Denoiser/OptixVptDenoiser.hpp"
 #include "MainApp.hpp"
 
 void vulkanErrorCallback() {
@@ -66,6 +67,10 @@ MainApp::MainApp()
                 sceneFramebuffer, sceneTexture, sceneDepthRBO, camera, clearColor,
                 screenshotTransparentBackground, recording, useCameraFlight) {
     sgl::AppSettings::get()->getVulkanInstance()->setDebugCallback(&vulkanErrorCallback);
+
+#ifdef SUPPORT_OPTIX
+    optixInitialized = OptixVptDenoiser::initGlobal();
+#endif
 
     checkpointWindow.setStandardWindowSize(1254, 390);
     checkpointWindow.setStandardWindowPosition(841, 53);
@@ -111,6 +116,14 @@ MainApp::MainApp()
 
 MainApp::~MainApp() {
     device->waitIdle();
+
+    volumetricPathTracingPass = {};
+
+#ifdef SUPPORT_OPTIX
+    if (optixInitialized) {
+        OptixVptDenoiser::freeGlobal();
+    }
+#endif
 }
 
 void MainApp::resolutionChanged(sgl::EventPtr event) {
