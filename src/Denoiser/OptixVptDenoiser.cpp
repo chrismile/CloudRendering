@@ -347,6 +347,7 @@ bool OptixVptDenoiser::renderGui() {
                     inputImageVulkan->getImage()->getImageSettings().height);
         }
     }
+    ImGui::End();
 
     return reRender;
 }

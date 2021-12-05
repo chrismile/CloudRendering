@@ -68,10 +68,17 @@ if (NOT ${SUPPORT_OPTIX})
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp)
 endif()
 
+
 if(WIN32)
     add_executable(CloudRendering WIN32 ${SOURCES})
 else()
     add_executable(CloudRendering ${SOURCES})
+endif()
+
+
+if(MSVC)
+    #target_compile_definitions(CloudRendering PRIVATE /wd4251)
+    set_target_properties(CloudRendering PROPERTIES COMPILE_FLAGS "/wd4251")
 endif()
 
 if (${SUPPORT_OPTIX})
