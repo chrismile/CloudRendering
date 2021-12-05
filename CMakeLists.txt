@@ -86,6 +86,11 @@ if (${SUPPORT_OPTIX})
     endif()
 endif()
 
+find_package(Vulkan REQUIRED)
+if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.21.0")
+    target_link_libraries(CloudRendering PUBLIC Vulkan::Headers)
+endif()
+
 if((${CMAKE_GENERATOR} STREQUAL "MinGW Makefiles") OR (${CMAKE_GENERATOR} STREQUAL "MSYS Makefiles"))
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mwindows")
     target_link_libraries(CloudRendering PUBLIC mingw32)
