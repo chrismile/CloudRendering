@@ -26,9 +26,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <optix_stubs.h>
-#include <optix_function_table_definition.h>
-
 #include <Utils/File/Logfile.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
@@ -40,6 +37,9 @@
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 #endif
+
+#include <optix_stubs.h>
+#include <optix_function_table_definition.h>
 
 static void _checkOptixResult(OptixResult result, const std::string& text, const std::string& locationText) {
     if (result != OPTIX_SUCCESS) {
