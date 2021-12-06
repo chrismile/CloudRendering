@@ -85,7 +85,8 @@ int main(int argc, char *argv[]) {
                     //VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
                     //VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
                     //VK_KHR_RAY_QUERY_EXTENSION_NAME,
-                    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME
+                    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,
+                    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME
             },
             optionalDeviceExtensions);
     sgl::vk::Swapchain* swapchain = new sgl::vk::Swapchain(device);
