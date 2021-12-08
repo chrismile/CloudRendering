@@ -55,7 +55,9 @@
 #include <ImGui/imgui_custom.h>
 #include <ImGui/imgui_stdlib.h>
 
+#ifdef SUPPORT_OPTIX
 #include "Denoiser/OptixVptDenoiser.hpp"
+#endif
 #include "MainApp.hpp"
 
 void vulkanErrorCallback() {
