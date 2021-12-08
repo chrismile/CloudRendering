@@ -520,124 +520,25 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 //---------------------------------------------------------
 
 #ifdef USE_RESIDUAL_RATIO_TRACKING
-float residualRatioTrackingEstimator(vec3 x, vec3 w, float d)
-{
-    ivec3 voxelGridSize = textureSize(gridImage, 0);
-    vec3 boxDelta = parameters.boxMax - parameters.boxMin;
-
-    float majorant = parameters.extinction.x;
-    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
-    float PA = absorptionAlbedo * parameters.extinction.x;
-
-    float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
-    ivec3 superVoxelIndex;
-
-    vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
-    vec3 endPoint = (x + w * d - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
-
-    int stepX = int(sign(endPoint.x - startPoint.x));
-    if (stepX != 0)
-        tDeltaX = min(stepX / (endPoint.x - startPoint.x), 1e7);
-    else
-        tDeltaX = 1e7; // inf
-    if (stepX > 0)
-        tMaxX = tDeltaX * (1.0 - fract(startPoint.x));
-    else
-        tMaxX = tDeltaX * fract(startPoint.x);
-    superVoxelIndex.x = int(floor(startPoint.x));
-
-    int stepY = int(sign(endPoint.y - startPoint.y));
-    if (stepY != 0)
-        tDeltaY = min(stepY / (endPoint.y - startPoint.y), 1e7);
-    else
-        tDeltaY = 1e7; // inf
-    if (stepY > 0)
-        tMaxY = tDeltaY * (1.0 - fract(startPoint.y));
-    else
-        tMaxY = tDeltaY * fract(startPoint.y);
-    superVoxelIndex.y = int(floor(startPoint.y));
-
-    int stepZ = int(sign(endPoint.z - startPoint.z));
-    if (stepZ != 0)
-        tDeltaZ = min(stepZ / (endPoint.z - startPoint.z), 1e7);
-    else
-        tDeltaZ = 1e7; // inf
-    if (stepZ > 0)
-        tMaxZ = tDeltaZ * (1.0 - fract(startPoint.z));
-    else
-        tMaxZ = tDeltaZ * fract(startPoint.z);
-    superVoxelIndex.z = int(floor(startPoint.z));
-
-    if (stepX == 0 && stepY == 0 && stepZ == 0) {
-        //return float(max(stepX, max(stepY, stepZ)));
-        return 1.0;
-    }
-    //return float(max(abs(stepX), max(abs(stepY), abs(stepZ))));
-    //return 0.6 + sign(endPoint.z - startPoint.z) * 0.3;
-    //return float(d * 1000.0);
-    //return startPoint.x / float(parameters.superVoxelGridSize.x - 1.0);
-    //return (x.x - parameters.boxMin.x) / boxDelta.x;
-    ivec3 step = ivec3(stepX, stepY, stepZ);
-    vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
-    vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
-
-    ivec3 startVoxelInt = clamp(ivec3(floor(startPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
-    ivec3 endVoxelInt = clamp(ivec3(ceil(endPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
-
-    float T_c = 1.0;
+float residualRatioTrackingEstimator(
+        vec3 x, vec3 w, float d,
+        float absorptionAlbedo, float mu_c, float mu_r_bar) {
+    float T_c = exp(-absorptionAlbedo * mu_c * d);
     float T_r = 1.0;
 
-    while (all(greaterThanEqual(superVoxelIndex, startVoxelInt)) && all(lessThanEqual(superVoxelIndex, endVoxelInt))) {
-        vec2 superVoxel = texelFetch(superVoxelGridImage, superVoxelIndex, 0).rg;
-        float mu_c = superVoxel.x;
-        float mu_r_bar = superVoxel.y;
-        bool superVoxelEmpty = texelFetch(superVoxelGridEmptyImage, ivec3(0), 0).r != 0;
+    do {
+        float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
+        x += w * t;
 
-        vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
-        vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
-        minVoxelPos = minVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
-        maxVoxelPos = maxVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
-        float tMinVoxel = 0.0, tMaxVoxel = 0.0;
-        rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
-        // TODO: Why abs necessary?
-        float dVoxel = abs(tMaxVoxel - tMinVoxel);
-        dVoxel = min(dVoxel, d);
-        d = d - dVoxel;
-
-        float t = 0.0;
-        T_c *= exp(-absorptionAlbedo * mu_c * dVoxel);
-
-        do {
-            float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
-            //float t = -log(clamp(1 - random(), 0.0000000001, 0.1)) / mu_r_bar;
-            x += w * t;
-
-            if (t >= dVoxel)
+        if (t >= d) {
             break;
-
-            float density = sampleCloud(x);
-            float mu = parameters.extinction.x * density;
-            T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
-        } while(true);
-
-        if (tMaxX < tMaxY) {
-            if (tMaxX < tMaxZ) {
-                superVoxelIndex.x += stepX;
-                tMaxX += tDeltaX;
-            } else {
-                superVoxelIndex.z += stepZ;
-                tMaxZ += tDeltaZ;
-            }
-        } else {
-            if (tMaxY < tMaxZ) {
-                superVoxelIndex.y += stepY;
-                tMaxY += tDeltaY;
-            } else {
-                superVoxelIndex.z += stepZ;
-                tMaxZ += tDeltaZ;
-            }
         }
-    }
+        d -= t;
+
+        float density = sampleCloud(x);
+        float mu = parameters.extinction.x * density;
+        T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
+    } while(true);
 
     return T_c * T_r;
 }
@@ -651,69 +552,142 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
 
+    // Functional representation of the transmittance using reservoir sampling.
+    // cf.: https://developer.nvidia.com/blog/learn-more-about-reservoir-sampling-in-free-ray-tracing-gems-ii-chapter/
+    float ws = 0.0;
+    float R = 0.0;
+
+    float extinctionProbability = 0.0;
     float T = 1.0;
+
+    vec3 accumulatedColor = vec3(0.0, 0.0, 0.0);
 
     const vec3 EPSILON_VEC = vec3(1e-6);
     float tMinVal, tMaxVal;
-    if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal))
-    {
-        x += w * tMinVal;
-        float d = tMaxVal - tMinVal;
 
-        float pdf_x = 1;
+    ivec3 voxelGridSize = textureSize(gridImage, 0);
+    vec3 boxDelta = parameters.boxMax - parameters.boxMin;
 
-        while (true) {
-            float t = -log(max(0.0000000001, 1 - random())) / majorant;
+    float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
+    ivec3 superVoxelIndex;
 
-            T *= residualRatioTrackingEstimator(x, w, t);
-            //return vec3(T);
+    // Loop over all in-scattering rays.
+    while (true) {
+        /// Does in-scattering ray intersect the box?
+        if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal)) {
+            x += w * tMinVal;
+            float dTotal = tMaxVal - tMinVal;
 
-            if (t > d)
+            vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+            vec3 endPoint = (x + w * dTotal - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+
+            int stepX = int(sign(endPoint.x - startPoint.x));
+            if (stepX != 0)
+            tDeltaX = min(stepX / (endPoint.x - startPoint.x), 1e7);
+            else
+            tDeltaX = 1e7; // inf
+            if (stepX > 0)
+            tMaxX = tDeltaX * (1.0 - fract(startPoint.x));
+            else
+            tMaxX = tDeltaX * fract(startPoint.x);
+            superVoxelIndex.x = int(floor(startPoint.x));
+
+            int stepY = int(sign(endPoint.y - startPoint.y));
+            if (stepY != 0)
+            tDeltaY = min(stepY / (endPoint.y - startPoint.y), 1e7);
+            else
+            tDeltaY = 1e7; // inf
+            if (stepY > 0)
+            tMaxY = tDeltaY * (1.0 - fract(startPoint.y));
+            else
+            tMaxY = tDeltaY * fract(startPoint.y);
+            superVoxelIndex.y = int(floor(startPoint.y));
+
+            int stepZ = int(sign(endPoint.z - startPoint.z));
+            if (stepZ != 0)
+            tDeltaZ = min(stepZ / (endPoint.z - startPoint.z), 1e7);
+            else
+            tDeltaZ = 1e7; // inf
+            if (stepZ > 0)
+            tMaxZ = tDeltaZ * (1.0 - fract(startPoint.z));
+            else
+            tMaxZ = tDeltaZ * fract(startPoint.z);
+            superVoxelIndex.z = int(floor(startPoint.z));
+
+            if (stepX == 0 && stepY == 0 && stepZ == 0) {
                 break;
-            x += w * t;
-
-            float density = sampleCloud(x);
-
-            float sigma_s = PS * density;
-            float sigma_n = majorant - parameters.extinction.x * density;
-
-            float Ps = sigma_s / majorant;
-            float Pn = sigma_n / majorant;
-
-            float xi = random();
-
-            if (xi < 1 - Pn) // scattering event
-            {
-                float pdf_w;
-                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
-
-                if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
-                    firstEvent.pdf_x = sigma_s * pdf_x;
-                    firstEvent.w = w;
-                    firstEvent.pdf_w = pdf_w;
-                    firstEvent.hasValue = true;
-                }
-
-                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMinVal, tMaxVal))
-                {
-                    x += w * tMinVal;
-                    d = tMaxVal - tMinVal;
-                }
-            } else {
-                pdf_x *= exp(-parameters.extinction.x * density);
-                d -= t;
             }
+            ivec3 step = ivec3(stepX, stepY, stepZ);
+            vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
+            vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
+
+            ivec3 startVoxelInt = clamp(ivec3(floor(startPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
+            ivec3 endVoxelInt = clamp(ivec3(ceil(endPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
+
+            if (!all(greaterThanEqual(superVoxelIndex, startVoxelInt))) {
+                return vec3(1.0, 0.0, 0.0);
+            }
+            if (!all(lessThanEqual(superVoxelIndex, endVoxelInt))) {
+                return vec3(0.0, 1.0, 0.0);
+            }
+
+            //return vec3(float(superVoxelIndex.z) / 100.0);
+            //return vec3(float(endVoxelInt.z) / 100.0);
+
+            // Loop over all super voxels along the ray.
+            while (all(greaterThanEqual(superVoxelIndex, startVoxelInt)) && all(lessThanEqual(superVoxelIndex, endVoxelInt))) {
+                vec2 superVoxel = texelFetch(superVoxelGridImage, superVoxelIndex, 0).rg;
+                float mu_c = superVoxel.x;
+                float mu_r_bar = superVoxel.y;
+                bool superVoxelEmpty = texelFetch(superVoxelGridEmptyImage, ivec3(0), 0).r != 0;
+
+                vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
+                vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
+                minVoxelPos = minVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
+                maxVoxelPos = maxVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
+                float tMinVoxel = 0.0, tMaxVoxel = 0.0;
+                rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
+                // TODO: Why abs necessary?
+                float d = abs(tMaxVoxel - tMinVoxel);
+
+                T *= residualRatioTrackingEstimator(x, w, d, absorptionAlbedo, mu_c, mu_r_bar);
+                return vec3(0.0);
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) {
+                        superVoxelIndex.x += stepX;
+                        tMaxX += tDeltaX;
+                    } else {
+                        superVoxelIndex.z += stepZ;
+                        tMaxZ += tDeltaZ;
+                    }
+                } else {
+                    if (tMaxY < tMaxZ) {
+                        superVoxelIndex.y += stepY;
+                        tMaxY += tDeltaY;
+                    } else {
+                        superVoxelIndex.z += stepZ;
+                        tMaxZ += tDeltaZ;
+                    }
+                }
+            }
+
+            return vec3(0.0, 0.0, 1.0);
+        } else {
+            break;
         }
+
+        break;
+        // Interpret the transmittance as a probability of
+        //float xi = random();
+        //if (xi < T) {
+        //    break;
+        //}
+        //accumulatedColor += T * (sampleSkybox(w) + sampleLight(w));
     }
 
-    return T * (sampleSkybox(w) + sampleLight(w));
-    //return vec3(max(T + 10.8, 0.0));
-    //return vec3(max(T, 0.0) + 0.5);
-    //return vec3(T > 100.0f ? 0.0 : 1.0);
-    //return vec3(isinf(T) ? 0.0 : 1.0);
-    //return vec3(max(T > 0.0 ? 0.8 : 0.3, 0.0));
-    //return vec3(T);
+    accumulatedColor += T * (sampleSkybox(w) + sampleLight(w));
+    return accumulatedColor;
 }
 #endif
 
@@ -843,7 +817,7 @@ void main()
 #endif
     );
 #elif defined(USE_SPECTRAL_DELTA_TRACKING)
-    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
     vec3 result = pathtraceSpectral(x, w);
 #elif defined(USE_RATIO_TRACKING)
     ScatterEvent firstEvent;
