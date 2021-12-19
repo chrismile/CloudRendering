@@ -110,6 +110,7 @@ private:
     void setDenoiserFeatureMaps();
     DenoiserType denoiserType = DenoiserType::EAW;
     bool useDenoiser = true;
+    bool denoiserChanged = false;
     std::shared_ptr<Denoiser> denoiser;
 
     // Uniform buffer object storing the camera settings.

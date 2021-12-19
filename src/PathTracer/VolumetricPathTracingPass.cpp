@@ -239,6 +239,11 @@ void VolumetricPathTracingPass::createComputeData(
 }
 
 void VolumetricPathTracingPass::_render() {
+    if (denoiserChanged) {
+        createDenoiser();
+        denoiserChanged = false;
+    }
+
     if (!changedDenoiserSettings) {
         uniformData.inverseViewProjMatrix = glm::inverse(renderer->getProjectionMatrix() * renderer->getViewMatrix());
         VkExtent3D gridExtent = {
@@ -382,7 +387,7 @@ void VolumetricPathTracingPass::renderGui() {
         if (ImGui::Combo(
                 "Denoiser", (int*)&denoiserType,
                 DENOISER_NAMES, IM_ARRAYSIZE(DENOISER_NAMES))) {
-            createDenoiser();
+            denoiserChanged = true;
             reRender = true;
             changedDenoiserSettings = true;
         }

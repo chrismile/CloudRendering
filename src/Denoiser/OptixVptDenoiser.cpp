@@ -262,6 +262,7 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 
 void OptixVptDenoiser::_freeBuffers() {
     if (denoiserState) {
+        sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamSynchronize(stream);
         CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuMemFree(denoiserState);
         sgl::vk::checkCUresult(cuResult, "Error in cuMemFree: ");
         denoiserState = {};

@@ -182,19 +182,19 @@ vec3 sampleSkybox(in vec3 dir) {
     vec3 L = dir;
 
     vec3 BG_COLORS[5] = {
-        vec3(0.1f, 0.05f, 0.01f), // GROUND DARKER BLUE
-        vec3(0.01f, 0.05f, 0.2f), // HORIZON GROUND DARK BLUE
-        vec3(0.8f, 0.9f, 1.0f), // HORIZON SKY WHITE
-        vec3(0.1f, 0.3f, 1.0f),  // SKY LIGHT BLUE
-        vec3(0.01f, 0.1f, 0.7f)  // SKY BLUE
+        vec3(0.1, 0.05, 0.01), // GROUND DARKER BLUE
+        vec3(0.01, 0.05, 0.2), // HORIZON GROUND DARK BLUE
+        vec3(0.8, 0.9, 1.0), // HORIZON SKY WHITE
+        vec3(0.1, 0.3, 1.0),  // SKY LIGHT BLUE
+        vec3(0.01, 0.1, 0.7)  // SKY BLUE
     };
 
     float BG_DISTS[5] = {
-        -1.0f,
-        -0.1f,
-        0.0f,
-        0.4f,
-        1.0f
+        -1.0,
+        -0.1,
+        0.0,
+        0.4,
+        1.0
     };
 
     vec3 col = BG_COLORS[0];
@@ -334,13 +334,13 @@ vec3 pathtrace(
     for (int i = 0; i <= NUM_SCATTER_RAY_ABSORPTION_MOMENTS; i++) {
         scatterRayAbsorptionMoments[i] = 0.0;
     }
-    float depth = 0.0f;
+    float depth = 0.0;
 #endif
 
-    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
 
     float majorant = parameters.extinction.x;
-    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
@@ -445,10 +445,10 @@ vec3 pathtrace(
 
 #ifdef USE_RATIO_TRACKING
 vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
 
     float majorant = parameters.extinction.x;
-    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
@@ -521,49 +521,65 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
 #ifdef USE_RESIDUAL_RATIO_TRACKING
 float residualRatioTrackingEstimator(
-        vec3 x, vec3 w, float d,
+        vec3 x, vec3 w, float dStart, float dEnd, float T,
+        inout float reservoirWeightSum, out float reservoirT, out float reservoirDist,
         float absorptionAlbedo, float mu_c, float mu_r_bar) {
-    float T_c = exp(-absorptionAlbedo * mu_c * d);
+    float T_c = exp(-absorptionAlbedo * mu_c * (dEnd - dStart));
     float T_r = 1.0;
+    float dTravelled = dStart;
+
+    //if (mu_r_bar < 1e-5) {
+    //    return T_c;
+    //}
 
     do {
         float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
         x += w * t;
 
-        if (t >= d) {
+        dTravelled += t;
+        if (dTravelled >= dEnd) {
             break;
         }
-        d -= t;
 
         float density = sampleCloud(x);
         float mu = parameters.extinction.x * density;
         T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
+
+        float Ps = parameters.scatteringAlbedo.x * density;
+        float T_c_local = exp(-absorptionAlbedo * mu_c * (dTravelled - dStart));
+        float T_local = T * T_r * T_c_local;
+        // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
+        float reservoirWeight = T_local * Ps;
+        reservoirWeightSum += reservoirWeight;
+        float xi = random();
+        if (xi < reservoirWeight / reservoirWeightSum) {
+            reservoirT = T_local;
+            reservoirDist = dTravelled;
+        }
     } while(true);
 
     return T_c * T_r;
 }
 
 vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0f, w, 0.0f);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
 
-    float majorant = parameters.extinction.x;
-    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
-    float PA = absorptionAlbedo * parameters.extinction.x;
-    float PS = scatteringAlbedo * parameters.extinction.x;
 
     // Functional representation of the transmittance using reservoir sampling.
     // cf.: https://developer.nvidia.com/blog/learn-more-about-reservoir-sampling-in-free-ray-tracing-gems-ii-chapter/
-    float ws = 0.0;
-    float R = 0.0;
+    float reservoirWeightSum = 0.0;
+    float reservoirT = 0.0;
+    float reservoirDist = 0.0;
 
-    float extinctionProbability = 0.0;
     float T = 1.0;
 
     vec3 accumulatedColor = vec3(0.0, 0.0, 0.0);
 
     const vec3 EPSILON_VEC = vec3(1e-6);
     float tMinVal, tMaxVal;
+    vec3 oldX;
 
     ivec3 voxelGridSize = textureSize(gridImage, 0);
     vec3 boxDelta = parameters.boxMax - parameters.boxMin;
@@ -572,10 +588,12 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     ivec3 superVoxelIndex;
 
     // Loop over all in-scattering rays.
+    int iteration = 0;
     while (true) {
         /// Does in-scattering ray intersect the box?
         if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal)) {
             x += w * tMinVal;
+            oldX = x;
             float dTotal = tMaxVal - tMinVal;
 
             vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
@@ -624,34 +642,25 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             ivec3 startVoxelInt = clamp(ivec3(floor(startPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
             ivec3 endVoxelInt = clamp(ivec3(ceil(endPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
 
-            if (!all(greaterThanEqual(superVoxelIndex, startVoxelInt))) {
-                return vec3(1.0, 0.0, 0.0);
-            }
-            if (!all(lessThanEqual(superVoxelIndex, endVoxelInt))) {
-                return vec3(0.0, 1.0, 0.0);
-            }
-
-            //return vec3(float(superVoxelIndex.z) / 100.0);
-            //return vec3(float(endVoxelInt.z) / 100.0);
-
             // Loop over all super voxels along the ray.
-            while (all(greaterThanEqual(superVoxelIndex, startVoxelInt)) && all(lessThanEqual(superVoxelIndex, endVoxelInt))) {
+            while (all(greaterThanEqual(superVoxelIndex, ivec3(0))) && all(lessThan(superVoxelIndex, parameters.superVoxelGridSize))) {
                 vec2 superVoxel = texelFetch(superVoxelGridImage, superVoxelIndex, 0).rg;
                 float mu_c = superVoxel.x;
                 float mu_r_bar = superVoxel.y;
-                bool superVoxelEmpty = texelFetch(superVoxelGridEmptyImage, ivec3(0), 0).r != 0;
+                //bool superVoxelEmpty = texelFetch(superVoxelGridEmptyImage, ivec3(0), 0).r != 0;
 
                 vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
                 vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
                 minVoxelPos = minVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
                 maxVoxelPos = maxVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
                 float tMinVoxel = 0.0, tMaxVoxel = 0.0;
-                rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
-                // TODO: Why abs necessary?
-                float d = abs(tMaxVoxel - tMinVoxel);
+                rayBoxIntersect(minVoxelPos, maxVoxelPos, oldX, w, tMinVoxel, tMaxVoxel);
 
-                T *= residualRatioTrackingEstimator(x, w, d, absorptionAlbedo, mu_c, mu_r_bar);
-                return vec3(0.0);
+                x = oldX + w * tMinVoxel;
+                T *= residualRatioTrackingEstimator(
+                        x, w, tMinVoxel, tMaxVoxel, T,
+                        reservoirWeightSum, reservoirT, reservoirDist,
+                        absorptionAlbedo, mu_c, mu_r_bar);
 
                 if (tMaxX < tMaxY) {
                     if (tMaxX < tMaxZ) {
@@ -671,19 +680,30 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     }
                 }
             }
-
-            return vec3(0.0, 0.0, 1.0);
         } else {
             break;
         }
 
-        break;
-        // Interpret the transmittance as a probability of
-        //float xi = random();
-        //if (xi < T) {
-        //    break;
-        //}
-        //accumulatedColor += T * (sampleSkybox(w) + sampleLight(w));
+        float xi = random();
+        if (xi > reservoirWeightSum || iteration >= 10) {
+            break;
+        }
+        accumulatedColor += T * (sampleSkybox(w) + sampleLight(w));
+        iteration++;
+
+        //float pdf_w;
+        //x = x + w * (tMinVal + xi * (tMaxVal - tMinVal)); // Uniform sampling.
+        //w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+        // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
+        T = reservoirT;
+        float pdf_w;
+        x = oldX + w * reservoirDist;
+        w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+        reservoirWeightSum = 0.0;
+        reservoirT = 0.0;
+        reservoirDist = 0.0;
     }
 
     accumulatedColor += T * (sampleSkybox(w) + sampleLight(w));
@@ -701,10 +721,10 @@ void computePrimaryRayAbsorptionMoments(
     for (int i = 0; i <= NUM_PRIMARY_RAY_ABSORPTION_MOMENTS; i++) {
         primaryRayAbsorptionMoments[i] = 0.0;
     }
-    float depth = 0.0f;
+    float depth = 0.0;
 
     float majorant = parameters.extinction.x;
-    float absorptionAlbedo = 1 - parameters.scatteringAlbedo.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
