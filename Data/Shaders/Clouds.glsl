@@ -73,7 +73,7 @@ layout (binding = 7, r32f) uniform image2DArray primaryRayAbsorptionMomentsImage
 layout (binding = 8, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage;
 #endif
 
-#ifdef USE_RESIDUAL_RATIO_TRACKING
+#if defined(USE_RESIDUAL_RATIO_TRACKING) || defined(USE_DECOMPOSITION_TRACKING)
 layout (binding = 9) uniform sampler3D superVoxelGridImage;
 layout (binding = 10) uniform usampler3D superVoxelGridEmptyImage;
 #endif
@@ -435,7 +435,7 @@ vec3 pathtrace(
         }
     }
 
-    return (sampleSkybox(w) + sampleLight(w));
+    return sampleSkybox(w) + sampleLight(w);
 }
 
 
@@ -519,6 +519,12 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 // Residual ratio tracking
 //---------------------------------------------------------
 
+/**
+ * For more details on residual ratio tracking, please refer to:
+ * J. Novák, A. Selle, and W. Jarosz. Residual ratio tracking for estimating attenuation in participating media.
+ * ACM Transactions on Graphics (Proceedings of SIGGRAPH Asia) , 33(6), Nov. 2014.
+ */
+
 #ifdef USE_RESIDUAL_RATIO_TRACKING
 float residualRatioTrackingEstimator(
         vec3 x, vec3 w, float dStart, float dEnd, float T,
@@ -543,10 +549,10 @@ float residualRatioTrackingEstimator(
 
         float density = sampleCloud(x);
         float mu = parameters.extinction.x * density;
-        T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
+        T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
 
         float Ps = parameters.scatteringAlbedo.x * density;
-        float T_c_local = exp(-absorptionAlbedo * mu_c * (dTravelled - dStart));
+        float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
         float T_local = T * T_r * T_c_local;
         // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
         float reservoirWeight = T_local * Ps;
@@ -711,6 +717,236 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 }
 #endif
 
+
+//---------------------------------------------------------
+// Decomposition tracking
+//---------------------------------------------------------
+
+/**
+ * For more details on decomposition tracking, please refer to:
+ * P. Kutz, R. Habel, Y. K. Li, and J. Novák. Spectral and decomposition tracking for rendering heterogeneous volumes.
+ * ACM Trans. Graph., 36(4), Jul. 2017.
+ */
+
+#ifdef USE_DECOMPOSITION_TRACKING
+float analogDecompositionTrackingEstimator(
+        vec3 x, vec3 w, float dStart, float dEnd, float T,
+        inout float reservoirWeightSum, out float reservoirT, out float reservoirDist,
+        float absorptionAlbedo, float mu_c, float mu_r_bar) {
+    float T_c = exp(-absorptionAlbedo * mu_c * (dEnd - dStart));
+    float T_r = 1.0;
+    float dTravelled = dStart;
+
+    //if (mu_r_bar < 1e-5) {
+    //    return T_c;
+    //}
+
+    do {
+        float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
+        x += w * t;
+
+        dTravelled += t;
+        if (dTravelled >= dEnd) {
+            break;
+        }
+
+        float density = sampleCloud(x);
+        float mu = parameters.extinction.x * density;
+        T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
+
+        float Ps = parameters.scatteringAlbedo.x * density;
+        float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
+        float T_local = T * T_r * T_c_local;
+        // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
+        float reservoirWeight = T_local * Ps;
+        reservoirWeightSum += reservoirWeight;
+        float xi = random();
+        if (xi < reservoirWeight / reservoirWeightSum) {
+            reservoirT = T_local;
+            reservoirDist = dTravelled;
+        }
+    } while(true);
+
+    return T_c * T_r;
+}
+
+vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+
+    float majorant = parameters.extinction.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
+    float scatteringAlbedo = parameters.scatteringAlbedo.x;
+
+    const vec3 EPSILON_VEC = vec3(1e-6);
+    float tMinVal, tMaxVal;
+
+    ivec3 voxelGridSize = textureSize(gridImage, 0);
+    vec3 boxDelta = parameters.boxMax - parameters.boxMin;
+
+    float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
+    ivec3 superVoxelIndex;
+
+    // Loop over all in-scattering rays.
+    int it = 0;
+    while (true) {
+        /// Does the ray intersect the volume bounding box?
+        if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal)) {
+            x += w * tMinVal;
+            float dTotal = tMaxVal - tMinVal;
+            vec3 oldX = x;
+
+            vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+            vec3 endPoint = (x + w * dTotal - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+
+            int stepX = int(sign(endPoint.x - startPoint.x));
+            if (stepX != 0)
+                tDeltaX = min(stepX / (endPoint.x - startPoint.x), 1e7);
+            else
+                tDeltaX = 1e7; // inf
+            if (stepX > 0)
+                tMaxX = tDeltaX * (1.0 - fract(startPoint.x));
+            else
+                tMaxX = tDeltaX * fract(startPoint.x);
+            superVoxelIndex.x = int(floor(startPoint.x));
+
+            int stepY = int(sign(endPoint.y - startPoint.y));
+            if (stepY != 0)
+                tDeltaY = min(stepY / (endPoint.y - startPoint.y), 1e7);
+            else
+                tDeltaY = 1e7; // inf
+            if (stepY > 0)
+                tMaxY = tDeltaY * (1.0 - fract(startPoint.y));
+            else
+                tMaxY = tDeltaY * fract(startPoint.y);
+            superVoxelIndex.y = int(floor(startPoint.y));
+
+            int stepZ = int(sign(endPoint.z - startPoint.z));
+            if (stepZ != 0)
+                tDeltaZ = min(stepZ / (endPoint.z - startPoint.z), 1e7);
+            else
+                tDeltaZ = 1e7; // inf
+            if (stepZ > 0)
+                tMaxZ = tDeltaZ * (1.0 - fract(startPoint.z));
+            else
+                tMaxZ = tDeltaZ * fract(startPoint.z);
+            superVoxelIndex.z = int(floor(startPoint.z));
+
+            if (stepX == 0 && stepY == 0 && stepZ == 0) {
+                break;
+            }
+            ivec3 step = ivec3(stepX, stepY, stepZ);
+            vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
+            vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
+
+            ivec3 startVoxelInt = clamp(ivec3(floor(startPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
+            ivec3 endVoxelInt = clamp(ivec3(ceil(endPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
+
+            // Loop over all super voxels along the ray.
+            bool leftGrid;
+            while (all(greaterThanEqual(superVoxelIndex, ivec3(0))) && all(lessThan(superVoxelIndex, parameters.superVoxelGridSize))) {
+                leftGrid = false;
+
+                vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
+                vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
+                minVoxelPos = minVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
+                maxVoxelPos = maxVoxelPos / voxelGridSize * boxDelta + parameters.boxMin;
+                float tMinVoxel = 0.0, tMaxVoxel = 0.0;
+                rayBoxIntersect(minVoxelPos, maxVoxelPos, x, w, tMinVoxel, tMaxVoxel);
+                float d_max = tMaxVoxel - tMinVoxel;
+                x += w * tMinVoxel;
+
+                uint isEmpty = texelFetch(superVoxelGridEmptyImage, superVoxelIndex, 0).x;
+                if (isEmpty == 1) {
+                    x += w * d_max;
+                }
+
+                float mu_c_t = majorant * texelFetch(superVoxelGridImage, superVoxelIndex, 0).x;
+                float mu_c_a = mu_c_t * absorptionAlbedo;
+                float mu_c_s = mu_c_t * scatteringAlbedo;
+
+
+                bool isNullCollision;
+                float t_c = -log(max(0.0000000001, 1 - random())) / max(0.0000000001, mu_c_t);
+                float t_r = 0.0;
+                vec3 xOld = x;
+                isNullCollision = false;
+                while (true) {
+                    float t = -log(max(0.0000000001, 1 - random())) / (max(0.0000000001, majorant - mu_c_t));
+                    t_r += t;
+                    float xi = random();
+                    if (t_r > t_c) {
+                        x = xOld + min(t_c, d_max) * w;
+                        if (t_c > d_max) {
+                            isNullCollision = true;
+                            break; // null collision, proceed to next super voxel
+                        } else if (xi < mu_c_a / max(0.0000000001, mu_c_t)) {
+                            return vec3(0.0); // absorption event/emission
+                        } else {
+                            float pdf_w;
+                            w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                            break;
+                        }
+                    } else {
+                        float density = sampleCloud(x);
+                        float mu_t = parameters.extinction.x * density;
+                        float mu_a_r = mu_t * absorptionAlbedo - mu_c_a;
+                        float mu_n = parameters.extinction.x - mu_t;
+
+                        x = xOld + t_r * w;
+                        if (t_r > d_max) {
+                            isNullCollision = true;
+                            break; // null collision, proceed to next super voxel
+                        } else if (xi < mu_a_r / max(0.0000000001, majorant - mu_c_t)) {
+                            return vec3(0.0); // absorption event/emission
+                        } else if (xi < 1 - mu_n / max(0.0000000001, majorant - mu_c_t)) {
+                            float pdf_w;
+                            w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                            break;
+                        }
+                    }
+                }
+
+                if (!isNullCollision) {
+                    break;
+                }
+
+                if (tMaxX < tMaxY) {
+                    if (tMaxX < tMaxZ) {
+                        superVoxelIndex.x += stepX;
+                        tMaxX += tDeltaX;
+                    } else {
+                        superVoxelIndex.z += stepZ;
+                        tMaxZ += tDeltaZ;
+                    }
+                } else {
+                    if (tMaxY < tMaxZ) {
+                        superVoxelIndex.y += stepY;
+                        tMaxY += tDeltaY;
+                    } else {
+                        superVoxelIndex.z += stepZ;
+                        tMaxZ += tDeltaZ;
+                    }
+                }
+
+                leftGrid = true;
+            }
+
+            if (leftGrid) {
+                break;
+            }
+        } else {
+            break;
+        }
+
+        it++;
+
+    }
+
+    return sampleSkybox(w) + sampleLight(w);
+}
+#endif
+
+
 //---------------------------------------------------------
 // Absorption moment computation
 //---------------------------------------------------------
@@ -817,7 +1053,7 @@ void main()
 
     initializeRandom(frame * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x);
 
-    vec2 screenCoord = 2.0*(gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
+    vec2 screenCoord = 2.0 * (gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
 
     // Get ray direction and volume entry point
     vec3 x, w;
@@ -845,6 +1081,9 @@ void main()
 #elif defined(USE_RESIDUAL_RATIO_TRACKING)
     ScatterEvent firstEvent;
     vec3 result = residualRatioTracking(x, w, firstEvent);
+#elif defined(USE_DECOMPOSITION_TRACKING)
+    ScatterEvent firstEvent;
+    vec3 result = analogDecompositionTracking(x, w, firstEvent);
 #endif
 
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS

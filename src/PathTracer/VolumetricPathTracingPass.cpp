@@ -175,13 +175,21 @@ void VolumetricPathTracingPass::onHasMoved() {
 
 void VolumetricPathTracingPass::updateVptMode() {
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING && cloudData) {
-        superVoxelGrid = std::make_shared<SuperVoxelGrid>(
+        superVoxelGridDecompositionTracking = {};
+        superVoxelGridResidualRatioTracking = std::make_shared<SuperVoxelGridResidualRatioTracking>(
                 device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
                 cloudData->getGridSizeZ(), cloudData->getDensityField(),
                 superVoxelSize);
-        superVoxelGrid->setExtinction((cloudExtinctionBase * cloudExtinctionScale).x);
+        superVoxelGridResidualRatioTracking->setExtinction((cloudExtinctionBase * cloudExtinctionScale).x);
+    } else if (vptMode == VptMode::DECOMPOSITION_TRACKING && cloudData) {
+        superVoxelGridResidualRatioTracking = {};
+        superVoxelGridDecompositionTracking = std::make_shared<SuperVoxelGridDecompositionTracking>(
+                device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
+                cloudData->getGridSizeZ(), cloudData->getDensityField(),
+                superVoxelSize);
     } else {
-        superVoxelGrid = std::shared_ptr<SuperVoxelGrid>();
+        superVoxelGridResidualRatioTracking = {};
+        superVoxelGridDecompositionTracking = {};
     }
 }
 
@@ -206,9 +214,11 @@ void VolumetricPathTracingPass::loadShader() {
     } else if (vptMode == VptMode::SPECTRAL_DELTA_TRACKING) {
         customPreprocessorDefines.insert({ "USE_SPECTRAL_DELTA_TRACKING", "" });
     } else if (vptMode == VptMode::RATIO_TRACKING) {
-    customPreprocessorDefines.insert({ "USE_RATIO_TRACKING", "" });
-} else if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
+        customPreprocessorDefines.insert({ "USE_RATIO_TRACKING", "" });
+    } else if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
         customPreprocessorDefines.insert({ "USE_RESIDUAL_RATIO_TRACKING", "" });
+    } else if (vptMode == VptMode::DECOMPOSITION_TRACKING) {
+        customPreprocessorDefines.insert({ "USE_DECOMPOSITION_TRACKING", "" });
     }
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
@@ -232,16 +242,34 @@ void VolumetricPathTracingPass::createComputeData(
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
         computeData->setStaticTexture(
-                superVoxelGrid->getSuperVoxelGridTexture(), "superVoxelGridImage");
+                superVoxelGridResidualRatioTracking->getSuperVoxelGridTexture(),
+                "superVoxelGridImage");
         computeData->setStaticTexture(
-                superVoxelGrid->getSuperVoxelGridEmptyTexture(), "superVoxelGridEmptyImage");
+                superVoxelGridResidualRatioTracking->getSuperVoxelGridEmptyTexture(),
+                "superVoxelGridEmptyImage");
+    } else if (vptMode == VptMode::DECOMPOSITION_TRACKING) {
+        computeData->setStaticTexture(
+                superVoxelGridDecompositionTracking->getSuperVoxelGridTexture(),
+                "superVoxelGridImage");
+        computeData->setStaticTexture(
+                superVoxelGridDecompositionTracking->getSuperVoxelGridEmptyTexture(),
+                "superVoxelGridEmptyImage");
     }
+}
+
+std::string VolumetricPathTracingPass::getCurrentEventName() {
+    return std::string() + VPT_MODE_NAMES[int(vptMode)] + " " + std::to_string(targetNumSamples) + "spp";
 }
 
 void VolumetricPathTracingPass::_render() {
     if (denoiserChanged) {
         createDenoiser();
         denoiserChanged = false;
+    }
+
+    std::string eventName = getCurrentEventName();
+    if (!reachedTarget) {
+        accumulationTimer->startGPU(eventName);
     }
 
     if (!changedDenoiserSettings) {
@@ -258,9 +286,12 @@ void VolumetricPathTracingPass::_render() {
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
-        if (superVoxelGrid) {
-            uniformData.superVoxelSize = superVoxelGrid->getSuperVoxelSize();
-            uniformData.superVoxelGridSize = superVoxelGrid->getSuperVoxelGridSize();
+        if (superVoxelGridResidualRatioTracking) {
+            uniformData.superVoxelSize = superVoxelGridResidualRatioTracking->getSuperVoxelSize();
+            uniformData.superVoxelGridSize = superVoxelGridResidualRatioTracking->getSuperVoxelGridSize();
+        } else if (superVoxelGridDecompositionTracking) {
+            uniformData.superVoxelSize = superVoxelGridDecompositionTracking->getSuperVoxelSize();
+            uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
         }
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
@@ -318,6 +349,10 @@ void VolumetricPathTracingPass::_render() {
     } else if (featureMapType == FeatureMapType::SCATTER_RAY_ABSORPTION_MOMENTS) {
         blitScatterRayMomentTexturePass->render();
     }
+
+    if (!reachedTarget) {
+        accumulationTimer->endGPU(eventName);
+    }
 }
 
 void VolumetricPathTracingPass::renderGui() {
@@ -331,6 +366,7 @@ void VolumetricPathTracingPass::renderGui() {
         ImGui::Text("%s", numSamplesText.c_str());
         ImGui::SameLine();
         if (ImGui::Button(" = ")) {
+            accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
             reachedTarget = false;
             reRender = true;
         }
@@ -430,6 +466,9 @@ void VolumetricPathTracingPass::renderGui() {
         }
         if (int(frameInfo.frameCount) == targetNumSamples) {
             reachedTarget = true;
+            std::string eventName = getCurrentEventName();
+            accumulationTimer->finishGPU();
+            accumulationTimer->printTimeMS(eventName);
         }
     }
 }

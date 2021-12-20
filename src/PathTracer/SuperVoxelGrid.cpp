@@ -30,7 +30,7 @@
 #include <Math/Math.hpp>
 #include "SuperVoxelGrid.hpp"
 
-SuperVoxelGrid::SuperVoxelGrid(
+SuperVoxelGridResidualRatioTracking::SuperVoxelGridResidualRatioTracking(
         sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
         const float* voxelGridData, int superVoxelSize1D)
         : voxelGridSizeX(voxelGridSizeX), voxelGridSizeY(voxelGridSizeY), voxelGridSizeZ(voxelGridSizeZ) {
@@ -41,7 +41,7 @@ SuperVoxelGrid::SuperVoxelGrid(
     superVoxelGridSizeZ = sgl::iceil(voxelGridSizeZ, superVoxelSize1D);
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
-    superVoxelGrid = new SuperVoxel[superVoxelGridSize];
+    superVoxelGrid = new SuperVoxelResidualRatioTracking[superVoxelGridSize];
     superVoxelGridEmpty = new uint8_t[superVoxelGridSize];
     superVoxelGridMinDensity = new float[superVoxelGridSize];
     superVoxelGridMaxDensity = new float[superVoxelGridSize];
@@ -61,7 +61,7 @@ SuperVoxelGrid::SuperVoxelGrid(
     computeSuperVoxels(voxelGridData);
 }
 
-SuperVoxelGrid::~SuperVoxelGrid() {
+SuperVoxelGridResidualRatioTracking::~SuperVoxelGridResidualRatioTracking() {
     delete[] superVoxelGrid;
     delete[] superVoxelGridEmpty;
     delete[] superVoxelGridMinDensity;
@@ -69,7 +69,7 @@ SuperVoxelGrid::~SuperVoxelGrid() {
     delete[] superVoxelGridAvgDensity;
 }
 
-void SuperVoxelGrid::computeSuperVoxels(const float* voxelGridData) {
+void SuperVoxelGridResidualRatioTracking::computeSuperVoxels(const float* voxelGridData) {
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
 #if _OPENMP >= 200805
@@ -113,12 +113,12 @@ void SuperVoxelGrid::computeSuperVoxels(const float* voxelGridData) {
     }
 }
 
-void SuperVoxelGrid::setExtinction(float extinction) {
+void SuperVoxelGridResidualRatioTracking::setExtinction(float extinction) {
     this->extinction = extinction;
     recomputeSuperVoxels();
 }
 
-void SuperVoxelGrid::recomputeSuperVoxels() {
+void SuperVoxelGridResidualRatioTracking::recomputeSuperVoxels() {
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
     const float gamma = 2.0f;
@@ -145,16 +145,88 @@ void SuperVoxelGrid::recomputeSuperVoxels() {
         float mu_c = mu_min + mu_r_bar * std::pow(gamma, (1.0f / (D * mu_r_bar)) - 1.0f);
         float mu_c_prime = glm::clamp(mu_c, mu_min, mu_avg);
 
-        SuperVoxel& superVoxel = superVoxelGrid[superVoxelIdx];
+        SuperVoxelResidualRatioTracking& superVoxel = superVoxelGrid[superVoxelIdx];
         superVoxel.mu_c = mu_c_prime;
         superVoxel.mu_r_bar = mu_r_bar;
 
         bool isSuperVoxelEmpty = densityMax < 1e-5;
-        superVoxelGridEmpty[superVoxelIdx] = isSuperVoxelEmpty ? 0 : 1;
+        superVoxelGridEmpty[superVoxelIdx] = isSuperVoxelEmpty ? 1 : 0;
     }
 
     superVoxelGridTexture->getImage()->uploadData(
-            superVoxelGridSize * sizeof(SuperVoxel), superVoxelGrid);
+            superVoxelGridSize * sizeof(SuperVoxelResidualRatioTracking), superVoxelGrid);
     superVoxelGridEmptyTexture->getImage()->uploadData(
             superVoxelGridSize * sizeof(uint8_t), superVoxelGridEmpty);
+}
+
+
+
+SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
+        sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
+        const float* voxelGridData, int superVoxelSize1D)
+        : voxelGridSizeX(voxelGridSizeX), voxelGridSizeY(voxelGridSizeY), voxelGridSizeZ(voxelGridSizeZ) {
+    superVoxelSize = glm::ivec3(superVoxelSize1D);
+
+    superVoxelGridSizeX = sgl::iceil(voxelGridSizeX, superVoxelSize1D);
+    superVoxelGridSizeY = sgl::iceil(voxelGridSizeY, superVoxelSize1D);
+    superVoxelGridSizeZ = sgl::iceil(voxelGridSizeZ, superVoxelSize1D);
+    int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
+
+    superVoxelGridEmpty = new uint8_t[superVoxelGridSize];
+    superVoxelGridMinDensity = new float[superVoxelGridSize];
+
+    sgl::vk::ImageSettings imageSettings{};
+    imageSettings.width = superVoxelGridSizeX;
+    imageSettings.height = superVoxelGridSizeY;
+    imageSettings.depth = superVoxelGridSizeZ;
+    imageSettings.imageType = VK_IMAGE_TYPE_3D;
+    imageSettings.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageSettings.format = VK_FORMAT_R32_SFLOAT;
+    superVoxelGridTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+    imageSettings.format = VK_FORMAT_R8_UINT;
+    superVoxelGridEmptyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+
+#if _OPENMP >= 200805
+    #pragma omp parallel for firstprivate(superVoxelGridSize) default(none) \
+    shared(voxelGridSizeX, voxelGridSizeY, voxelGridSizeZ, voxelGridData, superVoxelGridMinDensity)
+#endif
+    for (int superVoxelIdx = 0; superVoxelIdx < superVoxelGridSize; superVoxelIdx++) {
+        int superVoxelIdxX = superVoxelIdx % superVoxelGridSizeX;
+        int superVoxelIdxY = (superVoxelIdx / superVoxelGridSizeX) % superVoxelGridSizeY;
+        int superVoxelIdxZ = superVoxelIdx / (superVoxelGridSizeX * superVoxelGridSizeY);
+
+        float densityMin = std::numeric_limits<float>::max();
+        float densityMax = std::numeric_limits<float>::lowest();
+        for (int offsetZ = 0; offsetZ < superVoxelSize.z; offsetZ++) {
+            for (int offsetY = 0; offsetY < superVoxelSize.y; offsetY++) {
+                for (int offsetX = 0; offsetX < superVoxelSize.x; offsetX++) {
+                    int voxelIdxX = superVoxelIdxX * superVoxelSize.x + offsetX;
+                    int voxelIdxY = superVoxelIdxY * superVoxelSize.y + offsetY;
+                    int voxelIdxZ = superVoxelIdxZ * superVoxelSize.z + offsetZ;
+                    if (voxelIdxX >= 0 && voxelIdxY >= 0 && voxelIdxZ >= 0
+                            && voxelIdxX < voxelGridSizeX && voxelIdxY < voxelGridSizeY && voxelIdxZ < voxelGridSizeZ) {
+                        int voxelIdx = voxelIdxX + (voxelIdxY + voxelIdxZ * voxelGridSizeY) * voxelGridSizeX;
+                        float value = voxelGridData[voxelIdx];
+                        densityMin = std::min(densityMin, value);
+                        densityMax = std::max(densityMax, value);
+                    }
+                }
+            }
+        }
+
+        superVoxelGridMinDensity[superVoxelIdx] = densityMin;
+
+        bool isSuperVoxelEmpty = densityMax < 1e-5;
+        superVoxelGridEmpty[superVoxelIdx] = isSuperVoxelEmpty ? 1 : 0;
+    }
+
+    superVoxelGridTexture->getImage()->uploadData(
+            superVoxelGridSize * sizeof(SuperVoxelResidualRatioTracking), superVoxelGridMinDensity);
+    superVoxelGridEmptyTexture->getImage()->uploadData(
+            superVoxelGridSize * sizeof(uint8_t), superVoxelGridEmpty);
+}
+
+SuperVoxelGridDecompositionTracking::~SuperVoxelGridDecompositionTracking() {
+    delete[] superVoxelGridEmpty;
+    delete[] superVoxelGridMinDensity;
 }
