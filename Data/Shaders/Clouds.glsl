@@ -549,10 +549,12 @@ float residualRatioTrackingEstimator(
 
         float density = sampleCloud(x);
         float mu = parameters.extinction.x * density;
-        T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
+        //T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
+        //T_r *= (1.0 - density) * (mu - mu_c) / mu_r_bar;
 
         float Ps = parameters.scatteringAlbedo.x * density;
-        float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
+        //float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
+        float T_c_local = exp(-(1.0 - density) * mu_c * (dTravelled - dStart));
         float T_local = T * T_r * T_c_local;
         // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
         float reservoirWeight = T_local * Ps;
@@ -729,47 +731,6 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
  */
 
 #ifdef USE_DECOMPOSITION_TRACKING
-float analogDecompositionTrackingEstimator(
-        vec3 x, vec3 w, float dStart, float dEnd, float T,
-        inout float reservoirWeightSum, out float reservoirT, out float reservoirDist,
-        float absorptionAlbedo, float mu_c, float mu_r_bar) {
-    float T_c = exp(-absorptionAlbedo * mu_c * (dEnd - dStart));
-    float T_r = 1.0;
-    float dTravelled = dStart;
-
-    //if (mu_r_bar < 1e-5) {
-    //    return T_c;
-    //}
-
-    do {
-        float t = -log(max(0.0000000001, 1 - random())) / mu_r_bar;
-        x += w * t;
-
-        dTravelled += t;
-        if (dTravelled >= dEnd) {
-            break;
-        }
-
-        float density = sampleCloud(x);
-        float mu = parameters.extinction.x * density;
-        T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
-
-        float Ps = parameters.scatteringAlbedo.x * density;
-        float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
-        float T_local = T * T_r * T_c_local;
-        // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
-        float reservoirWeight = T_local * Ps;
-        reservoirWeightSum += reservoirWeight;
-        float xi = random();
-        if (xi < reservoirWeight / reservoirWeightSum) {
-            reservoirT = T_local;
-            reservoirDist = dTravelled;
-        }
-    } while(true);
-
-    return T_c * T_r;
-}
-
 vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
 
@@ -785,6 +746,10 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
     float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
     ivec3 superVoxelIndex;
+    ivec3 cachedSuperVoxelIndexA = ivec3(-1, -1, -1);
+    ivec3 cachedSuperVoxelIndexB = ivec3(-1, -1, -1);
+    uint isEmpty = 1;
+    float superVoxelDensity = 0.0;
 
     // Loop over all in-scattering rays.
     int it = 0;
@@ -855,15 +820,21 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 float d_max = tMaxVoxel - tMinVoxel;
                 x += w * tMinVoxel;
 
-                uint isEmpty = texelFetch(superVoxelGridEmptyImage, superVoxelIndex, 0).x;
+                if (cachedSuperVoxelIndexA != superVoxelIndex) {
+                    isEmpty = texelFetch(superVoxelGridEmptyImage, superVoxelIndex, 0).x;
+                    cachedSuperVoxelIndexA = superVoxelIndex;
+                }
                 if (isEmpty == 1) {
                     x += w * d_max;
                 }
 
-                float mu_c_t = majorant * texelFetch(superVoxelGridImage, superVoxelIndex, 0).x;
+                if (cachedSuperVoxelIndexB != superVoxelIndex) {
+                    superVoxelDensity = texelFetch(superVoxelGridImage, superVoxelIndex, 0).x;
+                    cachedSuperVoxelIndexB = superVoxelIndex;
+                }
+                float mu_c_t = majorant * superVoxelDensity;
                 float mu_c_a = mu_c_t * absorptionAlbedo;
                 float mu_c_s = mu_c_t * scatteringAlbedo;
-
 
                 bool isNullCollision;
                 float t_c = -log(max(0.0000000001, 1 - random())) / max(0.0000000001, mu_c_t);
@@ -874,17 +845,16 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     float t = -log(max(0.0000000001, 1 - random())) / (max(0.0000000001, majorant - mu_c_t));
                     t_r += t;
                     float xi = random();
+                    bool isAbsorptionEvent = false;
+                    bool isScatteringEvent = false;
                     if (t_r > t_c) {
                         x = xOld + min(t_c, d_max) * w;
                         if (t_c > d_max) {
                             isNullCollision = true;
-                            break; // null collision, proceed to next super voxel
                         } else if (xi < mu_c_a / max(0.0000000001, mu_c_t)) {
                             return vec3(0.0); // absorption event/emission
                         } else {
-                            float pdf_w;
-                            w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
-                            break;
+                            isScatteringEvent = true;
                         }
                     } else {
                         float density = sampleCloud(x);
@@ -895,14 +865,20 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                         x = xOld + t_r * w;
                         if (t_r > d_max) {
                             isNullCollision = true;
-                            break; // null collision, proceed to next super voxel
                         } else if (xi < mu_a_r / max(0.0000000001, majorant - mu_c_t)) {
-                            return vec3(0.0); // absorption event/emission
+                            isAbsorptionEvent = true; // absorption event/emission
                         } else if (xi < 1 - mu_n / max(0.0000000001, majorant - mu_c_t)) {
-                            float pdf_w;
-                            w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
-                            break;
+                            isScatteringEvent = true;
                         }
+                    }
+                    if (isNullCollision) {
+                        break; // null collision, proceed to next super voxel
+                    } else if (isAbsorptionEvent) {
+                        return vec3(0.0); // absorption event/emission
+                    } else if (isScatteringEvent) {
+                        float pdf_w;
+                        w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                        break;
                     }
                 }
 
