@@ -61,7 +61,7 @@ public:
         return {superVoxelGridSizeX, superVoxelGridSizeY, superVoxelGridSizeZ};
     }
     inline const sgl::vk::TexturePtr& getSuperVoxelGridTexture() { return superVoxelGridTexture; }
-    inline const sgl::vk::TexturePtr& getSuperVoxelGridEmptyTexture() { return superVoxelGridEmptyTexture; }
+    inline const sgl::vk::TexturePtr& getSuperVoxelGridOccupancyTexture() { return superVoxelGridOccupancyTexture; }
 
     void setExtinction(float extinction);
     void recomputeSuperVoxels();
@@ -78,13 +78,13 @@ private:
     float scatteringAlbedo = 1.0f;
 
     SuperVoxelResidualRatioTracking* superVoxelGrid;
-    uint8_t* superVoxelGridEmpty;
+    uint8_t* superVoxelGridOccupany;
     float* superVoxelGridMinDensity = nullptr;
     float* superVoxelGridMaxDensity = nullptr;
     float* superVoxelGridAvgDensity = nullptr;
 
     sgl::vk::TexturePtr superVoxelGridTexture;
-    sgl::vk::TexturePtr superVoxelGridEmptyTexture;
+    sgl::vk::TexturePtr superVoxelGridOccupancyTexture;
 };
 
 /**
@@ -106,7 +106,7 @@ public:
         return {superVoxelGridSizeX, superVoxelGridSizeY, superVoxelGridSizeZ};
     }
     inline const sgl::vk::TexturePtr& getSuperVoxelGridTexture() { return superVoxelGridTexture; }
-    inline const sgl::vk::TexturePtr& getSuperVoxelGridEmptyTexture() { return superVoxelGridEmptyTexture; }
+    inline const sgl::vk::TexturePtr& getSuperVoxelGridOccupancyTexture() { return superVoxelGridOccupancyTexture; }
 
 private:
     glm::ivec3 superVoxelSize = glm::ivec3(8);
@@ -114,11 +114,11 @@ private:
     int superVoxelGridSizeX = 0, superVoxelGridSizeY = 0, superVoxelGridSizeZ = 0;
     int voxelGridSizeX = 0, voxelGridSizeY = 0, voxelGridSizeZ = 0;
 
-    uint8_t* superVoxelGridEmpty;
-    float* superVoxelGridMinDensity = nullptr;
+    uint8_t* superVoxelGridOccupany;
+    glm::vec2* superVoxelGridMinMaxDensity = nullptr;
 
     sgl::vk::TexturePtr superVoxelGridTexture;
-    sgl::vk::TexturePtr superVoxelGridEmptyTexture;
+    sgl::vk::TexturePtr superVoxelGridOccupancyTexture;
 };
 
 #endif //CLOUDRENDERING_SUPERVOXELGRID_HPP

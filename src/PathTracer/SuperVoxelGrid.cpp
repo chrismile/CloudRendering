@@ -42,28 +42,34 @@ SuperVoxelGridResidualRatioTracking::SuperVoxelGridResidualRatioTracking(
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
     superVoxelGrid = new SuperVoxelResidualRatioTracking[superVoxelGridSize];
-    superVoxelGridEmpty = new uint8_t[superVoxelGridSize];
+    superVoxelGridOccupany = new uint8_t[superVoxelGridSize];
     superVoxelGridMinDensity = new float[superVoxelGridSize];
     superVoxelGridMaxDensity = new float[superVoxelGridSize];
     superVoxelGridAvgDensity = new float[superVoxelGridSize];
 
     sgl::vk::ImageSettings imageSettings{};
+    sgl::vk::ImageSamplerSettings samplerSettings{};
     imageSettings.width = superVoxelGridSizeX;
     imageSettings.height = superVoxelGridSizeY;
     imageSettings.depth = superVoxelGridSizeZ;
     imageSettings.imageType = VK_IMAGE_TYPE_3D;
     imageSettings.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
-    superVoxelGridTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+    samplerSettings.addressModeU = samplerSettings.addressModeV = samplerSettings.addressModeW =
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerSettings.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    superVoxelGridTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     imageSettings.format = VK_FORMAT_R8_UINT;
-    superVoxelGridEmptyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+    samplerSettings.minFilter = samplerSettings.magFilter = VK_FILTER_NEAREST;
+    samplerSettings.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+    superVoxelGridOccupancyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
     computeSuperVoxels(voxelGridData);
 }
 
 SuperVoxelGridResidualRatioTracking::~SuperVoxelGridResidualRatioTracking() {
     delete[] superVoxelGrid;
-    delete[] superVoxelGridEmpty;
+    delete[] superVoxelGridOccupany;
     delete[] superVoxelGridMinDensity;
     delete[] superVoxelGridMaxDensity;
     delete[] superVoxelGridAvgDensity;
@@ -150,13 +156,13 @@ void SuperVoxelGridResidualRatioTracking::recomputeSuperVoxels() {
         superVoxel.mu_r_bar = mu_r_bar;
 
         bool isSuperVoxelEmpty = densityMax < 1e-5;
-        superVoxelGridEmpty[superVoxelIdx] = isSuperVoxelEmpty ? 1 : 0;
+        superVoxelGridOccupany[superVoxelIdx] = isSuperVoxelEmpty ? 0 : 1;
     }
 
     superVoxelGridTexture->getImage()->uploadData(
             superVoxelGridSize * sizeof(SuperVoxelResidualRatioTracking), superVoxelGrid);
-    superVoxelGridEmptyTexture->getImage()->uploadData(
-            superVoxelGridSize * sizeof(uint8_t), superVoxelGridEmpty);
+    superVoxelGridOccupancyTexture->getImage()->uploadData(
+            superVoxelGridSize * sizeof(uint8_t), superVoxelGridOccupany);
 }
 
 
@@ -172,23 +178,29 @@ SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
     superVoxelGridSizeZ = sgl::iceil(voxelGridSizeZ, superVoxelSize1D);
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
-    superVoxelGridEmpty = new uint8_t[superVoxelGridSize];
-    superVoxelGridMinDensity = new float[superVoxelGridSize];
+    superVoxelGridOccupany = new uint8_t[superVoxelGridSize];
+    superVoxelGridMinMaxDensity = new glm::vec2[superVoxelGridSize];
 
     sgl::vk::ImageSettings imageSettings{};
+    sgl::vk::ImageSamplerSettings samplerSettings{};
     imageSettings.width = superVoxelGridSizeX;
     imageSettings.height = superVoxelGridSizeY;
     imageSettings.depth = superVoxelGridSizeZ;
     imageSettings.imageType = VK_IMAGE_TYPE_3D;
     imageSettings.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    imageSettings.format = VK_FORMAT_R32_SFLOAT;
-    superVoxelGridTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+    imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
+    samplerSettings.addressModeU = samplerSettings.addressModeV = samplerSettings.addressModeW =
+            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    samplerSettings.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+    superVoxelGridTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     imageSettings.format = VK_FORMAT_R8_UINT;
-    superVoxelGridEmptyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings);
+    samplerSettings.minFilter = samplerSettings.magFilter = VK_FILTER_NEAREST;
+    samplerSettings.borderColor = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+    superVoxelGridOccupancyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
 #if _OPENMP >= 200805
     #pragma omp parallel for firstprivate(superVoxelGridSize) default(none) \
-    shared(voxelGridSizeX, voxelGridSizeY, voxelGridSizeZ, voxelGridData, superVoxelGridMinDensity)
+    shared(voxelGridSizeX, voxelGridSizeY, voxelGridSizeZ, voxelGridData, superVoxelGridMinMaxDensity)
 #endif
     for (int superVoxelIdx = 0; superVoxelIdx < superVoxelGridSize; superVoxelIdx++) {
         int superVoxelIdxX = superVoxelIdx % superVoxelGridSizeX;
@@ -214,19 +226,19 @@ SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
             }
         }
 
-        superVoxelGridMinDensity[superVoxelIdx] = densityMin;
+        superVoxelGridMinMaxDensity[superVoxelIdx] = glm::vec2(densityMin, densityMax);
 
         bool isSuperVoxelEmpty = densityMax < 1e-5;
-        superVoxelGridEmpty[superVoxelIdx] = isSuperVoxelEmpty ? 1 : 0;
+        superVoxelGridOccupany[superVoxelIdx] = isSuperVoxelEmpty ? 0 : 1;
     }
 
     superVoxelGridTexture->getImage()->uploadData(
-            superVoxelGridSize * sizeof(SuperVoxelResidualRatioTracking), superVoxelGridMinDensity);
-    superVoxelGridEmptyTexture->getImage()->uploadData(
-            superVoxelGridSize * sizeof(uint8_t), superVoxelGridEmpty);
+            superVoxelGridSize * sizeof(glm::vec2), superVoxelGridMinMaxDensity);
+    superVoxelGridOccupancyTexture->getImage()->uploadData(
+            superVoxelGridSize * sizeof(uint8_t), superVoxelGridOccupany);
 }
 
 SuperVoxelGridDecompositionTracking::~SuperVoxelGridDecompositionTracking() {
-    delete[] superVoxelGridEmpty;
-    delete[] superVoxelGridMinDensity;
+    delete[] superVoxelGridOccupany;
+    delete[] superVoxelGridMinMaxDensity;
 }

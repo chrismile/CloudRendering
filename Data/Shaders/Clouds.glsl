@@ -75,7 +75,7 @@ layout (binding = 8, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage
 
 #if defined(USE_RESIDUAL_RATIO_TRACKING) || defined(USE_DECOMPOSITION_TRACKING)
 layout (binding = 9) uniform sampler3D superVoxelGridImage;
-layout (binding = 10) uniform usampler3D superVoxelGridEmptyImage;
+layout (binding = 10) uniform usampler3D superVoxelGridOccupancyImage;
 #endif
 
 /**
@@ -655,7 +655,7 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 vec2 superVoxel = texelFetch(superVoxelGridImage, superVoxelIndex, 0).rg;
                 float mu_c = superVoxel.x;
                 float mu_r_bar = superVoxel.y;
-                //bool superVoxelEmpty = texelFetch(superVoxelGridEmptyImage, ivec3(0), 0).r != 0;
+                //bool superVoxelEmpty = texelFetch(superVoxelGridOccupancyImage, ivec3(0), 0).r != 0;
 
                 vec3 minVoxelPos = superVoxelIndex * parameters.superVoxelSize;
                 vec3 maxVoxelPos = minVoxelPos + parameters.superVoxelSize;
@@ -744,12 +744,14 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     ivec3 voxelGridSize = textureSize(gridImage, 0);
     vec3 boxDelta = parameters.boxMax - parameters.boxMin;
 
-    float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
+    //float tMaxX, tMaxY, tMaxZ, tDeltaX, tDeltaY, tDeltaZ;
+    ivec3 step;
+    vec3 tMax, tDelta;
     ivec3 superVoxelIndex;
     ivec3 cachedSuperVoxelIndexA = ivec3(-1, -1, -1);
     ivec3 cachedSuperVoxelIndexB = ivec3(-1, -1, -1);
-    uint isEmpty = 1;
-    float superVoxelDensity = 0.0;
+    uint isOccupied = 1;
+    vec2 superVoxelMinMaxDensity = vec2(0.0, 0.0);
 
     // Loop over all in-scattering rays.
     int it = 0;
@@ -763,7 +765,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
             vec3 endPoint = (x + w * dTotal - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
 
-            int stepX = int(sign(endPoint.x - startPoint.x));
+            /*int stepX = int(sign(endPoint.x - startPoint.x));
             if (stepX != 0)
                 tDeltaX = min(stepX / (endPoint.x - startPoint.x), 1e7);
             else
@@ -799,9 +801,18 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             if (stepX == 0 && stepY == 0 && stepZ == 0) {
                 break;
             }
-            ivec3 step = ivec3(stepX, stepY, stepZ);
-            vec3 tMax = vec3(tMaxX, tMaxY, tMaxZ);
-            vec3 tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);
+            step = ivec3(stepX, stepY, stepZ);
+            tMax = vec3(tMaxX, tMaxY, tMaxZ);
+            tDelta = vec3(tDeltaX, tDeltaY, tDeltaZ);*/
+
+            step = ivec3(sign(endPoint - startPoint));
+            tDelta = mix(min(step / (endPoint - startPoint), vec3(1e7)), vec3(1e7), vec3(equal(step, ivec3(0))));
+            vec3 fractStartPoint = fract(startPoint);
+            tMax = tDelta * mix(fractStartPoint, vec3(1.0) - fractStartPoint, vec3(greaterThan(step, ivec3(0))));
+            superVoxelIndex = ivec3(floor(startPoint));
+            if (all(equal(step, ivec3(0)))) {
+                break;
+            }
 
             ivec3 startVoxelInt = clamp(ivec3(floor(startPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
             ivec3 endVoxelInt = clamp(ivec3(ceil(endPoint)), ivec3(0), parameters.superVoxelGridSize - ivec3(1));
@@ -821,72 +832,80 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 x += w * tMinVoxel;
 
                 if (cachedSuperVoxelIndexA != superVoxelIndex) {
-                    isEmpty = texelFetch(superVoxelGridEmptyImage, superVoxelIndex, 0).x;
+                    //isOccupied = texelFetch(superVoxelGridOccupancyImage, superVoxelIndex, 0).x;
+                    isOccupied = 1;
                     cachedSuperVoxelIndexA = superVoxelIndex;
                 }
-                if (isEmpty == 1) {
+                if (isOccupied == 0) {
                     x += w * d_max;
-                }
+                } else {
+                    if (cachedSuperVoxelIndexB != superVoxelIndex) {
+                        superVoxelMinMaxDensity = texelFetch(superVoxelGridImage, superVoxelIndex, 0).xy;
+                        cachedSuperVoxelIndexB = superVoxelIndex;
+                    }
+                    float mu_c_t = max(0.0000000001, majorant * superVoxelMinMaxDensity.x);
+                    float majorant_r_local = max(0.0000000001, majorant * superVoxelMinMaxDensity.y - mu_c_t);
+                    //float mu_c_t = 0.0000000001;
+                    //float majorant_r_local = max(0.0000000001, majorant * 1 - mu_c_t);
+                    float mu_c_a = mu_c_t * absorptionAlbedo;
+                    float mu_c_s = mu_c_t * scatteringAlbedo;
 
-                if (cachedSuperVoxelIndexB != superVoxelIndex) {
-                    superVoxelDensity = texelFetch(superVoxelGridImage, superVoxelIndex, 0).x;
-                    cachedSuperVoxelIndexB = superVoxelIndex;
-                }
-                float mu_c_t = majorant * superVoxelDensity;
-                float mu_c_a = mu_c_t * absorptionAlbedo;
-                float mu_c_s = mu_c_t * scatteringAlbedo;
-
-                bool isNullCollision;
-                float t_c = -log(max(0.0000000001, 1 - random())) / max(0.0000000001, mu_c_t);
-                float t_r = 0.0;
-                vec3 xOld = x;
-                isNullCollision = false;
-                while (true) {
-                    float t = -log(max(0.0000000001, 1 - random())) / (max(0.0000000001, majorant - mu_c_t));
-                    t_r += t;
-                    float xi = random();
-                    bool isAbsorptionEvent = false;
-                    bool isScatteringEvent = false;
-                    if (t_r > t_c) {
-                        x = xOld + min(t_c, d_max) * w;
-                        if (t_c > d_max) {
-                            isNullCollision = true;
-                        } else if (xi < mu_c_a / max(0.0000000001, mu_c_t)) {
-                            return vec3(0.0); // absorption event/emission
+                    bool isNullCollision;
+                    float t_c = -log(max(0.0000000001, 1 - random())) / mu_c_t;
+                    float t_r = 0.0;
+                    vec3 xOld = x;
+                    isNullCollision = false;
+                    while (true) {
+                        float t = -log(max(0.0000000001, 1 - random())) / majorant_r_local;
+                        t_r += t;
+                        float xi = random();
+                        bool isAbsorptionEvent = false;
+                        bool isScatteringEvent = false;
+                        if (t_r > t_c) {
+                            x = xOld + min(t_c, d_max) * w;
+                            if (t_c > d_max) {
+                                isNullCollision = true;
+                            } else if (xi < mu_c_a / mu_c_t) {
+                                return vec3(0.0); // absorption event/emission
+                            } else {
+                                isScatteringEvent = true;
+                            }
                         } else {
-                            isScatteringEvent = true;
-                        }
-                    } else {
-                        float density = sampleCloud(x);
-                        float mu_t = parameters.extinction.x * density;
-                        float mu_a_r = mu_t * absorptionAlbedo - mu_c_a;
-                        float mu_n = parameters.extinction.x - mu_t;
+                            float density = sampleCloud(x);
+                            float mu_t = parameters.extinction.x * density;
+                            float mu_a_r = mu_t * absorptionAlbedo - mu_c_a;
+                            float mu_n = parameters.extinction.x - mu_t;
 
-                        x = xOld + t_r * w;
-                        if (t_r > d_max) {
-                            isNullCollision = true;
-                        } else if (xi < mu_a_r / max(0.0000000001, majorant - mu_c_t)) {
-                            isAbsorptionEvent = true; // absorption event/emission
-                        } else if (xi < 1 - mu_n / max(0.0000000001, majorant - mu_c_t)) {
-                            isScatteringEvent = true;
+                            x = xOld + min(t_r, d_max) * w;
+                            if (t_r > d_max) {
+                                isNullCollision = true;
+                            } else if (xi < mu_a_r / majorant_r_local) {
+                                isAbsorptionEvent = true; // absorption event/emission
+                            } else if (xi < 1 - mu_n / majorant_r_local) {
+                                isScatteringEvent = true;
+                            }
+                        }
+                        if (isNullCollision) {
+                            break; // null collision, proceed to next super voxel
+                        } else if (isAbsorptionEvent) {
+                            return vec3(0.0); // absorption event/emission
+                        } else if (isScatteringEvent) {
+                            float pdf_w;
+                            w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                            break;
                         }
                     }
-                    if (isNullCollision) {
-                        break; // null collision, proceed to next super voxel
-                    } else if (isAbsorptionEvent) {
-                        return vec3(0.0); // absorption event/emission
-                    } else if (isScatteringEvent) {
-                        float pdf_w;
-                        w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                    if (!isNullCollision) {
                         break;
                     }
                 }
 
-                if (!isNullCollision) {
-                    break;
-                }
+                ivec3 dims = ivec3(tMax.x <= tMax.y && tMax.x <= tMax.z, tMax.y <= tMax.x && tMax.y <= tMax.z, tMax.z <= tMax.x && tMax.z <= tMax.y);
+                superVoxelIndex += step * dims;
+                tMax += tDelta * vec3(dims);
 
-                if (tMaxX < tMaxY) {
+                /*if (tMaxX < tMaxY) {
                     if (tMaxX < tMaxZ) {
                         superVoxelIndex.x += stepX;
                         tMaxX += tDeltaX;
@@ -902,7 +921,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                         superVoxelIndex.z += stepZ;
                         tMaxZ += tDeltaZ;
                     }
-                }
+                }*/
 
                 leftGrid = true;
             }

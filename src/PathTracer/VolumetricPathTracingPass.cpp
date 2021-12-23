@@ -248,15 +248,15 @@ void VolumetricPathTracingPass::createComputeData(
                 superVoxelGridResidualRatioTracking->getSuperVoxelGridTexture(),
                 "superVoxelGridImage");
         computeData->setStaticTexture(
-                superVoxelGridResidualRatioTracking->getSuperVoxelGridEmptyTexture(),
-                "superVoxelGridEmptyImage");
+                superVoxelGridResidualRatioTracking->getSuperVoxelGridOccupancyTexture(),
+                "superVoxelGridOccupancyImage");
     } else if (vptMode == VptMode::DECOMPOSITION_TRACKING) {
         computeData->setStaticTexture(
                 superVoxelGridDecompositionTracking->getSuperVoxelGridTexture(),
                 "superVoxelGridImage");
         computeData->setStaticTexture(
-                superVoxelGridDecompositionTracking->getSuperVoxelGridEmptyTexture(),
-                "superVoxelGridEmptyImage");
+                superVoxelGridDecompositionTracking->getSuperVoxelGridOccupancyTexture(),
+                "superVoxelGridOccupancyImage");
     }
 }
 
