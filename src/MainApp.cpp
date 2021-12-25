@@ -95,6 +95,14 @@ MainApp::MainApp()
 
     volumetricPathTracingPass = std::make_shared<VolumetricPathTracingPass>(rendererVk);
 
+    customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
+    loadAvailableDataSetInformation();
+
+    usesNewState = true;
+    recordingTimeStampStart = sgl::Timer->getTicksMicroseconds();
+
+    resolutionChanged(sgl::EventPtr());
+
     if (!recording && !usePerformanceMeasurementMode) {
         // Just for convenience...
         int desktopWidth = 0;
@@ -106,14 +114,6 @@ MainApp::MainApp()
             window->setWindowSize(2186, 1358);
         }
     }
-
-    customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
-    loadAvailableDataSetInformation();
-
-    usesNewState = true;
-    recordingTimeStampStart = sgl::Timer->getTicksMicroseconds();
-
-    resolutionChanged(sgl::EventPtr());
 }
 
 MainApp::~MainApp() {
