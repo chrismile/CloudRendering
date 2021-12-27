@@ -48,7 +48,7 @@ layout (binding = 2) uniform Parameters {
     vec3 sunDirection;
     vec3 sunIntensity;
 
-    // For residual ratio tracking.
+    // For residual ratio tracking and decomposition tracking.
     ivec3 superVoxelSize;
     ivec3 superVoxelGridSize;
 } parameters;
@@ -530,7 +530,7 @@ float residualRatioTrackingEstimator(
         vec3 x, vec3 w, float dStart, float dEnd, float T,
         inout float reservoirWeightSum, out float reservoirT, out float reservoirDist,
         float absorptionAlbedo, float mu_c, float mu_r_bar) {
-    float T_c = exp(-absorptionAlbedo * mu_c * (dEnd - dStart));
+    float T_c = exp(-mu_c * (dEnd - dStart));
     float T_r = 1.0;
     float dTravelled = dStart;
 
@@ -549,12 +549,13 @@ float residualRatioTrackingEstimator(
 
         float density = sampleCloud(x);
         float mu = parameters.extinction.x * density;
-        //T_r *= (1.0 - absorptionAlbedo * parameters.scatteringAlbedo.x * (mu - mu_c) / mu_r_bar);
+        //T_r *= (1.0 - absorptionAlbedo * (mu - mu_c) / mu_r_bar);
         //T_r *= (1.0 - density) * (mu - mu_c) / mu_r_bar;
+        T_r *= 1.0 - (mu - mu_c) / mu_r_bar;
 
         float Ps = parameters.scatteringAlbedo.x * density;
         //float T_c_local = exp(-absorptionAlbedo * parameters.scatteringAlbedo.x * mu_c * (dTravelled - dStart));
-        float T_c_local = exp(-(1.0 - density) * mu_c * (dTravelled - dStart));
+        float T_c_local = exp(-mu_c * (dTravelled - dStart));
         float T_local = T * T_r * T_c_local;
         // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
         float reservoirWeight = T_local * Ps;
@@ -731,7 +732,7 @@ vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
  */
 
 #ifdef USE_DECOMPOSITION_TRACKING
-vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+vec3 analogDecompositionTrackingOld(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
 
     float majorant = parameters.extinction.x;
@@ -935,6 +936,122 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
         it++;
 
+    }
+
+    return sampleSkybox(w) + sampleLight(w);
+}
+
+vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+
+    int it = 0;
+    const vec3 EPSILON_VEC = vec3(1e-6);
+    float tMinVal, tMaxVal;
+    if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal)) {
+        float majorant = parameters.extinction.x;
+        float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
+        float scatteringAlbedo = parameters.scatteringAlbedo.x;
+
+        ivec3 voxelGridSize = textureSize(gridImage, 0);
+        vec3 boxDelta = parameters.boxMax - parameters.boxMin;
+        vec3 superVoxelSize = parameters.superVoxelSize * boxDelta / voxelGridSize;
+
+        x += w * tMinVal;
+        vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+        ivec3 superVoxelIndex = ivec3(floor(startPoint));
+
+        ivec3 cachedSuperVoxelIndexA = ivec3(-1, -1, -1);
+        ivec3 cachedSuperVoxelIndexB = ivec3(-1, -1, -1);
+        bool isOccupied = false;
+        vec2 superVoxelMinMaxDensity = vec2(0.0, 0.0);
+
+        // Loop over all super voxels along the ray.
+        while (all(greaterThanEqual(superVoxelIndex, ivec3(0))) && all(lessThan(superVoxelIndex, parameters.superVoxelGridSize))) {
+            vec3 minSuperVoxelPos = parameters.boxMin + superVoxelIndex * superVoxelSize;
+            vec3 maxSuperVoxelPos = minSuperVoxelPos + superVoxelSize;
+
+            float tMinSuperVoxel = 0.0, tMaxSuperVoxel = 0.0;
+            rayBoxIntersect(minSuperVoxelPos, maxSuperVoxelPos, x, w, tMinSuperVoxel, tMaxSuperVoxel);
+            float d_max = tMaxSuperVoxel - tMinSuperVoxel + 1e-7;
+            x += w * tMinSuperVoxel;
+
+            //if (cachedSuperVoxelIndexA != superVoxelIndex) {
+            //    // TODO - remove, check max < EPSILON
+            //    isOccupied = texelFetch(superVoxelGridOccupancyImage, superVoxelIndex, 0).x > 0;
+            //    cachedSuperVoxelIndexA = superVoxelIndex;
+            //}
+            if (cachedSuperVoxelIndexB != superVoxelIndex) {
+                superVoxelMinMaxDensity = texelFetch(superVoxelGridImage, superVoxelIndex, 0).xy;
+                cachedSuperVoxelIndexB = superVoxelIndex;
+                isOccupied = superVoxelMinMaxDensity.y > 1e-5;
+            }
+            if (!isOccupied) {
+                x += w * d_max;
+            } else {
+                float mu_c_t = max(0.0000000001, majorant * superVoxelMinMaxDensity.x);
+                float majorant_r_local = max(0.0000000001, majorant * superVoxelMinMaxDensity.y - mu_c_t);
+                //float mu_c_t = 0.0000000001;
+                //float majorant_r_local = max(0.0000000001, majorant * 1 - mu_c_t);
+
+                bool isNullCollision;
+                float t_c = -log(max(0.0000000001, 1 - random())) / mu_c_t;
+                float t_r = 0.0;
+                isNullCollision = false;
+                while (true) {
+                    t_r -= log(max(0.0000000001, 1 - random())) / majorant_r_local;
+
+                    if (t_c >= d_max && t_r >= d_max) {
+                        x = x + d_max * w;
+                        break; // null collision, proceed to next super voxel
+                    }
+
+                    vec3 xs = x + w * min(t_c, t_r);
+                    bool isCollision = false;
+                    if (t_c <= t_r) {
+                        isCollision = true;
+                    } else {
+                        float density = sampleCloud(xs);
+                        isCollision = random() * majorant_r_local < parameters.extinction.x * density - mu_c_t;
+                    }
+
+                    if (isCollision) {
+                        x = xs;
+
+                        if (random() < absorptionAlbedo) {
+                            return vec3(0.0); // absorption event/emission
+                        }
+
+                        float pdf_w;
+                        w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                        t_r = 0.0;
+                        t_c = -log(max(0.0000000001, 1 - random())) / mu_c_t;
+                        rayBoxIntersect(minSuperVoxelPos, maxSuperVoxelPos, x, w, tMinSuperVoxel, tMaxSuperVoxel);
+                        d_max = tMaxSuperVoxel - tMinSuperVoxel + 1e-7;
+                    }
+                }
+            }
+
+            vec3 cellCenter = (minSuperVoxelPos + maxSuperVoxelPos) * 0.5;
+            vec3 mov = x + w * 0.001 - cellCenter;
+            vec3 smov = sign(mov);
+            mov *= smov;
+
+            ivec3 dims = ivec3(mov.x >= mov.y && mov.x >= mov.z, mov.y >= mov.x && mov.y >= mov.z, mov.z >= mov.x && mov.z >= mov.y);
+            superVoxelIndex += dims * ivec3(smov);
+            it++;
+
+            //vec3 startPointCurr = ((x + w * 0.0001) - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+            //ivec3 superVoxelIndexCurr = ivec3(floor(startPointCurr));
+            //superVoxelIndex = superVoxelIndexCurr;
+
+            //if (it > 4 && superVoxelIndexCurr != superVoxelIndex) {
+            //    return vec3(1.0, 0.0, 0.0);
+            //}
+
+            //if (it > 1000000) {
+            //    return vec3(1.0, 0.0, 0.0);
+            //}
+        }
     }
 
     return sampleSkybox(w) + sampleLight(w);
