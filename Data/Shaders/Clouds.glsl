@@ -950,7 +950,6 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     if (rayBoxIntersect(parameters.boxMin + EPSILON_VEC, parameters.boxMax - EPSILON_VEC, x, w, tMinVal, tMaxVal)) {
         float majorant = parameters.extinction.x;
         float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
-        float scatteringAlbedo = parameters.scatteringAlbedo.x;
 
         ivec3 voxelGridSize = textureSize(gridImage, 0);
         vec3 boxDelta = parameters.boxMax - parameters.boxMin;
@@ -960,9 +959,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
         vec3 startPoint = (x - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
         ivec3 superVoxelIndex = ivec3(floor(startPoint));
 
-        ivec3 cachedSuperVoxelIndexA = ivec3(-1, -1, -1);
-        ivec3 cachedSuperVoxelIndexB = ivec3(-1, -1, -1);
-        bool isOccupied = false;
+        ivec3 cachedSuperVoxelIndex = ivec3(-1, -1, -1);
         vec2 superVoxelMinMaxDensity = vec2(0.0, 0.0);
 
         // Loop over all super voxels along the ray.
@@ -972,20 +969,14 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             float tMinSuperVoxel = 0.0, tMaxSuperVoxel = 0.0;
             rayBoxIntersect(minSuperVoxelPos, maxSuperVoxelPos, x, w, tMinSuperVoxel, tMaxSuperVoxel);
-            float d_max = tMaxSuperVoxel - tMinSuperVoxel + 1e-7;
+            float d_max = tMaxSuperVoxel - tMinSuperVoxel; // + 1e-7
             x += w * tMinSuperVoxel;
 
-            //if (cachedSuperVoxelIndexA != superVoxelIndex) {
-            //    // TODO - remove, check max < EPSILON
-            //    isOccupied = texelFetch(superVoxelGridOccupancyImage, superVoxelIndex, 0).x > 0;
-            //    cachedSuperVoxelIndexA = superVoxelIndex;
-            //}
-            if (cachedSuperVoxelIndexB != superVoxelIndex) {
+            if (cachedSuperVoxelIndex != superVoxelIndex) {
                 superVoxelMinMaxDensity = texelFetch(superVoxelGridImage, superVoxelIndex, 0).xy;
-                cachedSuperVoxelIndexB = superVoxelIndex;
-                isOccupied = superVoxelMinMaxDensity.y > 1e-5;
+                cachedSuperVoxelIndex = superVoxelIndex;
             }
-            if (!isOccupied) {
+            if (superVoxelMinMaxDensity.y < 1e-5) {
                 x += w * d_max;
             } else {
                 float mu_c_t = max(0.0000000001, majorant * superVoxelMinMaxDensity.x);
@@ -1026,7 +1017,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                         t_r = 0.0;
                         t_c = -log(max(0.0000000001, 1 - random())) / mu_c_t;
                         rayBoxIntersect(minSuperVoxelPos, maxSuperVoxelPos, x, w, tMinSuperVoxel, tMaxSuperVoxel);
-                        d_max = tMaxSuperVoxel - tMinSuperVoxel + 1e-7;
+                        d_max = tMaxSuperVoxel - tMinSuperVoxel; // + 1e-7
                     }
                 }
             }
