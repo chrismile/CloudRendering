@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
-    "name": "cloudrendering",
+    "name": "cloud-rendering",
     "version": "0.1.0",
     "dependencies": [
         "boost-core",

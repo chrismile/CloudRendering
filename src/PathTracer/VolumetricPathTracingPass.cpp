@@ -427,9 +427,15 @@ void VolumetricPathTracingPass::renderGui() {
             }
         }
 
+        int numDenoisersSupported = IM_ARRAYSIZE(DENOISER_NAMES);
+#ifdef SUPPORT_OPTIX
+        if (!OptixVptDenoiser::isOpitEnabled()) {
+            numDenoisersSupported--;
+        }
+#endif
         if (ImGui::Combo(
                 "Denoiser", (int*)&denoiserType,
-                DENOISER_NAMES, IM_ARRAYSIZE(DENOISER_NAMES))) {
+                DENOISER_NAMES, numDenoisersSupported)) {
             denoiserChanged = true;
             reRender = true;
             changedDenoiserSettings = true;
