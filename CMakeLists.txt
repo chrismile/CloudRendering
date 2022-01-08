@@ -8,8 +8,11 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
 
 set(CMAKE_CXX_STANDARD 17)
 
-file(GLOB_RECURSE SOURCES src/*.cpp src/*.c)
+file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.h src/*.hpp Data/Shaders/*.glsl)
 include_directories(src)
+
+file(GLOB_RECURSE SHADER_FILES Data/Shaders/*.glsl)
+source_group(Shaders FILES ${SHADER_FILES})
 
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus")
@@ -159,14 +162,8 @@ include_directories(${sgl_INCLUDES} ${Boost_INCLUDE_DIR})
 
 if(VCPKG_TOOLCHAIN)
     target_link_libraries(CloudRendering PRIVATE tinyxml2::tinyxml2)
-    if (TARGET jsoncpp_static)
-        target_link_libraries(CloudRendering PRIVATE jsoncpp_object jsoncpp_static)
-    else()
-        target_link_libraries(CloudRendering PRIVATE jsoncpp_object jsoncpp_lib)
-    endif()
 else()
-    target_link_libraries(CloudRendering PRIVATE ${TINYXML2_LIBRARIES} ${JSONCPP_LIBRARIES})
-    target_include_directories(CloudRendering PRIVATE ${JSONCPP_INCLUDE_DIRS})
+    target_link_libraries(CloudRendering PRIVATE ${TINYXML2_LIBRARIES})
 endif()
 target_include_directories(CloudRendering PRIVATE ${sgl_INCLUDES} ${TINYXML2_INCLUDE_DIR})
 
