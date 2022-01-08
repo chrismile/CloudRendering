@@ -8,7 +8,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
 
 set(CMAKE_CXX_STANDARD 17)
 
-file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.h src/*.hpp Data/Shaders/*.glsl)
+file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.hpp src/*.h Data/Shaders/*.glsl)
 include_directories(src)
 
 file(GLOB_RECURSE SHADER_FILES Data/Shaders/*.glsl)
