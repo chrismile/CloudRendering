@@ -413,6 +413,8 @@ vec3 pathtrace(
                 float pdf_w;
                 w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
+                pdf_x *= exp(-majorant * t) * majorant * density;
+
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;
                     firstEvent.pdf_x = sigma_s * pdf_x;
@@ -429,7 +431,7 @@ vec3 pathtrace(
                     d = tMax - tMin;
                 }
             } else {
-                pdf_x *= exp(-parameters.extinction.x * density);
+                pdf_x *= exp(-majorant * t) * majorant * (1 - density);
                 d -= t;
             }
         }
@@ -491,6 +493,8 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 float pdf_w;
                 w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
+                pdf_x *= exp(-majorant * t) * majorant * density;
+
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;
                     firstEvent.pdf_x = sigma_s * pdf_x;
@@ -504,7 +508,7 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     d = tMax - tMin;
                 }
             } else {
-                pdf_x *= exp(-parameters.extinction.x * density);
+                pdf_x *= exp(-majorant * t) * majorant * (1 - density);
                 d -= t;
             }
         }
@@ -1023,7 +1027,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             }
 
             vec3 cellCenter = (minSuperVoxelPos + maxSuperVoxelPos) * 0.5;
-            vec3 mov = x + w * 0.001 - cellCenter;
+            vec3 mov = x + w * 0.00001 - cellCenter;
             vec3 smov = sign(mov);
             mov *= smov;
 
@@ -1031,13 +1035,13 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             superVoxelIndex += dims * ivec3(smov);
             it++;
 
-            //vec3 startPointCurr = ((x + w * 0.0001) - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
-            //ivec3 superVoxelIndexCurr = ivec3(floor(startPointCurr));
+            vec3 startPointCurr = ((x + w * 0.00001) - parameters.boxMin) / boxDelta * voxelGridSize / parameters.superVoxelSize;
+            ivec3 superVoxelIndexCurr = ivec3(floor(startPointCurr));
             //superVoxelIndex = superVoxelIndexCurr;
 
-            //if (it > 4 && superVoxelIndexCurr != superVoxelIndex) {
-            //    return vec3(1.0, 0.0, 0.0);
-            //}
+            if (it > 4 && superVoxelIndexCurr != superVoxelIndex) {
+                return vec3(1.0, 0.0, 0.0);
+            }
 
             //if (it > 1000000) {
             //    return vec3(1.0, 0.0, 0.0);
