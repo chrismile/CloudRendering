@@ -36,6 +36,10 @@ EAWDenoiser::EAWDenoiser(sgl::vk::Renderer* renderer) {
     eawBlitPass = std::make_shared<EAWBlitPass>(renderer);
 }
 
+bool EAWDenoiser::getIsEnabled() const {
+    return eawBlitPass->getMaxNumIterations() > 0;
+}
+
 void EAWDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
     eawBlitPass->setOutputImage(outputImage);
 }

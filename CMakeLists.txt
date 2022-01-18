@@ -1,5 +1,5 @@
-cmake_minimum_required (VERSION 3.5)
-cmake_policy(VERSION 3.5...3.20)
+cmake_minimum_required (VERSION 3.7)
+cmake_policy(VERSION 3.7...3.20)
 option(USE_GTEST "USE_GTEST" OFF)
 
 project (CloudRendering)

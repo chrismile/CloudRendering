@@ -46,13 +46,15 @@ class EAWDenoiser : public Denoiser {
 public:
     explicit EAWDenoiser(sgl::vk::Renderer* renderer);
     DenoiserType getDenoiserType() override { return DenoiserType::EAW; }
+    [[nodiscard]] const char* getDenoiserName() const override { return "EAW Denoiser"; }
+    [[nodiscard]] bool getIsEnabled() const override;
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
     void setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) override;
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
-    virtual bool renderGui() override;
+    bool renderGui() override;
 
 private:
     std::shared_ptr<EAWBlitPass> eawBlitPass;
@@ -68,6 +70,7 @@ public:
     inline void setColorTexture(const sgl::vk::TexturePtr& texture) { colorTexture = texture; setDataDirty(); }
     inline void setPositionTexture(const sgl::vk::TexturePtr& texture) { positionTexture = texture; setDataDirty(); }
     inline void setNormalTexture(const sgl::vk::TexturePtr& texture) { normalTexture = texture; setDataDirty(); }
+    [[nodiscard]] inline int getMaxNumIterations() const { return maxNumIterations; }
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGui();
