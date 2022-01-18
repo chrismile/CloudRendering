@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2021, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,43 +26,29 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CLOUDRENDERING_DENOISER_HPP
-#define CLOUDRENDERING_DENOISER_HPP
-
-#include <string>
-
-#include <Graphics/Vulkan/Image/Image.hpp>
-
-enum class DenoiserType {
-    NONE,
-    EAW,
+#include <Utils/File/Logfile.hpp>
+#include "EAWDenoiser.hpp"
 #ifdef SUPPORT_OPTIX
-    OPTIX
+#include "OptixVptDenoiser.hpp"
 #endif
-};
-const char* const DENOISER_NAMES[] = {
-        "None",
-        "Edge-Avoiding À-Trous Wavelet Transform",
+#include "Denoiser.hpp"
+
+std::shared_ptr<Denoiser> createDenoiserObject(DenoiserType denoiserType, sgl::vk::Renderer* renderer) {
+    std::shared_ptr<Denoiser> denoiser;
+    if (denoiserType == DenoiserType::NONE) {
+        denoiser = {};
+    } else if (denoiserType == DenoiserType::EAW) {
+        denoiser = std::shared_ptr<Denoiser>(new EAWDenoiser(renderer));
+    }
 #ifdef SUPPORT_OPTIX
-        "OptiX Denoiser"
+    else if (denoiserType == DenoiserType::OPTIX) {
+        denoiser = std::shared_ptr<Denoiser>(new OptixVptDenoiser(renderer));
+    }
 #endif
-};
-
-class Denoiser {
-public:
-    virtual ~Denoiser() = default;
-    virtual DenoiserType getDenoiserType() = 0;
-    [[nodiscard]] virtual const char* getDenoiserName() const = 0;
-    [[nodiscard]] virtual bool getIsEnabled() const { return true; }
-    virtual void setOutputImage(sgl::vk::ImageViewPtr& outputImage)=0;
-    virtual void setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) = 0;
-    virtual void denoise() = 0;
-    virtual void recreateSwapchain(uint32_t width, uint32_t height) {}
-
-    /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
-    virtual bool renderGui() { return false; }
-};
-
-std::shared_ptr<Denoiser> createDenoiserObject(DenoiserType denoiserType, sgl::vk::Renderer* renderer);
-
-#endif //CLOUDRENDERING_DENOISER_HPP
+    else {
+        denoiser = {};
+        sgl::Logfile::get()->writeError(
+                "Error in VolumetricPathTracingPass::createDenoiser: Invalid denoiser type selected.");
+    }
+    return denoiser;
+}

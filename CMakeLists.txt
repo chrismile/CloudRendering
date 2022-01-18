@@ -1,5 +1,5 @@
-cmake_minimum_required (VERSION 3.5)
-cmake_policy(VERSION 3.5...3.20)
+cmake_minimum_required (VERSION 3.7)
+cmake_policy(VERSION 3.7...3.20)
 option(USE_GTEST "USE_GTEST" OFF)
 
 project (CloudRendering)
@@ -8,11 +8,11 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
 
 set(CMAKE_CXX_STANDARD 17)
 
-file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.h src/*.hpp Data/Shaders/*.glsl)
+file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.hpp src/*.h Data/Shaders/*.glsl)
 include_directories(src)
 
 file(GLOB_RECURSE SHADER_FILES Data/Shaders/*.glsl)
-source_group(Shaders FILES ${SHADER_FILES})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders" PREFIX "Shaders" FILES ${SHADER_FILES})
 
 if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus")

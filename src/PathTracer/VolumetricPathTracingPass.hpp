@@ -81,7 +81,7 @@ private:
             "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking", "Residual Ratio Tracking",
             "Decomposition Tracking"
     };
-    VptMode vptMode = VptMode::RATIO_TRACKING;
+    VptMode vptMode = VptMode::DECOMPOSITION_TRACKING;
     std::shared_ptr<SuperVoxelGridResidualRatioTracking> superVoxelGridResidualRatioTracking;
     std::shared_ptr<SuperVoxelGridDecompositionTracking> superVoxelGridDecompositionTracking;
     int superVoxelSize = 8;
@@ -100,7 +100,6 @@ private:
     int targetNumSamples = 1024;
     bool reachedTarget = true;
     bool changedDenoiserSettings = false;
-    //std::chrono::time_point<std::chrono::system_clock> accumulateSamplesStartTime = std::chrono::system_clock::now();
     sgl::vk::TimerPtr accumulationTimer;
 
     glm::vec3 sunlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
@@ -133,7 +132,7 @@ private:
         glm::vec3 sunDirection; float pad3;
         glm::vec3 sunIntensity; float pad4;
 
-        // For residual ratio tracking.
+        // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad5;
         glm::ivec3 superVoxelGridSize; int pad6;
     };

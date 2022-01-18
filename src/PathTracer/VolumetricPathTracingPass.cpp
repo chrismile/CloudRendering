@@ -67,21 +67,7 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
 }
 
 void VolumetricPathTracingPass::createDenoiser() {
-    if (denoiserType == DenoiserType::NONE) {
-        denoiser = {};
-    } else if (denoiserType == DenoiserType::EAW) {
-        denoiser = std::shared_ptr<Denoiser>(new EAWDenoiser(renderer));
-    }
-#ifdef SUPPORT_OPTIX
-    else if (denoiserType == DenoiserType::OPTIX) {
-        denoiser = std::shared_ptr<Denoiser>(new OptixVptDenoiser(renderer));
-    }
-#endif
-    else {
-        denoiser = {};
-        sgl::Logfile::get()->writeError(
-                "Error in VolumetricPathTracingPass::createDenoiser: Invalid denoiser type selected.");
-    }
+    denoiser = createDenoiserObject(denoiserType, renderer);
 
     if (resultImageTexture) {
         setDenoiserFeatureMaps();
@@ -323,7 +309,7 @@ void VolumetricPathTracingPass::_render() {
     changedDenoiserSettings = false;
 
     if (featureMapType == FeatureMapType::RESULT) {
-        if (useDenoiser && denoiser) {
+        if (useDenoiser && denoiser && denoiser->getIsEnabled()) {
             denoiser->denoise();
             renderer->transitionImageLayout(
                     denoisedImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -364,7 +350,7 @@ void VolumetricPathTracingPass::renderGui() {
     bool optionChanged = false;
 
     if (ImGui::Begin("VPT Renderer", &showWindow)) {
-        std::string numSamplesText = "Number of Samples: " + std::to_string(frameInfo.frameCount);
+        std::string numSamplesText = "#Samples: " + std::to_string(frameInfo.frameCount);
         // + "##numSamplesText";
         ImGui::Text("%s", numSamplesText.c_str());
         ImGui::SameLine();
