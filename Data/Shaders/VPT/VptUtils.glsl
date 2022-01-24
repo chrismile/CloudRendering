@@ -113,23 +113,33 @@ vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
 
 //--- Tools
 
+#ifdef USE_ENVIRONMENT_MAP_IMAGE
+vec3 sampleSkybox(in vec3 dir) {
+    // Sample from equirectangular projection.
+    vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
+    return parameters.environmentMapIntensityFactor * texture(environmentMapTexture, texcoord).rgb;
+}
+vec3 sampleLight(in vec3 dir) {
+    return vec3(0.0);
+}
+#else
 vec3 sampleSkybox(in vec3 dir) {
     vec3 L = dir;
 
     vec3 BG_COLORS[5] = {
-    vec3(0.1, 0.05, 0.01), // GROUND DARKER BLUE
-    vec3(0.01, 0.05, 0.2), // HORIZON GROUND DARK BLUE
-    vec3(0.8, 0.9, 1.0), // HORIZON SKY WHITE
-    vec3(0.1, 0.3, 1.0),  // SKY LIGHT BLUE
-    vec3(0.01, 0.1, 0.7)  // SKY BLUE
+            vec3(0.1, 0.05, 0.01), // GROUND DARKER BLUE
+            vec3(0.01, 0.05, 0.2), // HORIZON GROUND DARK BLUE
+            vec3(0.8, 0.9, 1.0), // HORIZON SKY WHITE
+            vec3(0.1, 0.3, 1.0),  // SKY LIGHT BLUE
+            vec3(0.01, 0.1, 0.7)  // SKY BLUE
     };
 
     float BG_DISTS[5] = {
-    -1.0,
-    -0.1,
-    0.0,
-    0.4,
-    1.0
+            -1.0,
+            -0.1,
+            0.0,
+            0.4,
+            1.0
     };
 
     vec3 col = BG_COLORS[0];
@@ -140,12 +150,12 @@ vec3 sampleSkybox(in vec3 dir) {
 
     return col;
 }
-
 vec3 sampleLight(in vec3 dir) {
     int N = 10;
     float phongNorm = (N + 2) / (2 * 3.14159);
     return parameters.sunIntensity * pow(max(0, dot(dir, parameters.sunDirection)), N) * phongNorm;
 }
+#endif
 
 float sampleCloud(in vec3 pos) {
     ivec3 dim = textureSize(gridImage, 0);

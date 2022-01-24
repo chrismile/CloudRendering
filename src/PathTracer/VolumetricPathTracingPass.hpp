@@ -36,6 +36,11 @@ class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
 
+namespace IGFD {
+class FileDialog;
+}
+typedef IGFD::FileDialog ImGuiFileDialog;
+
 enum class FeatureMapType {
     RESULT, FIRST_X, FIRST_W, PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
@@ -46,6 +51,7 @@ const char* const FEATURE_MAP_NAMES[] = {
 class VolumetricPathTracingPass : public sgl::vk::ComputePass {
 public:
     explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer);
+    ~VolumetricPathTracingPass() override;
 
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
@@ -109,6 +115,16 @@ private:
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 cloudScatteringAlbedo = glm::vec3(1.0, 1.0, 1.0);
 
+    // Environment map data.
+    void loadEnvironmentMapImage();
+    bool isEnvironmentMapLoaded = false;
+    bool useEnvironmentMapImage = false;
+    std::string environmentMapFilenameGui;
+    std::string loadedEnvironmentMapFilename;
+    sgl::vk::TexturePtr environmentMapTexture;
+    float environmentMapIntensityFactor = 1.5f;
+    ImGuiFileDialog* fileDialogInstance = nullptr;
+
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
 
@@ -130,7 +146,8 @@ private:
         glm::vec3 scatteringAlbedo;
         float G = 0.875f;
         glm::vec3 sunDirection; float pad3;
-        glm::vec3 sunIntensity; float pad4;
+        glm::vec3 sunIntensity;
+        float environmentMapIntensityFactor;
 
         // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad5;
