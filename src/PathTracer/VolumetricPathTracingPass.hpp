@@ -57,6 +57,7 @@ public:
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
     void setCloudDataSet(CloudDataPtr& data);
+    void setUseLinearRGB(bool useLinearRGB);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -151,7 +152,10 @@ private:
 
         // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad5;
-        glm::ivec3 superVoxelGridSize; int pad6;
+        glm::ivec3 superVoxelGridSize;
+
+        // Whether to use linear RGB or sRGB.
+        int useLinearRGB;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

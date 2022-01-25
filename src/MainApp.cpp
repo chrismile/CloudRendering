@@ -94,6 +94,7 @@ MainApp::MainApp()
     }
 
     volumetricPathTracingPass = std::make_shared<VolumetricPathTracingPass>(rendererVk);
+    volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
 
     customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
     loadAvailableDataSetInformation();
@@ -142,6 +143,7 @@ void MainApp::resolutionChanged(sgl::EventPtr event) {
 void MainApp::updateColorSpaceMode() {
     SciVisApp::updateColorSpaceMode();
     transferFunctionWindow.setUseLinearRGB(useLinearRGB);
+    volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
 }
 
 void MainApp::render() {
@@ -322,11 +324,11 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
         if (dataLoaded) {
             this->cloudData = cloudData;
             cloudData->setClearColor(clearColor);
-            cloudData->setUseLinearRGB(useLinearRGB);
             newMeshLoaded = true;
             //modelBoundingBox = cloudData->getModelBoundingBox();
 
             volumetricPathTracingPass->setCloudDataSet(cloudData);
+            volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
             reRender = true;
 
             const std::string& meshDescriptorName = fileName;
@@ -363,7 +365,6 @@ void MainApp::checkLoadingRequestFinished() {
     if (cloudData) {
         this->cloudData = cloudData;
         cloudData->setClearColor(clearColor);
-        cloudData->setUseLinearRGB(useLinearRGB);
         newMeshLoaded = true;
         //modelBoundingBox = cloudData->getModelBoundingBox();
 

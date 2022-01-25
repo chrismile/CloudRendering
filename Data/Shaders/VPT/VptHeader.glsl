@@ -48,6 +48,9 @@ layout (binding = 2) uniform Parameters {
     // For residual ratio tracking and decomposition tracking.
     ivec3 superVoxelSize;
     ivec3 superVoxelGridSize;
+
+    // Whether to use linear RGB or sRGB.
+    int useLinearRGB;
 } parameters;
 
 layout (binding = 3) uniform FrameInfo {

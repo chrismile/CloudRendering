@@ -182,6 +182,11 @@ void VolumetricPathTracingPass::setCloudDataSet(CloudDataPtr& data) {
     updateVptMode();
 }
 
+void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
+    uniformData.useLinearRGB = useLinearRGB;
+    setShaderDirty();
+}
+
 void VolumetricPathTracingPass::onHasMoved() {
     frameInfo.frameCount = 0;
 }
@@ -273,6 +278,9 @@ void VolumetricPathTracingPass::loadShader() {
     }
     if (useEnvironmentMapImage) {
         customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
+    }
+    if (uniformData.useLinearRGB) {
+        customPreprocessorDefines.insert({ "USE_LINEAR_RGB", "" });
     }
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
@@ -551,6 +559,7 @@ void VolumetricPathTracingPass::renderGui() {
         if (isEnvironmentMapLoaded && ImGui::Checkbox("Use Environment Map Image", &useEnvironmentMapImage)) {
             setShaderDirty();
             reRender = true;
+            frameInfo.frameCount = 0;
         }
         if (useEnvironmentMapImage && ImGui::SliderFloat(
                 "environmentMapIntensityFactor", &environmentMapIntensityFactor, 0.0f, 5.0f)) {

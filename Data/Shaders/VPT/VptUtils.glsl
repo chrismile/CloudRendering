@@ -113,11 +113,33 @@ vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
 
 //--- Tools
 
+/**
+ * Converts linear RGB to sRGB.
+ * For more details see: https://en.wikipedia.org/wiki/SRGB
+ */
+vec3 linearRGBTosRGB(in vec3 sRGB) {
+    return mix(1.055 * pow(sRGB, vec3(1.0 / 2.4)) - 0.055, sRGB * 12.92, lessThanEqual(sRGB, vec3(0.0031308)));
+}
+
+/**
+ * Converts sRGB to linear RGB.
+ * For more details see: https://en.wikipedia.org/wiki/SRGB
+ */
+vec3 sRGBToLinearRGB(in vec3 linearRGB) {
+    return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
+}
+
+
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 vec3 sampleSkybox(in vec3 dir) {
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
-    return parameters.environmentMapIntensityFactor * texture(environmentMapTexture, texcoord).rgb;
+    vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;
+#ifdef USE_LINEAR_RGB
+    return parameters.environmentMapIntensityFactor * sRGBToLinearRGB(textureColor);
+#else
+    return parameters.environmentMapIntensityFactor * textureColor;
+#endif
 }
 vec3 sampleLight(in vec3 dir) {
     return vec3(0.0);
@@ -148,7 +170,11 @@ vec3 sampleSkybox(in vec3 dir) {
     col = mix(col, BG_COLORS[3], vec3(smoothstep(BG_DISTS[2], BG_DISTS[3], L.y)));
     col = mix(col, BG_COLORS[4], vec3(smoothstep(BG_DISTS[3], BG_DISTS[4], L.y)));
 
+#ifdef USE_LINEAR_RGB
+    return sRGBToLinearRGB(col);
+#else
     return col;
+#endif
 }
 vec3 sampleLight(in vec3 dir) {
     int N = 10;

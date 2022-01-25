@@ -44,7 +44,6 @@ public:
     [[nodiscard]] inline uint32_t getGridSizeZ() const { return gridSizeZ; }
 
     void setClearColor(const sgl::Color& clearColor) {}
-    void setUseLinearRGB(bool useLinearRGB) {}
 
 private:
     std::string gridFilename;
