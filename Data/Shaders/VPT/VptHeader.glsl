@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2021, Christoph Neuhauser, Ludwig Leonard
+ * Copyright (c) 2021-2022, Christoph Neuhauser, Ludwig Leonard
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -96,6 +96,6 @@ layout(std140, binding = 12) uniform MomentUniformData {
 };
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
-vec2 Multiply(vec2 LHS, vec2 RHS){
-    return vec2(LHS.x*RHS.x-LHS.y*RHS.y,LHS.x*RHS.y+LHS.y*RHS.x);
+vec2 Multiply(vec2 LHS, vec2 RHS) {
+    return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }

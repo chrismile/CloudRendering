@@ -541,6 +541,12 @@ void VolumetricPathTracingPass::renderGui() {
         }
 
         ImGui::InputText("Environment Map", &environmentMapFilenameGui);
+        if (ImGui::Button("Load")) {
+            loadEnvironmentMapImage();
+            setShaderDirty();
+            reRender = true;
+        }
+        ImGui::SameLine();
         if (ImGui::Button("Open from Disk...")) {
             IGFD_OpenModal(
                     fileDialogInstance,
@@ -550,19 +556,13 @@ void VolumetricPathTracingPass::renderGui() {
                     "", 1, nullptr,
                     ImGuiFileDialogFlags_ConfirmOverwrite);
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Load")) {
-            loadEnvironmentMapImage();
-            setShaderDirty();
-            reRender = true;
-        }
         if (isEnvironmentMapLoaded && ImGui::Checkbox("Use Environment Map Image", &useEnvironmentMapImage)) {
             setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
         }
         if (useEnvironmentMapImage && ImGui::SliderFloat(
-                "environmentMapIntensityFactor", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
+                "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
             reRender = true;
             frameInfo.frameCount = 0;
         }
