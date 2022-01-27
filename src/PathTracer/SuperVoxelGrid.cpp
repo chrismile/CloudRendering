@@ -168,7 +168,7 @@ void SuperVoxelGridResidualRatioTracking::recomputeSuperVoxels() {
         superVoxel.mu_c = mu_c_prime;
         superVoxel.mu_r_bar = mu_r_bar;
 
-        bool isSuperVoxelEmpty = densityMax < 1e-5;
+        bool isSuperVoxelEmpty = densityMax < 1e-5f;
         superVoxelGridOccupany[superVoxelIdx] = isSuperVoxelEmpty ? 0 : 1;
     }
 
@@ -254,7 +254,7 @@ SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
 
         superVoxelGridMinMaxDensity[superVoxelIdx] = glm::vec2(densityMin, densityMax);
 
-        bool isSuperVoxelEmpty = densityMax < 1e-5;
+        bool isSuperVoxelEmpty = densityMax < 1e-5f;
         superVoxelGridOccupany[superVoxelIdx] = isSuperVoxelEmpty ? 0 : 1;
     }
 
