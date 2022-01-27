@@ -88,7 +88,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
     }
     delete[] densityFieldTransposed;
 
-    float minVal = std::numeric_limits<float>::max();
+    float minVal = 0.0f;//std::numeric_limits<float>::max();
     float maxVal = std::numeric_limits<float>::lowest();
 
     size_t totalSize = gridSizeX * gridSizeY * gridSizeZ;

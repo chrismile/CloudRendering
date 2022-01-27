@@ -167,8 +167,13 @@ void VolumetricPathTracingPass::setCloudDataSet(CloudDataPtr& data) {
     imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
     sgl::vk::ImageSamplerSettings samplerSettings;
-    samplerSettings.addressModeU = samplerSettings.addressModeV = samplerSettings.addressModeW =
-            VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    if (clampToZeroBorder) {
+        samplerSettings.addressModeU = samplerSettings.addressModeV = samplerSettings.addressModeW =
+                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+    } else {
+        samplerSettings.addressModeU = samplerSettings.addressModeV = samplerSettings.addressModeW =
+                VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    }
     samplerSettings.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
 
@@ -197,14 +202,14 @@ void VolumetricPathTracingPass::updateVptMode() {
         superVoxelGridResidualRatioTracking = std::make_shared<SuperVoxelGridResidualRatioTracking>(
                 device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
                 cloudData->getGridSizeZ(), cloudData->getDensityField(),
-                superVoxelSize);
+                superVoxelSize, clampToZeroBorder);
         superVoxelGridResidualRatioTracking->setExtinction((cloudExtinctionBase * cloudExtinctionScale).x);
     } else if (vptMode == VptMode::DECOMPOSITION_TRACKING && cloudData) {
         superVoxelGridResidualRatioTracking = {};
         superVoxelGridDecompositionTracking = std::make_shared<SuperVoxelGridDecompositionTracking>(
                 device, cloudData->getGridSizeX(), cloudData->getGridSizeY(),
                 cloudData->getGridSizeZ(), cloudData->getDensityField(),
-                superVoxelSize);
+                superVoxelSize, clampToZeroBorder);
     } else {
         superVoxelGridResidualRatioTracking = {};
         superVoxelGridDecompositionTracking = {};
