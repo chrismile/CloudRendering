@@ -70,7 +70,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
         densityField = nullptr;
     }
     densityField = new float[gridSizeX * gridSizeY * gridSizeZ];
-    float* densityFieldTransposed = new float[gridSizeX * gridSizeY * gridSizeZ];
+    auto* densityFieldTransposed = new float[gridSizeX * gridSizeY * gridSizeZ];
     binaryReadStream.read(densityFieldTransposed, gridSizeX * gridSizeY * gridSizeZ * sizeof(float));
 
     // Transpose.

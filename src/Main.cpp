@@ -36,14 +36,13 @@
 #include "MainApp.hpp"
 
 int main(int argc, char *argv[]) {
-    // Initialize the filesystem utilities
+    // Initialize the filesystem utilities.
     sgl::FileUtils::get()->initialize("Cloud Rendering", argc, argv);
 
     // Load the file containing the app settings
     std::string settingsFile = sgl::FileUtils::get()->getConfigDirectory() + "settings.txt";
     sgl::AppSettings::get()->loadSettings(settingsFile.c_str());
     sgl::AppSettings::get()->getSettings().addKeyValue("window-multisamples", 0);
-    sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
     sgl::AppSettings::get()->getSettings().addKeyValue("window-vSync", true);
     sgl::AppSettings::get()->getSettings().addKeyValue("window-resizable", true);
     sgl::AppSettings::get()->getSettings().addKeyValue("window-savePosition", true);
