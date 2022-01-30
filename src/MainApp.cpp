@@ -327,7 +327,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
             newMeshLoaded = true;
             //modelBoundingBox = cloudData->getModelBoundingBox();
 
-            volumetricPathTracingPass->setCloudDataSet(cloudData);
+            volumetricPathTracingPass->setCloudData(cloudData);
             volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
             reRender = true;
 

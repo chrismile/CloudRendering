@@ -155,7 +155,7 @@ void VolumetricPathTracingPass::recreateSwapchain(uint32_t width, uint32_t heigh
     }
 }
 
-void VolumetricPathTracingPass::setCloudDataSet(CloudDataPtr& data) {
+void VolumetricPathTracingPass::setCloudData(CloudDataPtr& data) {
     cloudData = data;
 
     sgl::vk::ImageSettings imageSettings;
@@ -185,6 +185,13 @@ void VolumetricPathTracingPass::setCloudDataSet(CloudDataPtr& data) {
     frameInfo.frameCount = 0;
     setDataDirty();
     updateVptMode();
+}
+
+void VolumetricPathTracingPass::setVptMode(VptMode vptMode) {
+    this->vptMode = vptMode;
+    updateVptMode();
+    setShaderDirty();
+    setDataDirty();
 }
 
 void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
@@ -256,14 +263,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
 
 void VolumetricPathTracingPass::loadShader() {
     sgl::vk::ShaderManager->invalidateShaderCache();
-    std::map<std::string, std::string> customPreprocessorDefines = {
-            { "COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS", "" },
-            { "COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS", "" },
-            { "NUM_PRIMARY_RAY_ABSORPTION_MOMENTS",
-              std::to_string(blitPrimaryRayMomentTexturePass->getNumMoments()) },
-            { "NUM_SCATTER_RAY_ABSORPTION_MOMENTS",
-              std::to_string(blitScatterRayMomentTexturePass->getNumMoments()) },
-    };
+    std::map<std::string, std::string> customPreprocessorDefines;
     if (vptMode == VptMode::DELTA_TRACKING) {
         customPreprocessorDefines.insert({ "USE_DELTA_TRACKING", "" });
     } else if (vptMode == VptMode::SPECTRAL_DELTA_TRACKING) {
@@ -275,11 +275,23 @@ void VolumetricPathTracingPass::loadShader() {
     } else if (vptMode == VptMode::DECOMPOSITION_TRACKING) {
         customPreprocessorDefines.insert({ "USE_DECOMPOSITION_TRACKING", "" });
     }
-    if (blitPrimaryRayMomentTexturePass->getMomentType() == BlitMomentTexturePass::MomentType::POWER) {
-        customPreprocessorDefines.insert({ "USE_POWER_MOMENTS_PRIMARY_RAY", "" });
+    if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+        customPreprocessorDefines.insert({ "COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS", "" });
+        customPreprocessorDefines.insert(
+                { "NUM_PRIMARY_RAY_ABSORPTION_MOMENTS",
+                  std::to_string(blitPrimaryRayMomentTexturePass->getNumMoments()) });
+        if (blitPrimaryRayMomentTexturePass->getMomentType() == BlitMomentTexturePass::MomentType::POWER) {
+            customPreprocessorDefines.insert({ "USE_POWER_MOMENTS_PRIMARY_RAY", "" });
+        }
     }
-    if (blitScatterRayMomentTexturePass->getMomentType() == BlitMomentTexturePass::MomentType::POWER) {
-        customPreprocessorDefines.insert({ "USE_POWER_MOMENTS_SCATTER_RAY", "" });
+    if (blitScatterRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+        customPreprocessorDefines.insert({ "COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS", "" });
+        customPreprocessorDefines.insert(
+                { "NUM_SCATTER_RAY_ABSORPTION_MOMENTS",
+                  std::to_string(blitScatterRayMomentTexturePass->getNumMoments()) });
+        if (blitScatterRayMomentTexturePass->getMomentType() == BlitMomentTexturePass::MomentType::POWER) {
+            customPreprocessorDefines.insert({ "USE_POWER_MOMENTS_SCATTER_RAY", "" });
+        }
     }
     if (useEnvironmentMapImage) {
         customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
@@ -287,6 +299,13 @@ void VolumetricPathTracingPass::loadShader() {
     if (uniformData.useLinearRGB) {
         customPreprocessorDefines.insert({ "USE_LINEAR_RGB", "" });
     }
+
+    if (device->getPhysicalDeviceProperties().limits.maxComputeWorkGroupInvocations >= 1024) {
+        customPreprocessorDefines.insert({ "LOCAL_SIZE", "32" });
+    } else {
+        customPreprocessorDefines.insert({ "LOCAL_SIZE", "16" });
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -300,12 +319,16 @@ void VolumetricPathTracingPass::createComputeData(
     computeData->setStaticImageView(accImageTexture->getImageView(), "accImage");
     computeData->setStaticImageView(firstXTexture->getImageView(), "firstX");
     computeData->setStaticImageView(firstWTexture->getImageView(), "firstW");
-    computeData->setStaticImageView(
-            blitPrimaryRayMomentTexturePass->getMomentTexture()->getImageView(),
-            "primaryRayAbsorptionMomentsImage");
-    computeData->setStaticImageView(
-            blitScatterRayMomentTexturePass->getMomentTexture()->getImageView(),
-            "scatterRayAbsorptionMomentsImage");
+    if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+        computeData->setStaticImageView(
+                blitPrimaryRayMomentTexturePass->getMomentTexture()->getImageView(),
+                "primaryRayAbsorptionMomentsImage");
+    }
+    if (blitScatterRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+        computeData->setStaticImageView(
+                blitScatterRayMomentTexturePass->getMomentTexture()->getImageView(),
+                "scatterRayAbsorptionMomentsImage");
+    }
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
         computeData->setStaticTexture(
