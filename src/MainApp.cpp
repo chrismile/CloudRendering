@@ -99,6 +99,11 @@ MainApp::MainApp()
     customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
     loadAvailableDataSetInformation();
 
+    if (!sgl::AppSettings::get()->getSettings().hasKey("cameraNavigationMode")) {
+        cameraNavigationMode = sgl::CameraNavigationMode::TURNTABLE;
+        updateCameraNavigationMode();
+    }
+
     usesNewState = true;
     recordingTimeStampStart = sgl::Timer->getTicksMicroseconds();
 

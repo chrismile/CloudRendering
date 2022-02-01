@@ -75,12 +75,13 @@ if command -v apt &> /dev/null; then
     if ! is_installed_apt "libglm-dev" || ! is_installed_apt "libsdl2-dev" || ! is_installed_apt "libsdl2-image-dev" \
             || ! is_installed_apt "libpng-dev" || ! is_installed_apt "libboost-filesystem-dev" \
             || ! is_installed_apt "libtinyxml2-dev" || ! is_installed_apt "libarchive-dev" \
-            || ! is_installed_apt "libglew-dev" || ! is_installed_apt "libjsoncpp-dev"; then
+            || ! is_installed_apt "libglew-dev" || ! is_installed_apt "libjsoncpp-dev" \
+            || ! is_installed_apt "libopenexr-dev"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
         sudo apt install libglm-dev libsdl2-dev libsdl2-image-dev libpng-dev libboost-filesystem-dev libtinyxml2-dev \
-        libarchive-dev libglew-dev libjsoncpp-dev
+        libarchive-dev libglew-dev libjsoncpp-dev libopenexr-dev
     fi
 elif command -v pacman &> /dev/null; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
@@ -91,18 +92,16 @@ elif command -v pacman &> /dev/null; then
         sudo pacman -S cmake git curl pkgconf base-devel
     fi
 
-    echo "ABC"
-    echo $(is_installed_pacman "jsoncpp")
     # Dependencies of sgl and CloudRendering.
     if ! is_installed_pacman "boost" || ! is_installed_pacman "libarchive" || ! is_installed_pacman "glm" \
             || ! is_installed_pacman "tinyxml2" || ! is_installed_pacman "sdl2" \
             || ! is_installed_pacman "sdl2_image" || ! is_installed_pacman "glew" \
             || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
-            || ! is_installed_pacman "jsoncpp"; then
+            || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
-        sudo pacman -S boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc jsoncpp
+        sudo pacman -S boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc jsoncpp openexr
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2

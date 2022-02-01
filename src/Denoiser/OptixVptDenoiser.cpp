@@ -289,6 +289,14 @@ void OptixVptDenoiser::_freeBuffers() {
 }
 
 void OptixVptDenoiser::denoise() {
+    if (recreateDenoiserNextFrame) {
+        createDenoiser();
+        recreateSwapchain(
+                inputImageVulkan->getImage()->getImageSettings().width,
+                inputImageVulkan->getImage()->getImageSettings().height);
+        recreateDenoiserNextFrame = false;
+    }
+
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
     uint32_t frameIndex = swapchain ? swapchain->getImageIndex() : 0;
     timelineValue++;
@@ -390,10 +398,7 @@ bool OptixVptDenoiser::renderGui() {
                 IM_ARRAYSIZE(OPTIX_DENOISTER_MODEL_KIND_NAME))) {
             reRender = true;
             denoiserModelKind = OptixDenoiserModelKind(denoiserModelKindIndex + int(OPTIX_DENOISER_MODEL_KIND_LDR));
-            createDenoiser();
-            recreateSwapchain(
-                    inputImageVulkan->getImage()->getImageSettings().width,
-                    inputImageVulkan->getImage()->getImageSettings().height);
+            recreateDenoiserNextFrame = true;
         }
     }
     ImGui::End();

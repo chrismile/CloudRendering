@@ -17,6 +17,7 @@
         "tinyxml2",
         "glew",
         "glm",
-        "jsoncpp"
+        "jsoncpp",
+        "openexr"
     ]
 }

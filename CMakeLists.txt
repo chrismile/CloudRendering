@@ -98,7 +98,28 @@ else()
     MESSAGE(STATUS "sgl was not built with CUDA interoperability support. Disabling OptiX denoiser support.")
 endif()
 if (NOT SUPPORT_OPTIX)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.hpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp)
+endif()
+
+find_package(Imath CONFIG QUIET)
+if (NOT TARGET Imath::Imath)
+    find_package(IlmBase CONFIG QUIET)
+endif()
+find_package(OpenEXR CONFIG QUIET)
+if (NOT OpenEXR_FOUND AND NOT Imath_FOUND AND UNIX AND NOT APPLE)
+    set(USE_OPENEXR_PKGCONFIG TRUE)
+    pkg_check_modules(OpenEXR OpenEXR QUIET)
+    pkg_check_modules(IlmBase IlmBase QUIET)
+else()
+    set(USE_OPENEXR_PKGCONFIG FALSE)
+endif()
+if (OpenEXR_FOUND AND (Imath_FOUND OR IlmBase_FOUND))
+    MESSAGE(STATUS "OpenEXR found. Enabling OpenEXR image loading support.")
+else()
+    MESSAGE(STATUS "OpenEXR not found. Disabling OpenEXR image loading support.")
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.hpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
 endif()
 
 
@@ -187,6 +208,34 @@ if (TARGET jsoncpp_object)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_object)
 endif()
 target_include_directories(CloudRendering PRIVATE ${jsoncpp_INCLUDES})
+
+if (OpenEXR_FOUND AND (Imath_FOUND OR IlmBase_FOUND))
+    MESSAGE(STATUS "OpenEXR_LIBRARIES: " ${OpenEXR_LIBRARIES})
+    if (${USE_OPENEXR_PKGCONFIG})
+        if (OpenEXR_FOUND)
+            target_link_libraries(CloudRendering PRIVATE ${OpenEXR_LIBRARIES})
+        endif()
+        if (IlmBase_FOUND)
+            target_link_libraries(CloudRendering PRIVATE ${IlmBase_LIBRARIES})
+        endif()
+    else()
+        target_link_libraries(
+                CloudRendering PRIVATE
+                # For OpenEXR/Imath 3.x:
+                $<$<TARGET_EXISTS:OpenEXR::OpenEXR>:OpenEXR::OpenEXR>
+                $<$<TARGET_EXISTS:Imath::Imath>:Imath::Imath>
+                $<$<TARGET_EXISTS:Imath::Half>:Imath::Half>
+                # For OpenEXR 2.4/2.5:
+                $<$<TARGET_EXISTS:OpenEXR::IlmImf>:OpenEXR::IlmImf>
+                $<$<TARGET_EXISTS:IlmBase::Imath>:IlmBase::Imath>
+                $<$<TARGET_EXISTS:IlmBase::Half>:IlmBase::Half>
+                $<$<TARGET_EXISTS:IlmBase::IlmThread>:IlmBase::IlmThread>
+                $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
+        )
+    endif()
+    target_compile_definitions(CloudRendering PRIVATE SUPPORT_OPENEXR)
+endif()
+
 
 # According to https://devblogs.microsoft.com/cppblog/improved-openmp-support-for-cpp-in-visual-studio/,
 # support for LLVM OpenMP was added with Visual Studio 2019 version 16.9. According to
