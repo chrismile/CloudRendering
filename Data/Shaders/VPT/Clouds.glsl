@@ -27,6 +27,12 @@
 #version 450
 
 #include "VptHeader.glsl"
+
+#ifdef USE_NANOVDB
+#define PNANOVDB_GLSL
+#include "PNanoVDB.glsl"
+#endif
+
 #include "VptUtils.glsl"
 #include "VptMomentUtils.glsl"
 #include "DeltaTracking.glsl"
