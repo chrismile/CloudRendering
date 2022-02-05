@@ -44,6 +44,14 @@ public:
      */
     bool loadFromFile(const std::string& filename);
 
+    /**
+     * @param _gridSizeX The number of voxels in x direction.
+     * @param _gridSizeY The number of voxels in y direction.
+     * @param _gridSizeZ The number of voxels in z direction.
+     * @param _densityField A dense floating point density field of size gridSizeX*gridSizeY*gridSizeZ.
+     */
+    void setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField);
+
     [[nodiscard]] inline const std::string& getFileName() const { return gridFilename; }
     [[nodiscard]] inline uint32_t getGridSizeX() const { return gridSizeX; }
     [[nodiscard]] inline uint32_t getGridSizeY() const { return gridSizeY; }
@@ -76,6 +84,7 @@ private:
     uint32_t gridSizeX = 0, gridSizeY = 0, gridSizeZ = 0;
     float voxelSizeX = 0.0f, voxelSizeY = 0.0f, voxelSizeZ = 0.0f;
     glm::vec3 boxMin{}, boxMax{};
+    void computeGridBounds();
 
     // --- Dense field. ---
     /**

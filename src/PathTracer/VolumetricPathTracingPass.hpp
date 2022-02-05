@@ -25,6 +25,9 @@
 #ifndef CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP
 #define CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP
 
+#include <glm/vec3.hpp>
+#include <glm/mat4x4.hpp>
+#include <Graphics/Scene/Camera.hpp>
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
 #include <Graphics/Vulkan/Utils/Timer.hpp>
@@ -58,13 +61,13 @@ const char* const VPT_MODE_NAMES[] = {
 
 class VolumetricPathTracingPass : public sgl::vk::ComputePass {
 public:
-    explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer);
+    explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera);
     ~VolumetricPathTracingPass() override;
 
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
-    void setCloudData(CloudDataPtr& data);
+    void setCloudData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
     void setUseLinearRGB(bool useLinearRGB);
 
@@ -80,6 +83,8 @@ private:
     void setComputePipelineInfo(sgl::vk::ComputePipelineInfo& pipelineInfo) override {}
     void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
     void _render() override;
+
+    sgl::CameraPtr* camera;
 
     bool reRender = true;
     bool showWindow = true;

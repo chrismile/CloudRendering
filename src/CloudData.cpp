@@ -28,6 +28,7 @@
 
 #include <boost/algorithm/string/case_conv.hpp>
 
+#include <Utils/AppSettings.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/File/FileLoader.hpp>
@@ -44,6 +45,31 @@ CloudData::~CloudData() {
         delete[] densityField;
         densityField = nullptr;
     }
+    sparseGridHandle = {};
+}
+
+void CloudData::computeGridBounds() {
+    uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
+    boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
+    boxMin = -boxMax;
+}
+
+void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
+    if (densityField) {
+        delete[] densityField;
+        densityField = nullptr;
+    }
+    sparseGridHandle = {};
+
+    gridSizeX = _gridSizeX;
+    gridSizeY = _gridSizeY;
+    gridSizeZ = _gridSizeZ;
+
+    computeGridBounds();
+
+    densityField = _densityField;
+    gridFilename = sgl::AppSettings::get()->getDataDirectory() + "LineDataSets/clouds/tmp.xyz";
+    gridName = "tmp";
 }
 
 bool CloudData::loadFromFile(const std::string& filename) {
@@ -56,6 +82,12 @@ bool CloudData::loadFromFile(const std::string& filename) {
     gridFilename = filename;
     gridName = boost::to_lower_copy(sgl::FileUtils::get()->removeExtension(
             sgl::FileUtils::get()->getPureFilename(gridFilename)));
+
+    if (densityField) {
+        delete[] densityField;
+        densityField = nullptr;
+    }
+    sparseGridHandle = {};
 
     if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".xyz")) {
         return loadFromXyzFile(filename);
@@ -92,14 +124,8 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     voxelSizeY = float(voxelSizeYDouble);
     voxelSizeZ = float(voxelSizeZDouble);
 
-    uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
-    boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
-    boxMin = -boxMax;
+    computeGridBounds();
 
-    if (densityField) {
-        delete[] densityField;
-        densityField = nullptr;
-    }
     densityField = new float[gridSizeX * gridSizeY * gridSizeZ];
     auto* densityFieldTransposed = new float[gridSizeX * gridSizeY * gridSizeZ];
     binaryReadStream.read(densityFieldTransposed, gridSizeX * gridSizeY * gridSizeZ * sizeof(float));

@@ -52,7 +52,8 @@
 #include "SuperVoxelGrid.hpp"
 #include "VolumetricPathTracingPass.hpp"
 
-VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera)
+        : ComputePass(renderer), camera(camera) {
     uniformBuffer = std::make_shared<sgl::vk::Buffer>(
             device, sizeof(UniformData),
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -202,7 +203,7 @@ void VolumetricPathTracingPass::setGridData() {
     }
 }
 
-void VolumetricPathTracingPass::setCloudData(CloudDataPtr& data) {
+void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     cloudData = data;
     frameInfo.frameCount = 0;
 
@@ -438,7 +439,8 @@ void VolumetricPathTracingPass::_render() {
     }
 
     if (!changedDenoiserSettings) {
-        uniformData.inverseViewProjMatrix = glm::inverse(renderer->getProjectionMatrix() * renderer->getViewMatrix());
+        uniformData.inverseViewProjMatrix = glm::inverse(
+                (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
         uniformData.boxMax = cloudData->getWorldSpaceBoxMax();
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
@@ -613,7 +615,7 @@ void VolumetricPathTracingPass::renderGui() {
             setShaderDirty();
             setDataDirty();
         }
-        if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
+        if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING || vptMode == VptMode::DECOMPOSITION_TRACKING) {
             if (ImGui::SliderInt("Super Voxel Size", &superVoxelSize, 1, 64)) {
                 optionChanged = true;
                 updateVptMode();

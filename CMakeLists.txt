@@ -1,6 +1,5 @@
 cmake_minimum_required (VERSION 3.7)
 cmake_policy(VERSION 3.7...3.20)
-option(USE_GTEST "USE_GTEST" OFF)
 
 project (CloudRendering)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
@@ -28,19 +27,37 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 endif()
 
+option(USE_GTEST "Build the GoogleTest test suites." OFF)
+
 set(DATA_PATH "${CMAKE_SOURCE_DIR}/Data" CACHE PATH "Location of folder 'Data'")
 add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
 
+if (USE_GTEST)
+    set(
+            GTEST_SOURCES
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/VolumetricPathTracingTestData.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/VolumetricPathTracingTestRenderer.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/TestVolumetricPathTracing.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudData.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/SuperVoxelGrid.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
+    )
+endif()
+
+
+if (UNIX AND NOT APPLE)
+    find_package(PkgConfig REQUIRED)
+endif()
 
 set(FPHSA_NAME_MISMATCHED TRUE)
 if(VCPKG_TOOLCHAIN)
     find_package(SDL2 CONFIG REQUIRED)
 else()
     find_package(SDL2 REQUIRED)
-endif()
-
-if (UNIX AND NOT APPLE)
-    find_package(PkgConfig REQUIRED)
 endif()
 
 find_package(sgl REQUIRED)
@@ -127,6 +144,9 @@ endif()
 if (NOT SUPPORT_OPENEXR)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.hpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
+    if (USE_GTEST)
+        list(REMOVE_ITEM GTEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
+    endif()
 endif()
 
 
@@ -134,6 +154,16 @@ if(WIN32)
     add_executable(CloudRendering WIN32 ${SOURCES})
 else()
     add_executable(CloudRendering ${SOURCES})
+endif()
+
+if (USE_GTEST)
+    include(GoogleTest)
+    enable_testing()
+    add_executable(CloudRendering_test ${GTEST_SOURCES})
+    target_link_libraries(CloudRendering_test PRIVATE gtest gtest_main)
+    target_link_libraries(CloudRendering_test PRIVATE sgl ${Boost_LIBRARIES})
+    target_include_directories(CloudRendering_test PRIVATE ${sgl_INCLUDES} ${Boost_INCLUDE_DIR})
+    gtest_add_tests(TARGET CloudRendering_test)
 endif()
 
 
@@ -203,26 +233,47 @@ target_include_directories(CloudRendering PRIVATE ${sgl_INCLUDES} ${TINYXML2_INC
 
 if (JSONCPP_LIBRARIES)
     target_link_libraries(CloudRendering PRIVATE ${JSONCPP_LIBRARIES})
+    if (USE_GTEST)
+        target_link_libraries(CloudRendering_test PRIVATE ${JSONCPP_LIBRARIES})
+    endif()
 endif()
 if (TARGET jsoncpp_lib)
     get_target_property(jsoncpp_INCLUDES jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_lib)
+    if (USE_GTEST)
+        target_link_libraries(CloudRendering_test PRIVATE jsoncpp_lib)
+    endif()
 elseif(TARGET jsoncpp_static)
     get_target_property(jsoncpp_INCLUDES jsoncpp_static INTERFACE_INCLUDE_DIRECTORIES)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_static)
+    if (USE_GTEST)
+        target_link_libraries(CloudRendering_test PRIVATE jsoncpp_static)
+    endif()
 endif()
 if (TARGET jsoncpp_object)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_object)
+    if (USE_GTEST)
+        target_link_libraries(CloudRendering_test PRIVATE jsoncpp_object)
+    endif()
 endif()
 target_include_directories(CloudRendering PRIVATE ${jsoncpp_INCLUDES})
+if (USE_GTEST)
+    target_include_directories(CloudRendering_test PRIVATE ${jsoncpp_INCLUDES})
+endif()
 
 if (SUPPORT_OPENEXR)
     if (${USE_OPENEXR_PKGCONFIG})
         if (OpenEXR_FOUND)
             target_link_libraries(CloudRendering PRIVATE ${OpenEXR_LIBRARIES})
+            if (USE_GTEST)
+                target_link_libraries(CloudRendering_test PRIVATE ${OpenEXR_LIBRARIES})
+            endif()
         endif()
         if (IlmBase_FOUND)
             target_link_libraries(CloudRendering PRIVATE ${IlmBase_LIBRARIES})
+            if (USE_GTEST)
+                target_link_libraries(CloudRendering_test PRIVATE ${IlmBase_LIBRARIES})
+            endif()
         endif()
     else()
         target_link_libraries(
@@ -238,8 +289,26 @@ if (SUPPORT_OPENEXR)
                 $<$<TARGET_EXISTS:IlmBase::IlmThread>:IlmBase::IlmThread>
                 $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
         )
+        if (USE_GTEST)
+            target_link_libraries(
+                    CloudRendering_test PRIVATE
+                    # For OpenEXR/Imath 3.x:
+                    $<$<TARGET_EXISTS:OpenEXR::OpenEXR>:OpenEXR::OpenEXR>
+                    $<$<TARGET_EXISTS:Imath::Imath>:Imath::Imath>
+                    $<$<TARGET_EXISTS:Imath::Half>:Imath::Half>
+                    # For OpenEXR 2.4/2.5:
+                    $<$<TARGET_EXISTS:OpenEXR::IlmImf>:OpenEXR::IlmImf>
+                    $<$<TARGET_EXISTS:IlmBase::Imath>:IlmBase::Imath>
+                    $<$<TARGET_EXISTS:IlmBase::Half>:IlmBase::Half>
+                    $<$<TARGET_EXISTS:IlmBase::IlmThread>:IlmBase::IlmThread>
+                    $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
+            )
+        endif()
     endif()
     target_compile_definitions(CloudRendering PRIVATE SUPPORT_OPENEXR)
+    if (USE_GTEST)
+        target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_OPENEXR)
+    endif()
 endif()
 
 

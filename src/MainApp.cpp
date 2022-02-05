@@ -93,7 +93,7 @@ MainApp::MainApp()
         realTimeCameraFlight = false;
     }
 
-    volumetricPathTracingPass = std::make_shared<VolumetricPathTracingPass>(rendererVk);
+    volumetricPathTracingPass = std::make_shared<VolumetricPathTracingPass>(rendererVk, &camera);
     volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
 
     customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
