@@ -256,7 +256,9 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
     }
 
     sgl::BitmapPtr bitmap;
+#ifdef SUPPORT_OPENEXR
     OpenExrImageInfo imageInfo;
+#endif
     if (sgl::FileUtils::get()->hasExtension(environmentMapFilenameGui.c_str(), ".png")) {
         bitmap = std::make_shared<sgl::Bitmap>();
         bitmap->fromFile(environmentMapFilenameGui.c_str());
@@ -298,13 +300,16 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
         width = uint32_t(bitmap->getWidth());
         height = uint32_t(bitmap->getHeight());
         imageSettings.format = VK_FORMAT_R8G8B8A8_UNORM;
-    } else {
+    }
+#ifdef SUPPORT_OPENEXR
+    else {
         pixelData = imageInfo.pixelData;
         bytesPerPixel = 8; // 4 * half
         width = imageInfo.width;
         height = imageInfo.height;
         imageSettings.format = VK_FORMAT_R16G16B16A16_SFLOAT;
     }
+#endif
     imageSettings.width = width;
     imageSettings.height = height;
 
@@ -314,9 +319,11 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
     isEnvironmentMapLoaded = true;
     frameInfo.frameCount = 0;
 
+#ifdef SUPPORT_OPENEXR
     if (!bitmap) {
         delete[] imageInfo.pixelData;
     }
+#endif
 }
 
 void VolumetricPathTracingPass::loadShader() {
