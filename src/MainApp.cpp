@@ -296,7 +296,7 @@ void MainApp::hasMoved() {
 // --- Visualization pipeline ---
 
 void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoading) {
-    if (fileName.size() == 0) {
+    if (fileName.empty()) {
         cloudData = CloudDataPtr();
         return;
     }

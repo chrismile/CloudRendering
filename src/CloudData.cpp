@@ -169,16 +169,64 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 }
 
 float* CloudData::getDenseDensityField() {
+    if (!hasDenseData()) {
+        if (sparseGridHandle.empty()) {
+            sgl::Logfile::get()->throwError(
+                    "Fatal error in CloudData::getDenseDensityField: Neither a dense nor a sparse field are "
+                    "loaded!");
+            return nullptr;
+        }
+
+        auto* grid = sparseGridHandle.grid<float>();
+        if (!grid) {
+            sgl::Logfile::get()->throwError(
+                    "Fatal error in CloudData::getDenseDensityField: The sparse grid data from \"" + gridFilename
+                    + "\" does not contain floating point data!");
+            return nullptr;
+        }
+
+        auto& tree = grid->tree();
+        auto minGridVal = grid->indexBBox().min();
+        densityField = new float[gridSizeX * gridSizeY * gridSizeZ];
+        for (uint32_t z = 0; z < gridSizeZ; z++) {
+            for (uint32_t y = 0; y < gridSizeY; y++) {
+                for (uint32_t x = 0; x < gridSizeX; x++) {
+                    densityField[x + y * gridSizeX + z * gridSizeX * gridSizeY] = tree.getValue(nanovdb::Coord(
+                            minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
+                }
+            }
+        }
+    }
+
     return densityField;
+}
+
+
+void CloudData::printSparseGridMetadata() {
+    double denseGridSizeMiB = gridSizeX * gridSizeY * gridSizeZ * 4 / (1024.0 * 1024.0);
+    double sparseGridSizeMiB = sparseGridHandle.gridMetaData()->gridSize() / (1024.0 * 1024.0);
+    double compressionRatio = denseGridSizeMiB / sparseGridSizeMiB;
+    sgl::Logfile::get()->writeInfo("Dense grid memory (MiB): " + std::to_string(denseGridSizeMiB));
+    sgl::Logfile::get()->writeInfo("Sparse grid memory (MiB): " + std::to_string(sparseGridSizeMiB));
+    sgl::Logfile::get()->writeInfo("Compression ratio: " + std::to_string(compressionRatio));
+    sgl::Logfile::get()->writeInfo(
+            "Total number of voxels: " + std::to_string(gridSizeX * gridSizeY * gridSizeZ));
+    sgl::Logfile::get()->writeInfo(
+            "Number of active voxels: " + std::to_string(sparseGridHandle.gridMetaData()->activeVoxelCount()));
+    for (int i = 0; i < 3; i++) {
+        sgl::Logfile::get()->writeInfo(
+                "Nodes at level " + std::to_string(i) + ": "
+                + std::to_string(sparseGridHandle.gridMetaData()->nodeCount(i)));
+    }
 }
 
 bool CloudData::loadFromNvdbFile(const std::string& filename) {
     sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, gridName);
     const auto& grid = sparseGridHandle.grid<nanovdb::HostBuffer>();
 
-    gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().max()[0] + 1);
-    gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().max()[1] + 1);
-    gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().max()[2] + 1);
+    gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
+    gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
+    gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
     voxelSizeX = float(grid->voxelSize()[0]);
     voxelSizeY = float(grid->voxelSize()[1]);
     voxelSizeZ = float(grid->voxelSize()[2]);
@@ -192,6 +240,8 @@ bool CloudData::loadFromNvdbFile(const std::string& filename) {
             float(nanoVdbBoundingBox.max()[0]),
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
+
+    printSparseGridMetadata();
 
     return !sparseGridHandle.empty();
 }
@@ -230,6 +280,12 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
             sparseGridHandle = builder.getHandle<>(
                     dx, nanovdb::Vec3d(boxMin.x, boxMin.y, boxMin.z),
                     gridName, nanovdb::GridClass::FogVolume);
+            printSparseGridMetadata();
+
+            /*auto* gridData = sparseGridHandle.grid<float>();
+            const auto& rootNode = gridData->tree().getFirstNode<2>();
+            std::cout << "Root min: " << rootNode->minimum() << std::endl;
+            std::cout << "Root max: " << rootNode->maximum() << std::endl;*/
 
             if (cacheSparseGrid) {
                 auto* gridData = sparseGridHandle.grid<float>();

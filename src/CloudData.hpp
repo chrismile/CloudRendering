@@ -100,6 +100,7 @@ private:
      * @return Whether the file was loaded successfully.
      */
     bool loadFromNvdbFile(const std::string& filename);
+    void printSparseGridMetadata();
     nanovdb::GridHandle<nanovdb::HostBuffer> sparseGridHandle;
     bool cacheSparseGrid = false;
 };
