@@ -19,5 +19,11 @@
         "glm",
         "jsoncpp",
         "openexr"
-    ]
+    ],
+    "features": {
+        "tests": {
+            "description": "Unit test cases for the volumetric path tracing algorithms.",
+            "dependencies": [ "gtest" ]
+        }
+    }
 }
