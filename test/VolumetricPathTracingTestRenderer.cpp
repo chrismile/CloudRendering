@@ -92,7 +92,7 @@ void VolumetricPathTracingTestRenderer::setUseSparseGrid(bool useSparseGrid) {
     vptPass->setUseSparseGrid(useSparseGrid);
 }
 
-void VolumetricPathTracingTestRenderer::setSparseGridInterpolationType(GridInterpolationType type) {
+void VolumetricPathTracingTestRenderer::setGridInterpolationType(GridInterpolationType type) {
     vptPass->setSparseGridInterpolationType(type);
 }
 

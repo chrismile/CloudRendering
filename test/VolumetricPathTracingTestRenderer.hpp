@@ -60,7 +60,7 @@ public:
 
     /// Sets whether a dense or sparse grid should be used.
     void setUseSparseGrid(bool useSparseGrid);
-    void setSparseGridInterpolationType(GridInterpolationType type);
+    void setGridInterpolationType(GridInterpolationType type);
 
     /// Sets an additive offset for the random seed in the VPT shader.
     void setCustomSeedOffset(uint32_t offset);

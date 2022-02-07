@@ -35,6 +35,9 @@
 #include <Graphics/Vulkan/Utils/Instance.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 
+#include "nanovdb/NanoVDB.h"
+#include "nanovdb/util/Primitives.h"
+#include "CloudData.hpp"
 #include "VolumetricPathTracingTestData.hpp"
 #include "VolumetricPathTracingTestRenderer.hpp"
 
@@ -178,18 +181,33 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8BoundaryLayerTest2)
     vptRenderer0->setUseSparseGrid(false);
     vptRenderer1->setVptMode(VptMode::DELTA_TRACKING);
     vptRenderer1->setUseSparseGrid(true);
-    vptRenderer1->setSparseGridInterpolationType(GridInterpolationType::TRILINEAR);
+    vptRenderer1->setGridInterpolationType(GridInterpolationType::TRILINEAR);
     testEqualMean();
 }
+
+// TODO: Fix this test case.
+/*TEST_F(VolumetricPathTracingTest, DecompositionTrackingGridTypesSphereTest) {
+    CloudDataPtr cloudData = std::make_shared<CloudData>();
+    cloudData->setNanoVdbGridHandle(nanovdb::createFogVolumeSphere<float>(
+            0.25f, nanovdb::Vec3<float>(0), 0.01f));
+    vptRenderer0->setCloudData(cloudData);
+    vptRenderer1->setCloudData(cloudData);
+
+    vptRenderer0->setVptMode(VptMode::DECOMPOSITION_TRACKING);
+    vptRenderer0->setUseSparseGrid(false);
+    vptRenderer1->setVptMode(VptMode::DECOMPOSITION_TRACKING);
+    vptRenderer1->setUseSparseGrid(true);
+    testEqualMean();
+}*/
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTest1) {
     CloudDataPtr cloudData = createCloudBlock(8, 8, 8, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
-    vptRenderer0->setSparseGridInterpolationType(GridInterpolationType::NEAREST);
+    vptRenderer0->setGridInterpolationType(GridInterpolationType::NEAREST);
     vptRenderer0->setVptMode(VptMode::DELTA_TRACKING);
-    vptRenderer1->setSparseGridInterpolationType(GridInterpolationType::NEAREST);
+    vptRenderer1->setGridInterpolationType(GridInterpolationType::NEAREST);
     vptRenderer1->setVptMode(VptMode::DECOMPOSITION_TRACKING);
     testEqualMean();
 }
@@ -199,9 +217,9 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTes
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
-    vptRenderer0->setSparseGridInterpolationType(GridInterpolationType::STOCHASTIC);
+    vptRenderer0->setGridInterpolationType(GridInterpolationType::STOCHASTIC);
     vptRenderer0->setVptMode(VptMode::DELTA_TRACKING);
-    vptRenderer0->setSparseGridInterpolationType(GridInterpolationType::STOCHASTIC);
+    vptRenderer0->setGridInterpolationType(GridInterpolationType::STOCHASTIC);
     vptRenderer1->setVptMode(VptMode::DECOMPOSITION_TRACKING);
     testEqualMean();
 }

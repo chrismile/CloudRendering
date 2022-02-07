@@ -72,6 +72,11 @@ void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32
     gridName = "tmp";
 }
 
+void CloudData::setNanoVdbGridHandle(nanovdb::GridHandle<nanovdb::HostBuffer>&& handle) {
+    sparseGridHandle = std::move(handle);
+    computeSparseGridMetadata();
+}
+
 bool CloudData::loadFromFile(const std::string& filename) {
     if (!sgl::FileUtils::get()->exists(filename)) {
         sgl::Logfile::get()->writeError(
@@ -220,9 +225,14 @@ void CloudData::printSparseGridMetadata() {
     }
 }
 
-bool CloudData::loadFromNvdbFile(const std::string& filename) {
-    sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, gridName);
-    const auto& grid = sparseGridHandle.grid<nanovdb::HostBuffer>();
+void CloudData::computeSparseGridMetadata() {
+    const auto* grid = sparseGridHandle.grid<float>();
+
+    if (!grid) {
+        sgl::Logfile::get()->throwError(
+                "Fatal error in CloudData::computeSparseGridMetadata: The grid handle does not store a grid "
+                "with value type float.");
+    }
 
     gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
     gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
@@ -242,7 +252,11 @@ bool CloudData::loadFromNvdbFile(const std::string& filename) {
             float(nanoVdbBoundingBox.max()[2]));
 
     printSparseGridMetadata();
+}
 
+bool CloudData::loadFromNvdbFile(const std::string& filename) {
+    sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, gridName);
+    computeSparseGridMetadata();
     return !sparseGridHandle.empty();
 }
 
