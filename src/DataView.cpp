@@ -26,9 +26,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Utils/AppSettings.hpp>
 #include <Graphics/Scene/RenderTarget.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
+#include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/imgui_impl_vulkan.h>
 #include "PathTracer/VolumetricPathTracingPass.hpp"
@@ -48,8 +50,6 @@ DataView::DataView(
             rendererVk, {"GammaCorrection.Vertex", "GammaCorrection.Fragment"}));
 
     screenshotReadbackHelper = std::make_shared<sgl::vk::ScreenshotReadbackHelper>(rendererVk);
-    // TODO
-    //screenshotReadbackHelper->setScreenshotTransparentBackground(screenshotTransparentBackground);
 }
 
 DataView::~DataView() {
@@ -110,7 +110,7 @@ void DataView::resize(int newWidth, int newHeight) {
     sceneTextureGammaCorrectionPass->setOutputImage(compositedDataViewTexture->getImageView());
     sceneTextureGammaCorrectionPass->recreateSwapchain(viewportWidth, viewportHeight);
 
-    screenshotReadbackHelper->onSwapchainRecreated();
+    screenshotReadbackHelper->onSwapchainRecreated(viewportWidth, viewportHeight);
 
     if (descriptorSetImGui) {
         sgl::ImGuiWrapper::get()->freeDescriptorSet(descriptorSetImGui);
@@ -137,6 +137,21 @@ void DataView::endRender() {
     } else {
         sceneTextureBlitPass->render();
     }
+}
+
+void DataView::saveScreenshot(const std::string& filename) {
+    rendererVk->transitionImageLayout(
+            compositedDataViewTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    screenshotReadbackHelper->requestScreenshotReadback(compositedDataViewTexture->getImage(), filename);
+}
+
+void DataView::saveScreenshotDataIfAvailable() {
+    if (viewportWidth == 0 || viewportHeight == 0) {
+        return;
+    }
+    sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
+    uint32_t imageIndex = swapchain ? swapchain->getImageIndex() : 0;
+    screenshotReadbackHelper->saveDataIfAvailable(imageIndex);
 }
 
 ImTextureID DataView::getImGuiTextureId() const {

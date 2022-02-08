@@ -49,9 +49,9 @@
 #include <Math/Math.hpp>
 #include <Math/Geometry/MatrixUtil.hpp>
 #include <Graphics/Window.hpp>
-#include <Graphics/Renderer.hpp>
 #include <Graphics/Vulkan/Utils/Instance.hpp>
 #include <Graphics/Vulkan/Utils/ScreenshotReadbackHelper.hpp>
+#include <Graphics/Vulkan/Render/Renderer.hpp>
 
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
@@ -197,10 +197,18 @@ void MainApp::resolutionChanged(sgl::EventPtr event) {
 void MainApp::updateColorSpaceMode() {
     SciVisApp::updateColorSpaceMode();
     volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
+    if (dataView) {
+        dataView->useLinearRGB = useLinearRGB;
+        dataView->viewportWidth = 0;
+        dataView->viewportHeight = 0;
+    }
 }
 
 void MainApp::render() {
     SciVisApp::preRender();
+    if (dataView) {
+        dataView->saveScreenshotDataIfAvailable();
+    }
 
     if (!useDockSpaceMode) {
         reRender = reRender || volumetricPathTracingPass->needsReRender();
@@ -217,6 +225,16 @@ void MainApp::render() {
     }
 
     SciVisApp::postRender();
+
+    if (useDockSpaceMode && !uiOnScreenshot && recording && !isFirstRecordingFrame) {
+        rendererVk->transitionImageLayout(
+                dataView->compositedDataViewTexture->getImage(),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        videoWriter->pushFramebufferImage(dataView->compositedDataViewTexture->getImage());
+        rendererVk->transitionImageLayout(
+                dataView->compositedDataViewTexture->getImage(),
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
 }
 
 void MainApp::renderGui() {
@@ -324,11 +342,13 @@ void MainApp::renderGui() {
                 reRender = reRender || volumetricPathTracingPass->needsReRender();
 
                 if (reRender || continuousRendering) {
-                    dataView->beginRender();
-                    if (cloudData) {
-                        volumetricPathTracingPass->render();
+                    if (dataView->viewportWidth > 0 && dataView->viewportHeight > 0) {
+                        dataView->beginRender();
+                        if (cloudData) {
+                            volumetricPathTracingPass->render();
+                        }
+                        dataView->endRender();
                     }
-                    dataView->endRender();
 
                     reRender = false;
                 }
@@ -341,23 +361,13 @@ void MainApp::renderGui() {
                                 + "_" + sgl::toString(screenshotNumber);
                         screenshotFilename += ".png";
 
-                        customScreenshotWidth = int(dataView->viewportWidth);
-                        customScreenshotHeight = int(dataView->viewportHeight);
-                        auto tmp = compositedTextureVk;
-                        compositedTextureVk = dataView->compositedDataViewTexture;
+                        dataView->screenshotReadbackHelper->setScreenshotTransparentBackground(
+                                screenshotTransparentBackground);
+                        dataView->saveScreenshot(screenshotFilename);
+                        screenshot = false;
 
-                        saveScreenshot(screenshotFilename);
-
-                        compositedTextureVk = tmp;
-                        customScreenshotWidth = -1;
-                        customScreenshotHeight = -1;
-
-                        sgl::Renderer->unbindFBO();
                         printNow = false;
                         screenshot = true;
-                    }
-                    if (!uiOnScreenshot && recording && !isFirstRecordingFrame) {
-                        videoWriter->pushFramebufferImage(dataView->compositedDataViewTexture->getImage());
                     }
 
                     if (isViewOpen) {
@@ -449,7 +459,7 @@ void MainApp::renderGuiGeneralSettingsPropertyEditor() {
         reRender = true;
     }
 
-    bool newDockSpaceMode = useDockSpaceMode;
+    newDockSpaceMode = useDockSpaceMode;
     if (propertyEditor.addCheckbox("Use Docking Mode", &newDockSpaceMode)) {
         scheduledDockSpaceModeChange = true;
     }
@@ -615,7 +625,9 @@ void MainApp::update(float dt) {
         } else {
             cameraHandle = camera;
         }
-        //device->waitGraphicsQueueIdle();
+
+        device->waitGraphicsQueueIdle();
+        resolutionChanged(sgl::EventPtr());
     }
 
     updateCameraFlight(cloudData.get() != nullptr, usesNewState);
@@ -677,7 +689,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
             this->cloudData = cloudData;
             cloudData->setClearColor(clearColor);
             newMeshLoaded = true;
-            //modelBoundingBox = cloudData->getModelBoundingBox();
+            modelBoundingBox = cloudData->getWorldSpaceBoundingBox();
 
             volumetricPathTracingPass->setCloudData(cloudData);
             volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
@@ -686,7 +698,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
             const std::string& meshDescriptorName = fileName;
             checkpointWindow.onLoadDataSet(meshDescriptorName);
 
-            if (true) {
+            if (true) { // useCameraFlight
                 std::string cameraPathFilename =
                         saveDirectoryCameraPaths + sgl::FileUtils::get()->getPathAsList(meshDescriptorName).back()
                         + ".binpath";

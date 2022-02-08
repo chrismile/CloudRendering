@@ -137,7 +137,7 @@ void OptixVptDenoiser::freeGlobal() {
     sgl::vk::freeCudaDeviceApiFunctionTable();
 }
 
-bool OptixVptDenoiser::isOpitEnabled() {
+bool OptixVptDenoiser::isOptixEnabled() {
     return optixHandle && cuContext;
 }
 

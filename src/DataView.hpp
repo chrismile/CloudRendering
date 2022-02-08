@@ -30,6 +30,7 @@
 #define CLOUDRENDERING_DATAVIEW_HPP
 
 #include <Graphics/Color.hpp>
+#include <Graphics/Scene/Camera.hpp>
 #include <Graphics/Vulkan/Utils/ScreenshotReadbackHelper.hpp>
 #include <Graphics/Vulkan/Image/Image.hpp>
 #include <Graphics/Vulkan/Shader/Shader.hpp>
@@ -47,6 +48,8 @@ public:
     void resize(int newWidth, int newHeight);
     void beginRender();
     void endRender();
+    void saveScreenshot(const std::string& filename);
+    void saveScreenshotDataIfAvailable();
     [[nodiscard]] ImTextureID getImGuiTextureId() const;
 
     sgl::CameraPtr parentCamera;

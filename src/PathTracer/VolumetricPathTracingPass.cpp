@@ -275,6 +275,7 @@ void VolumetricPathTracingPass::setCustomSeedOffset(uint32_t offset) {
 
 void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
     uniformData.useLinearRGB = useLinearRGB;
+    frameInfo.frameCount = 0;
     setShaderDirty();
 }
 
@@ -287,6 +288,9 @@ void VolumetricPathTracingPass::onHasMoved() {
 }
 
 void VolumetricPathTracingPass::updateVptMode() {
+    if (accumulationTimer && !reachedTarget) {
+        createNewAccumulationTimer = true;
+    }
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING && cloudData && !useSparseGrid) {
         superVoxelGridDecompositionTracking = {};
         superVoxelGridResidualRatioTracking = std::make_shared<SuperVoxelGridResidualRatioTracking>(
@@ -503,6 +507,7 @@ void VolumetricPathTracingPass::_render() {
 
     std::string eventName = getCurrentEventName();
     if (createNewAccumulationTimer) {
+        accumulationTimer = {};
         accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
         createNewAccumulationTimer = false;
     }
@@ -526,7 +531,7 @@ void VolumetricPathTracingPass::_render() {
         accumulationTimer->startGPU(eventName);
     }
 
-    if (!changedDenoiserSettings) {
+    if (!changedDenoiserSettings && !timerStopped) {
         uniformData.inverseViewProjMatrix = glm::inverse(
                 (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
@@ -556,6 +561,10 @@ void VolumetricPathTracingPass::_render() {
                 sizeof(FrameInfo), &frameInfo, renderer->getVkCommandBuffer());
         frameInfo.frameCount++;
 
+        renderer->insertMemoryBarrier(
+                VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_UNIFORM_READ_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+
         renderer->transitionImageLayout(resultImageView->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         if (!useSparseGrid) {
             renderer->transitionImageLayout(
@@ -576,6 +585,7 @@ void VolumetricPathTracingPass::_render() {
                 1);
     }
     changedDenoiserSettings = false;
+    timerStopped = false;
 
     if (featureMapType == FeatureMapType::RESULT) {
         if (useDenoiser && denoiser && denoiser->getIsEnabled()) {
@@ -787,7 +797,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
 
     int numDenoisersSupported = IM_ARRAYSIZE(DENOISER_NAMES);
 #ifdef SUPPORT_OPTIX
-    if (!OptixVptDenoiser::isOpitEnabled()) {
+    if (!OptixVptDenoiser::isOptixEnabled()) {
         numDenoisersSupported--;
     }
 #endif
