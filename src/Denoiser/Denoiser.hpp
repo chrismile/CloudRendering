@@ -33,6 +33,10 @@
 
 #include <Graphics/Vulkan/Image/Image.hpp>
 
+namespace sgl {
+class PropertyEditor;
+}
+
 enum class DenoiserType {
     NONE,
     EAW,
@@ -60,7 +64,7 @@ public:
     virtual void recreateSwapchain(uint32_t width, uint32_t height) {}
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
-    virtual bool renderGui() { return false; }
+    virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }
 };
 
 std::shared_ptr<Denoiser> createDenoiserObject(DenoiserType denoiserType, sgl::vk::Renderer* renderer);

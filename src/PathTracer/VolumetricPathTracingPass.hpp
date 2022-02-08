@@ -33,8 +33,13 @@
 #include <Graphics/Vulkan/Utils/Timer.hpp>
 #include "Denoiser/Denoiser.hpp"
 
+namespace sgl {
+class PropertyEditor;
+}
+
 class CloudData;
 typedef std::shared_ptr<CloudData> CloudDataPtr;
+
 class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
@@ -82,13 +87,14 @@ public:
     void setSparseGridInterpolationType(GridInterpolationType type);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
+    void setFileDialogInstance(ImGuiFileDialog* fileDialogInstance);
 
     // Called when the camera has moved.
     void onHasMoved();
     /// Returns if the data needs to be re-rendered, but the visualization mapping is valid.
-    virtual bool needsReRender() { bool tmp = reRender; reRender = false; return tmp; }
+    bool needsReRender() { bool tmp = reRender; reRender = false; return tmp; }
     /// Renders the GUI. The "reRender" flag might be set depending on the user's actions.
-    virtual void renderGui();
+    bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
 
 private:
     void loadShader() override;
@@ -98,9 +104,7 @@ private:
 
     sgl::CameraPtr* camera;
     uint32_t customSeedOffset = 0;
-
     bool reRender = true;
-    bool showWindow = true;
 
     const glm::ivec2 blockSize2D = glm::ivec2(16, 16);
     sgl::vk::ImageViewPtr sceneImageView;
@@ -134,6 +138,8 @@ private:
     int targetNumSamples = 1024;
     bool reachedTarget = true;
     bool changedDenoiserSettings = false;
+    bool timerStopped = false;
+    bool createNewAccumulationTimer = false;
     sgl::vk::TimerPtr accumulationTimer;
 
     glm::vec3 sunlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
@@ -217,7 +223,8 @@ public:
     inline sgl::vk::TexturePtr getMomentTexture() { return momentTexture; }
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
-    virtual bool renderGui(bool& shallRecreateMomentTexture, bool& momentTypeChanged);
+    bool renderGuiPropertyEditorNodes(
+            sgl::PropertyEditor& propertyEditor, bool& shallRecreateMomentTexture, bool& momentTypeChanged);
 
 private:
     void createRasterData(sgl::vk::Renderer* renderer, sgl::vk::GraphicsPipelinePtr& graphicsPipeline) override;

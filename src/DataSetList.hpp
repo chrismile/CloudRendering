@@ -33,15 +33,29 @@
 
 #include <Math/Geometry/MatrixUtil.hpp>
 
+enum DataSetType {
+    DATA_SET_TYPE_NONE,
+    DATA_SET_TYPE_NODE, //< Hierarchical container.
+    DATA_SET_TYPE_VOLUME //< Grid storing volumetric data.
+};
+
+struct DataSetInformation;
+typedef std::shared_ptr<DataSetInformation> DataSetInformationPtr;
+
 struct DataSetInformation {
+    DataSetType type = DATA_SET_TYPE_VOLUME;
     std::string name;
     std::string filename;
+
+    // For type DATA_SET_TYPE_NODE.
+    std::vector<DataSetInformationPtr> children;
+    int sequentialIndex = 0;
 
     // Optional attributes.
     bool hasCustomTransform = false;
     glm::mat4 transformMatrix = sgl::matrixIdentity();
 };
 
-std::vector<DataSetInformation> loadDataSetList(const std::string& filename);
+DataSetInformationPtr loadDataSetList(const std::string& filename);
 
 #endif //LINEDENSITYCONTROL_DATASETLIST_HPP

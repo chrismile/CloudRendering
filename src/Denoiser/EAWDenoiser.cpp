@@ -30,6 +30,7 @@
 #include <Graphics/Vulkan/Buffers/Framebuffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
+#include <ImGui/Widgets/PropertyEditor.hpp>
 #include "EAWDenoiser.hpp"
 
 EAWDenoiser::EAWDenoiser(sgl::vk::Renderer* renderer) {
@@ -65,8 +66,8 @@ void EAWDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     eawBlitPass->recreateSwapchain(width, height);
 }
 
-bool EAWDenoiser::renderGui() {
-    return eawBlitPass->renderGui();
+bool EAWDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
+    return eawBlitPass->renderGuiPropertyEditorNodes(propertyEditor);
 }
 
 
@@ -216,34 +217,31 @@ void EAWBlitPass::_render() {
     }
 }
 
-bool EAWBlitPass::renderGui() {
+bool EAWBlitPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
-    if (ImGui::Begin("EAW Denoiser", &showWindow)) {
-        if (ImGui::SliderInt("#Iterations", &maxNumIterations, 0, 5)) {
-            reRender = true;
-            setDataDirty();
-        }
-        if (ImGui::Checkbox("Color Weights", &useColorWeights)) {
-            reRender = true;
-        }
-        if (ImGui::Checkbox("Position Weights", &usePositionWeights)) {
-            reRender = true;
-        }
-        if (ImGui::Checkbox("Normal Weights", &useNormalWeights)) {
-            reRender = true;
-        }
-        if (ImGui::SliderFloat("Phi Color", &phiColor, 0.0f, 10.0f)) {
-            reRender = true;
-        }
-        if (ImGui::SliderFloat("Phi Position", &phiPosition, 0.0f, 10.0f)) {
-            reRender = true;
-        }
-        if (ImGui::SliderFloat("Phi Normal", &phiNormal, 0.0f, 10.0f)) {
-            reRender = true;
-        }
+    if (propertyEditor.addSliderInt("#Iterations", &maxNumIterations, 0, 5)) {
+        reRender = true;
+        setDataDirty();
     }
-    ImGui::End();
+    if (propertyEditor.addCheckbox("Color Weights", &useColorWeights)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Position Weights", &usePositionWeights)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Normal Weights", &useNormalWeights)) {
+        reRender = true;
+    }
+    if (propertyEditor.addSliderFloat("Phi Color", &phiColor, 0.0f, 10.0f)) {
+        reRender = true;
+    }
+    if (propertyEditor.addSliderFloat("Phi Position", &phiPosition, 0.0f, 10.0f)) {
+        reRender = true;
+    }
+    if (propertyEditor.addSliderFloat("Phi Normal", &phiNormal, 0.0f, 10.0f)) {
+        reRender = true;
+    }
 
     return reRender;
 }

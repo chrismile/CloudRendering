@@ -46,43 +46,64 @@
 #include "Widgets/ReplayWidget.hpp"
 #endif
 
+class DataView;
+typedef std::shared_ptr<DataView> DataViewPtr;
+
 class MainApp : public sgl::SciVisApp {
 public:
     /**
      * @param supportsRaytracing Whether raytracing via OpenGL-Vulkan interoperability is supported.
      */
     MainApp();
-    ~MainApp();
-    void render();
-    void update(float dt);
-    void resolutionChanged(sgl::EventPtr event);
+    ~MainApp() override;
+    void render() override;
+    void update(float dt) override;
+    void resolutionChanged(sgl::EventPtr event) override;
+
+protected:
+    void renderGuiGeneralSettingsPropertyEditor() override;
 
 private:
     /// Renders the GUI of the scene settings and all filters and renderers.
-    void renderGui();
-    /// Renders the GUI for selecting an input file.
-    void renderFileSelectionSettingsGui();
-    /// Render the scene settings GUI, e.g. for setting the background clear color.
-    void renderSceneSettingsGui();
+    void renderGui() override;
     /// Update the color space (linear RGB vs. sRGB).
-    void updateColorSpaceMode();
+    void updateColorSpaceMode() override;
     // Called when the camera moved.
-    void hasMoved();
+    void hasMoved() override;
+    /// Callback when the camera was reset.
+    void onCameraReset() override;
+
+    // Dock space mode.
+    void renderGuiMenuBar();
+    void renderGuiPropertyEditorBegin() override;
+    void renderGuiPropertyEditorCustomNodes() override;
+    bool scheduledDockSpaceModeChange = false;
+    bool newDockSpaceMode = false;
+    int focusedWindowIndex = -1;
+    int mouseHoverWindowIndex = -1;
+    bool showRendererWindow = true;
+    DataViewPtr dataView;
+    sgl::CameraPtr cameraHandle;
 
     /// Scene data (e.g., camera, main framebuffer, ...).
     SceneData sceneData;
 
+    // This setting lets all data views use the same viewport resolution.
+    bool useFixedSizeViewport = false;
+    glm::ivec2 fixedViewportSizeEdit{ 2186, 1358 };
+    glm::ivec2 fixedViewportSize{ 2186, 1358 };
+
     // Data set GUI information.
     void loadAvailableDataSetInformation();
-    const std::string& getSelectedMeshFilenames();
-    std::vector<DataSetInformation> dataSetInformation;
+    const std::string& getSelectedDataSetFilename();
+    void openFileDialog();
+    DataSetInformationPtr dataSetInformationRoot;
+    std::vector<DataSetInformationPtr> dataSetInformationList; //< List of all leaves.
     std::vector<std::string> dataSetNames; //< Contains "Local file..." at beginning, thus starts actually at 1.
     int selectedDataSetIndex = 0; //< Contains "Local file..." at beginning, thus starts actually at 1.
     int currentlyLoadedDataSetIndex = -1;
     std::string customDataSetFileName;
-
-    // Coloring & filtering dependent on importance criteria.
-    sgl::TransferFunctionWindow transferFunctionWindow;
+    ImGuiFileDialog* fileDialogInstance = nullptr;
 
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;

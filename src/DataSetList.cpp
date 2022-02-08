@@ -36,9 +36,56 @@
 
 #include "DataSetList.hpp"
 
-std::vector<DataSetInformation> loadDataSetList(const std::string& filename) {
-    std::vector<DataSetInformation> dataSetList;
+void processDataSetNodeChildren(Json::Value& childList, DataSetInformation* dataSetInformationParent) {
+    for (Json::Value& source : childList) {
+        auto* dataSetInformation = new DataSetInformation;
 
+        // Get the type information.
+        if (source.isMember("type")) {
+            Json::Value type = source["type"];
+            std::string typeName = type.asString();
+            if (typeName == "node") {
+                dataSetInformation->type = DATA_SET_TYPE_NODE;
+            } else if (typeName == "volume") {
+                dataSetInformation->type = DATA_SET_TYPE_VOLUME;
+            } else {
+                sgl::Logfile::get()->writeError(
+                        "Error in processDataSetNodeChildren: Invalid type name \"" + typeName + "\".");
+                return;
+            }
+        }
+
+        // Get the display name and the associated filenames.
+        dataSetInformation->name = source["name"].asString();
+        Json::Value filenames = source["filename"];
+        const std::string lineDataSetsDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
+        if (filenames.isArray()) {
+            for (Json::Value::const_iterator filenameIt = filenames.begin();
+                 filenameIt != filenames.end(); ++filenameIt) {
+                dataSetInformation->filename = lineDataSetsDirectory + filenameIt->asString();
+            }
+        } else {
+            dataSetInformation->filename = lineDataSetsDirectory + filenames.asString();
+        }
+
+        if (dataSetInformation->type == DATA_SET_TYPE_NODE) {
+            dataSetInformationParent->children.emplace_back(dataSetInformation);
+            processDataSetNodeChildren(source["children"], dataSetInformation);
+            continue;
+        }
+
+        // Optional data: Transform.
+        dataSetInformation->hasCustomTransform = source.isMember("transform");
+        if (dataSetInformation->hasCustomTransform) {
+            glm::mat4 transformMatrix = parseTransformString(source["transform"].asString());
+            dataSetInformation->transformMatrix = transformMatrix;
+        }
+
+        dataSetInformationParent->children.emplace_back(dataSetInformation);
+    }
+}
+
+DataSetInformationPtr loadDataSetList(const std::string& filename) {
     // Parse the passed JSON file.
     std::ifstream jsonFileStream(filename.c_str());
     Json::CharReaderBuilder builder;
@@ -46,36 +93,12 @@ std::vector<DataSetInformation> loadDataSetList(const std::string& filename) {
     Json::Value root;
     if (!parseFromStream(builder, jsonFileStream, &root, &errorString)) {
         sgl::Logfile::get()->writeError(errorString);
-        return dataSetList;
+        return {};
     }
     jsonFileStream.close();
 
-    Json::Value sources = root["datasets"];
-    for (Json::Value::const_iterator sourceIt = sources.begin(); sourceIt != sources.end(); ++sourceIt) {
-        DataSetInformation dataSetInformation;
-        Json::Value source = *sourceIt;
-
-        // Get the display name and the associated filenames.
-        dataSetInformation.name = source["name"].asString();
-        Json::Value filenames = source["filename"];
-        const std::string lineDataSetsDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
-        if (filenames.isArray()) {
-            for (Json::Value::const_iterator filenameIt = filenames.begin();
-                 filenameIt != filenames.end(); ++filenameIt) {
-                dataSetInformation.filename = lineDataSetsDirectory + filenameIt->asString();
-            }
-        } else {
-            dataSetInformation.filename = lineDataSetsDirectory + filenames.asString();
-        }
-
-        // Optional data: Transform.
-        dataSetInformation.hasCustomTransform = source.isMember("transform");
-        if (dataSetInformation.hasCustomTransform) {
-            glm::mat4 transformMatrix = parseTransformString(source["transform"].asString());
-            dataSetInformation.transformMatrix = transformMatrix;
-        }
-
-        dataSetList.push_back(dataSetInformation);
-    }
-    return dataSetList;
+    DataSetInformationPtr dataSetInformationRoot(new DataSetInformation);
+    Json::Value& dataSetNode = root["datasets"];
+    processDataSetNodeChildren(dataSetNode, dataSetInformationRoot.get());
+    return dataSetInformationRoot;
 }

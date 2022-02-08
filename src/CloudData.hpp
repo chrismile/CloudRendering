@@ -76,9 +76,8 @@ public:
     [[nodiscard]] inline bool hasDenseData() const { return densityField != nullptr; }
 
     /**
-     *
-     * @param data
-     * @param size
+     * @param data A pointer to the raw NanoVDB data.
+     * @param size The size of the NanoVDB data buffer in bytes.
      * If the object was loaded using a dense .xyz grid file, the sparse field is created when calling this function.
      */
     void getSparseDensityField(uint8_t*& data, uint64_t& size);

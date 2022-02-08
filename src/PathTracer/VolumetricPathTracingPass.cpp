@@ -35,6 +35,7 @@
 #include <Graphics/Vulkan/Render/RayTracingPipeline.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
+#include <ImGui/Widgets/PropertyEditor.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_stdlib.h>
 
@@ -78,8 +79,6 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
     blitPrimaryRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Primary");
     blitScatterRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Scatter");
 
-    fileDialogInstance = IGFD_Create();
-
     createDenoiser();
     updateVptMode();
 }
@@ -91,8 +90,6 @@ VolumetricPathTracingPass::~VolumetricPathTracingPass() {
         sgl::AppSettings::get()->getSettings().addKeyValue(
                 "vptUseEnvironmentMap", useEnvironmentMapImage);
     }
-
-    IGFD_Destroy(fileDialogInstance);
 }
 
 void VolumetricPathTracingPass::createDenoiser() {
@@ -279,6 +276,10 @@ void VolumetricPathTracingPass::setCustomSeedOffset(uint32_t offset) {
 void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
     uniformData.useLinearRGB = useLinearRGB;
     setShaderDirty();
+}
+
+void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* fileDialogInstance) {
+    this->fileDialogInstance = fileDialogInstance;
 }
 
 void VolumetricPathTracingPass::onHasMoved() {
@@ -501,6 +502,26 @@ void VolumetricPathTracingPass::_render() {
     }
 
     std::string eventName = getCurrentEventName();
+    if (createNewAccumulationTimer) {
+        accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
+        createNewAccumulationTimer = false;
+    }
+
+    if (!reachedTarget) {
+        if (int(frameInfo.frameCount) > targetNumSamples) {
+            frameInfo.frameCount = 0;
+        }
+        if (int(frameInfo.frameCount) < targetNumSamples) {
+            reRender = true;
+        }
+        if (int(frameInfo.frameCount) == targetNumSamples) {
+            reachedTarget = true;
+            accumulationTimer->finishGPU();
+            accumulationTimer->printTimeMS(eventName);
+            timerStopped = true;
+        }
+    }
+
     if (!reachedTarget) {
         accumulationTimer->startGPU(eventName);
     }
@@ -592,9 +613,7 @@ void VolumetricPathTracingPass::_render() {
     }
 }
 
-void VolumetricPathTracingPass::renderGui() {
-    sgl::ImGuiWrapper::get()->setNextWindowStandardPosSize(2, 14, 735, 564);
-
+bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool optionChanged = false;
 
     if (IGFD_DisplayDialog(
@@ -633,13 +652,11 @@ void VolumetricPathTracingPass::renderGui() {
         IGFD_CloseDialog(fileDialogInstance);
     }
 
-    if (ImGui::Begin("VPT Renderer", &showWindow)) {
-        std::string numSamplesText = "#Samples: " + std::to_string(frameInfo.frameCount);
-        // + "##numSamplesText";
-        ImGui::Text("%s", numSamplesText.c_str());
-        ImGui::SameLine();
+    if (propertyEditor.beginNode("VPT Renderer")) {
+        std::string numSamplesText = "#Samples: " + std::to_string(frameInfo.frameCount) + "###numSamplesText";
+        propertyEditor.addCustomWidgets(numSamplesText);
         if (ImGui::Button(" = ")) {
-            accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
+            createNewAccumulationTimer = true;
             reachedTarget = false;
             reRender = true;
 
@@ -648,30 +665,30 @@ void VolumetricPathTracingPass::renderGui() {
             }
         }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(220.0f);
+        ImGui::SetNextItemWidth(sgl::ImGuiWrapper::get()->getScaleDependentSize(220.0f));
         ImGui::InputInt("##targetNumSamples", &targetNumSamples);
-        if (ImGui::ColorEdit3("Sunlight Color", &sunlightColor.x)) {
+        if (propertyEditor.addColorEdit3("Sunlight Color", &sunlightColor.x)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
+        if (propertyEditor.addSliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
+        if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
+        if (propertyEditor.addSliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
+        if (propertyEditor.addSliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
             optionChanged = true;
         }
-        if (ImGui::ColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
+        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
             optionChanged = true;
         }
-        if (ImGui::SliderFloat("G", &uniformData.G, 0.0f, 1.0f)) {
+        if (propertyEditor.addSliderFloat("G", &uniformData.G, 0.0f, 1.0f)) {
             optionChanged = true;
         }
-        if (ImGui::Combo(
+        if (propertyEditor.addCombo(
                 "Feature Map", (int*)&featureMapType, FEATURE_MAP_NAMES,
                 IM_ARRAYSIZE(FEATURE_MAP_NAMES))) {
             optionChanged = true;
@@ -680,7 +697,7 @@ void VolumetricPathTracingPass::renderGui() {
             blitScatterRayMomentTexturePass->setVisualizeMomentTexture(
                     featureMapType == FeatureMapType::SCATTER_RAY_ABSORPTION_MOMENTS);
         }
-        if (ImGui::Combo(
+        if (propertyEditor.addCombo(
                 "VPT Mode", (int*)&vptMode, VPT_MODE_NAMES,
                 IM_ARRAYSIZE(VPT_MODE_NAMES))) {
             optionChanged = true;
@@ -688,22 +705,25 @@ void VolumetricPathTracingPass::renderGui() {
             setShaderDirty();
             setDataDirty();
         }
+
         if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING || vptMode == VptMode::DECOMPOSITION_TRACKING) {
-            if (ImGui::SliderInt("Super Voxel Size", &superVoxelSize, 1, 64)) {
+            if (propertyEditor.addSliderInt("Super Voxel Size", &superVoxelSize, 1, 64)) {
                 optionChanged = true;
                 updateVptMode();
                 setShaderDirty();
                 setDataDirty();
             }
         }
-        if (ImGui::Checkbox("Use Sparse Grid", &useSparseGrid)) {
+
+        if (propertyEditor.addCheckbox("Use Sparse Grid", &useSparseGrid)) {
             optionChanged = true;
             setGridData();
             updateVptMode();
             setShaderDirty();
             setDataDirty();
         }
-        if (ImGui::Combo(
+
+        if (propertyEditor.addCombo(
                 "Grid Interpolation", (int*)&gridInterpolationType,
                 GRID_INTERPOLATION_TYPE_NAMES, IM_ARRAYSIZE(GRID_INTERPOLATION_TYPE_NAMES))) {
             optionChanged = true;
@@ -714,22 +734,8 @@ void VolumetricPathTracingPass::renderGui() {
             setShaderDirty();
         }
 
-        int numDenoisersSupported = IM_ARRAYSIZE(DENOISER_NAMES);
-#ifdef SUPPORT_OPTIX
-        if (!OptixVptDenoiser::isOpitEnabled()) {
-            numDenoisersSupported--;
-        }
-#endif
-        if (ImGui::Combo(
-                "Denoiser", (int*)&denoiserType,
-                DENOISER_NAMES, numDenoisersSupported)) {
-            denoiserChanged = true;
-            reRender = true;
-            changedDenoiserSettings = true;
-        }
-
-        ImGui::InputText("Environment Map", &environmentMapFilenameGui);
-        if (ImGui::Button("Load")) {
+        propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
+        if (propertyEditor.addButton("", "Load")) {
             loadEnvironmentMapImage();
             setShaderDirty();
             reRender = true;
@@ -744,12 +750,15 @@ void VolumetricPathTracingPass::renderGui() {
                     "", 1, nullptr,
                     ImGuiFileDialogFlags_ConfirmOverwrite);
         }
-        if (isEnvironmentMapLoaded && ImGui::Checkbox("Use Environment Map Image", &useEnvironmentMapImage)) {
+
+        if (isEnvironmentMapLoaded && propertyEditor.addCheckbox(
+                "Use Env. Map Image", &useEnvironmentMapImage)) {
             setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
         }
-        if (useEnvironmentMapImage && ImGui::SliderFloat(
+
+        if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
                 "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
             reRender = true;
             frameInfo.frameCount = 0;
@@ -759,10 +768,12 @@ void VolumetricPathTracingPass::renderGui() {
         bool momentTypeChangedA = false;
         bool shallRecreateMomentTextureB = false;
         bool momentTypeChangedB = false;
-        optionChanged = blitPrimaryRayMomentTexturePass->renderGui(shallRecreateMomentTextureA, momentTypeChangedA)
-                || optionChanged;
-        optionChanged = blitScatterRayMomentTexturePass->renderGui(shallRecreateMomentTextureB, momentTypeChangedB)
-                || optionChanged;
+        optionChanged =
+                blitPrimaryRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                        propertyEditor, shallRecreateMomentTextureA, momentTypeChangedA) || optionChanged;
+        optionChanged =
+                blitScatterRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                        propertyEditor, shallRecreateMomentTextureB, momentTypeChangedB) || optionChanged;
         if (shallRecreateMomentTextureA || shallRecreateMomentTextureB) {
             setShaderDirty();
             setDataDirty();
@@ -770,13 +781,30 @@ void VolumetricPathTracingPass::renderGui() {
         if (momentTypeChangedA || momentTypeChangedB) {
             setShaderDirty();
         }
+
+        propertyEditor.endNode();
     }
-    ImGui::End();
+
+    int numDenoisersSupported = IM_ARRAYSIZE(DENOISER_NAMES);
+#ifdef SUPPORT_OPTIX
+    if (!OptixVptDenoiser::isOpitEnabled()) {
+        numDenoisersSupported--;
+    }
+#endif
+    if (propertyEditor.addCombo(
+            "Denoiser", (int*)&denoiserType, DENOISER_NAMES, numDenoisersSupported)) {
+        denoiserChanged = true;
+        reRender = true;
+        changedDenoiserSettings = true;
+    }
 
     if (useDenoiser && denoiser) {
-        bool denoiserReRender = denoiser->renderGui();
-        reRender = denoiserReRender || reRender;
-        changedDenoiserSettings = denoiserReRender || changedDenoiserSettings;
+        if (propertyEditor.beginNode(denoiser->getDenoiserName())) {
+            bool denoiserReRender = denoiser->renderGuiPropertyEditorNodes(propertyEditor);
+            reRender = denoiserReRender || reRender;
+            changedDenoiserSettings = denoiserReRender || changedDenoiserSettings;
+            propertyEditor.endNode();
+        }
     }
 
     if (optionChanged) {
@@ -784,20 +812,7 @@ void VolumetricPathTracingPass::renderGui() {
         reRender = true;
     }
 
-    if (!reachedTarget) {
-        if (int(frameInfo.frameCount) > targetNumSamples) {
-            frameInfo.frameCount = 0;
-        }
-        if (int(frameInfo.frameCount) < targetNumSamples) {
-            reRender = true;
-        }
-        if (int(frameInfo.frameCount) == targetNumSamples) {
-            reachedTarget = true;
-            std::string eventName = getCurrentEventName();
-            accumulationTimer->finishGPU();
-            accumulationTimer->printTimeMS(eventName);
-        }
-    }
+    return optionChanged;
 }
 
 
@@ -830,23 +845,24 @@ void BlitMomentTexturePass::recreateMomentTexture() {
     BlitRenderPass::setInputTexture(momentTexture);
 }
 
-bool BlitMomentTexturePass::renderGui(bool& shallRecreateMomentTexture, bool& momentTypeChanged) {
+bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
+        sgl::PropertyEditor& propertyEditor, bool& shallRecreateMomentTexture, bool& momentTypeChanged) {
     bool reRender = false;
     shallRecreateMomentTexture = false;
     momentTypeChanged = false;
 
     std::string headerName = prefix;
-    if (ImGui::CollapsingHeader(headerName.c_str(), nullptr, ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (propertyEditor.beginNode(headerName)) {
         std::string momentTypeName = "Moment Type## (" + prefix + ")";
-        if (ImGui::Combo(
-                momentTypeName.c_str(), (int*)&momentType, MOMENT_TYPE_NAMES,
+        if (propertyEditor.addCombo(
+                momentTypeName, (int*)&momentType, MOMENT_TYPE_NAMES,
                 IM_ARRAYSIZE(MOMENT_TYPE_NAMES))) {
             reRender = true;
             momentTypeChanged = true;
         }
         std::string numMomentName = "#Moments## (" + prefix + ")";
-        if (ImGui::Combo(
-                numMomentName.c_str(), &numMomentsIdx, NUM_MOMENTS_NAMES,
+        if (propertyEditor.addCombo(
+                numMomentName, &numMomentsIdx, NUM_MOMENTS_NAMES,
                 IM_ARRAYSIZE(NUM_MOMENTS_NAMES))) {
             numMoments = NUM_MOMENTS_SUPPORTED[numMomentsIdx];
             reRender = true;
@@ -854,10 +870,12 @@ bool BlitMomentTexturePass::renderGui(bool& shallRecreateMomentTexture, bool& mo
         }
 
         if (visualizeMomentTexture) {
-            if (ImGui::SliderInt("Visualized Moment", &selectedMomentBlitIdx, 0, numMoments)) {
+            if (propertyEditor.addSliderInt("Visualized Moment", &selectedMomentBlitIdx, 0, numMoments)) {
                 reRender = true;
             }
         }
+
+        propertyEditor.endNode();
     }
 
     if (shallRecreateMomentTexture) {

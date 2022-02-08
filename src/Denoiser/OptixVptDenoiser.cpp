@@ -31,6 +31,7 @@
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
+#include <ImGui/Widgets/PropertyEditor.hpp>
 #include "OptixVptDenoiser.hpp"
 
 #ifndef TOSTRING
@@ -396,19 +397,16 @@ void OptixVptDenoiser::runOptixDenoiser() {
 #endif
 }
 
-bool OptixVptDenoiser::renderGui() {
+bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
-    if (ImGui::Begin("OptiX Denoiser", &showWindow)) {
-        if (ImGui::Combo(
-                "Feature Map", (int*)&denoiserModelKindIndex, OPTIX_DENOISTER_MODEL_KIND_NAME,
-                IM_ARRAYSIZE(OPTIX_DENOISTER_MODEL_KIND_NAME))) {
-            reRender = true;
-            denoiserModelKind = OptixDenoiserModelKind(denoiserModelKindIndex + int(OPTIX_DENOISER_MODEL_KIND_LDR));
-            recreateDenoiserNextFrame = true;
-        }
+    if (propertyEditor.addCombo(
+            "Feature Map", (int*)&denoiserModelKindIndex, OPTIX_DENOISTER_MODEL_KIND_NAME,
+            IM_ARRAYSIZE(OPTIX_DENOISTER_MODEL_KIND_NAME))) {
+        reRender = true;
+        denoiserModelKind = OptixDenoiserModelKind(denoiserModelKindIndex + int(OPTIX_DENOISER_MODEL_KIND_LDR));
+        recreateDenoiserNextFrame = true;
     }
-    ImGui::End();
 
     return reRender;
 }
