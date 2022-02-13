@@ -31,6 +31,9 @@ set debug=true
 set build_dir=".build"
 set destination_dir="Shipping"
 
+:: Leave empty to let cmake try to find the correct paths
+set optix_install_dir=""
+
 where cmake >NUL 2>&1 || echo cmake was not found but is required to build the program && exit /b 1
 
 if not exist .\third_party\ mkdir .\third_party\
@@ -60,11 +63,11 @@ if not exist .\sgl\install (
    pushd sgl\.build
 
    cmake .. -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ^
-            -DCMAKE_INSTALL_PREFIX=../install         || exit /b 1
-   cmake --build . --config Debug   --parallel        || exit /b 1
-   cmake --build . --config Debug   --target install  || exit /b 1
-   cmake --build . --config Release --parallel        || exit /b 1
-   cmake --build . --config Release --target install  || exit /b 1
+            -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_CXX_FLAGS="/MP" || exit /b 1
+   cmake --build . --config Debug   -- /m            || exit /b 1
+   cmake --build . --config Debug   --target install || exit /b 1
+   cmake --build . --config Release -- /m            || exit /b 1
+   cmake --build . --config Release --target install || exit /b 1
 
    popd
 )
@@ -88,13 +91,20 @@ if %debug% == true (
 echo ------------------------
 echo       generating
 echo ------------------------
-cmake -DCMAKE_TOOLCHAIN_FILE="third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
-      -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/" -S . -B %build_dir%
+
+set cmake_args=-DCMAKE_TOOLCHAIN_FILE="third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
+               -DCMAKE_CXX_FLAGS="/MP" -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/"
+if not %optix_install_dir% == "" (
+   echo using custom optix path
+   set cmake_args=%cmake_args% -DOptiX_INSTALL_DIR=%optix_install_dir%
+)
+
+cmake %cmake_args% -S . -B %build_dir%
 
 echo ------------------------
 echo       compiling
 echo ------------------------
-cmake --build %build_dir% --config %cmake_config% --parallel || exit /b 1
+cmake --build %build_dir% --config %cmake_config% -- /m || exit /b 1
 
 echo ------------------------
 echo    copying new files

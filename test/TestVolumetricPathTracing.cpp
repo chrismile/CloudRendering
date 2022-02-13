@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
     // Initialize the filesystem utilities.
-    sgl::FileUtils::get()->initialize("LineVis", argc, argv);
+    sgl::FileUtils::get()->initialize("CloudRendering", argc, argv);
 
     // Load the file containing the app settings.
     std::string settingsFile = sgl::FileUtils::get()->getConfigDirectory() + "settings.txt";
@@ -258,10 +258,20 @@ int main(int argc, char **argv) {
     sgl::AppSettings::get()->setRenderSystem(sgl::RenderSystem::VULKAN);
     sgl::AppSettings::get()->createHeadless();
 
+    std::vector<const char*> optionalDeviceExtensions;
+#ifdef SUPPORT_OPTIX
+    optionalDeviceExtensions = sgl::vk::Device::getCudaInteropDeviceExtensions();
+#endif
+
     sgl::vk::Instance* instance = sgl::AppSettings::get()->getVulkanInstance();
     instance->setDebugCallback(&vulkanErrorCallback);
     sgl::vk::Device* device = new sgl::vk::Device;
-    device->createDeviceHeadless(instance);
+    device->createDeviceHeadless(
+            instance, {
+                    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,
+                    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME
+            },
+            optionalDeviceExtensions);
     sgl::AppSettings::get()->setPrimaryDevice(device);
     sgl::AppSettings::get()->initializeSubsystems();
 

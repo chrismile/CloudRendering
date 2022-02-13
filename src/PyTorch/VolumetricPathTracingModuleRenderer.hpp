@@ -26,12 +26,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef LINEVIS_VOLUMETRICPATHTRACINGTESTRENDERER_HPP
-#define LINEVIS_VOLUMETRICPATHTRACINGTESTRENDERER_HPP
+#ifndef CLOUDRENDERING_VOLUMETRICPATHTRACINGMODULERENDERER_HPP
+#define CLOUDRENDERING_VOLUMETRICPATHTRACINGMODULERENDERER_HPP
 
-#include <Graphics/Vulkan/Utils/SyncObjects.hpp>
+#include <torch/types.h>
+
 #include <Graphics/Vulkan/Image/Image.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
+#include <Graphics/Vulkan/Utils/SyncObjects.hpp>
+#include <Graphics/Vulkan/Utils/InteropCuda.hpp>
 #include "PathTracer/VolumetricPathTracingPass.hpp"
 
 class CloudData;
@@ -45,18 +48,25 @@ class Camera;
 typedef std::shared_ptr<Camera> CameraPtr;
 }
 
-class VolumetricPathTracingTestRenderer {
+class VolumetricPathTracingModuleRenderer {
 public:
-    explicit VolumetricPathTracingTestRenderer(sgl::vk::Renderer* renderer);
-    ~VolumetricPathTracingTestRenderer();
+    explicit VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer);
+    ~VolumetricPathTracingModuleRenderer();
 
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     void setCloudData(const CloudDataPtr& cloudData);
 
     /// Called when the resolution of the application window has changed.
-    void setRenderingResolution(uint32_t width, uint32_t height);
-    inline uint32_t getFrameWidth() { return renderImageView->getImage()->getImageSettings().width; }
-    inline uint32_t getFrameHeight() { return renderImageView->getImage()->getImageSettings().height; }
+    void setRenderingResolution(
+            uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype);
+    bool settingsDiffer(
+            uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype) const;
+    [[nodiscard]] inline bool getHasFrameData() const { return renderImageView.get() != nullptr; }
+    [[nodiscard]] inline uint32_t getFrameWidth() const { return renderImageView->getImage()->getImageSettings().width; }
+    [[nodiscard]] inline uint32_t getFrameHeight() const { return renderImageView->getImage()->getImageSettings().height; }
+    [[nodiscard]] inline uint32_t getNumChannels() const { return numChannels; }
+    [[nodiscard]] inline caffe2::TypeMeta getDType() const { return dtype; }
+    [[nodiscard]] inline c10::DeviceType getDeviceType() const { return deviceType; }
 
     /// Sets whether a dense or sparse grid should be used.
     void setUseSparseGrid(bool useSparseGrid);
@@ -73,12 +83,18 @@ public:
     void setVptModeFromString(const std::string& vptModeName);
 
     /**
-     * Renders the path traced volume object to the scene framebuffer.
+     * Renders the path traced volume object to the scene framebuffer and returns a CPU pointer to the image data.
      * @param numFrames The number of frames to accumulate.
-     * @return An floating point array of size width * height * 3 containing the frame data.
+     * @return A CPU floating point array of size width * height * 3 containing the frame data.
      * NOTE: The returned data is managed by this class.
      */
-    float* renderFrame(int numFrames);
+    float* renderFrameCpu(int numFrames);
+
+    float* renderFrameVulkan(int numFrames);
+
+#ifdef SUPPORT_CUDA_INTEROP
+    float* renderFrameCuda(int numFrames);
+#endif
 
 private:
     sgl::CameraPtr camera;
@@ -86,9 +102,29 @@ private:
     std::shared_ptr<VolumetricPathTracingPass> vptPass;
 
     sgl::vk::ImageViewPtr renderImageView;
+    uint32_t numChannels = 0;
+    caffe2::TypeMeta dtype;
+    c10::DeviceType deviceType;
+
+    // Data for CPU rendering.
     sgl::vk::ImagePtr renderImageStaging;
     sgl::vk::FencePtr renderFinishedFence;
     float* imageData = nullptr;
+
+    // Data for Vulkan rendering.
+
+#ifdef SUPPORT_CUDA_INTEROP
+    // Data for CUDA rendering.
+    // Image data.
+    sgl::vk::BufferPtr outputImageBufferVk;
+    sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputImageBufferCu;
+    // Synchronization primitives.
+    std::vector<sgl::vk::CommandBufferPtr> commandBuffers;
+    sgl::vk::SemaphoreVkCudaDriverApiInteropPtr renderReadySemaphore;
+    sgl::vk::SemaphoreVkCudaDriverApiInteropPtr renderFinishedSemaphore;
+    std::vector<sgl::vk::SemaphorePtr> interFrameSemaphores;
+    uint64_t timelineValue = 0;
+#endif
 };
 
-#endif //LINEVIS_VOLUMETRICPATHTRACINGTESTRENDERER_HPP
+#endif //CLOUDRENDERING_VOLUMETRICPATHTRACINGMODULERENDERER_HPP

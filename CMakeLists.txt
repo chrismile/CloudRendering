@@ -8,7 +8,13 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/CMake)
 set(CMAKE_CXX_STANDARD 17)
 
 file(GLOB_RECURSE SOURCES src/*.cpp src/*.c src/*.hpp src/*.h Data/Shaders/*.glsl)
+file(GLOB_RECURSE PYTORCH_MODULE_SOURCES src/PyTorch/*.cpp src/PyTorch/*.c src/PyTorch/*.hpp src/PyTorch/*.h)
+file(GLOB_RECURSE PYTORCH_MODULE_SOURCES_CUDA src/PyTorch/*.cu src/PyTorch/*.cuh)
 include_directories(src)
+
+foreach(SOURCE_FILE ${PYTORCH_MODULE_SOURCES})
+    list(REMOVE_ITEM SOURCES ${SOURCE_FILE})
+endforeach()
 
 file(GLOB_RECURSE SHADER_FILES Data/Shaders/*.glsl)
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/Data/Shaders" PREFIX "Shaders" FILES ${SHADER_FILES})
@@ -28,24 +34,36 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 endif()
 
 option(USE_GTEST "Build the GoogleTest test suites." OFF)
+option(BUILD_PYTORCH_MODULE "Build the PyTorch module." OFF)
 
 set(DATA_PATH "${CMAKE_SOURCE_DIR}/Data" CACHE PATH "Location of folder 'Data'")
 add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
 
-if (USE_GTEST)
+set(
+        VPT_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudData.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/SuperVoxelGrid.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
+)
+
+if (${USE_GTEST})
     set(
             GTEST_SOURCES
             ${CMAKE_CURRENT_SOURCE_DIR}/test/VolumetricPathTracingTestData.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/test/VolumetricPathTracingTestRenderer.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/test/TestVolumetricPathTracing.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudData.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/SuperVoxelGrid.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
     )
+endif()
+
+if (${BUILD_PYTORCH_MODULE})
+    find_package(Torch QUIET)
+endif()
+if (${BUILD_PYTORCH_MODULE} AND NOT Torch_FOUND)
+    MESSAGE(STATUS "The PyTorch module build was enabled, but PyTorch couldn't be found. Disabling PyTorch module.")
 endif()
 
 
@@ -144,9 +162,8 @@ endif()
 if (NOT SUPPORT_OPENEXR)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.hpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
-    if (USE_GTEST)
-        list(REMOVE_ITEM GTEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
-    endif()
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.hpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
 endif()
 
 
@@ -156,14 +173,64 @@ else()
     add_executable(CloudRendering ${SOURCES})
 endif()
 
-if (USE_GTEST)
+if (${USE_GTEST})
     include(GoogleTest)
     enable_testing()
-    add_executable(CloudRendering_test ${GTEST_SOURCES})
+    add_executable(CloudRendering_test ${GTEST_SOURCES} ${VPT_SOURCES})
     target_link_libraries(CloudRendering_test PRIVATE gtest gtest_main)
     target_link_libraries(CloudRendering_test PRIVATE sgl ${Boost_LIBRARIES})
     target_include_directories(CloudRendering_test PRIVATE ${sgl_INCLUDES} ${Boost_INCLUDE_DIR})
     gtest_add_tests(TARGET CloudRendering_test)
+endif()
+
+if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
+    set(PYTORCH_MODULE_ENABLED TRUE)
+    if ("SUPPORT_CUDA_INTEROP" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
+        if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
+            # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
+            find_package(CUDA QUIET)
+            add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${PYTORCH_MODULE_SOURCES_CUDA} ${VPT_SOURCES} ${SHADER_FILES})
+        else()
+            # https://cmake.org/cmake/help/git-stage/module/FindCUDAToolkit.html
+            find_package(CUDAToolkit QUIET)
+        endif()
+    else()
+        MESSAGE(STATUS "sgl was not built with CUDA interoperability support. Disabling PyTorch module CUDA support.")
+    endif()
+
+    if(${CUDAToolkit_FOUND} OR ${CUDA_FOUND})
+        add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${PYTORCH_MODULE_SOURCES_CUDA} ${VPT_SOURCES} ${SHADER_FILES})
+        enable_language(CUDA)
+        set_target_properties(vpt PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+        target_compile_definitions(vpt PRIVATE SUPPORT_CUDA_INTEROP)
+    else()
+        add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${VPT_SOURCES} ${SHADER_FILES})
+    endif()
+
+    if(${CUDAToolkit_FOUND})
+        # https://en.wikipedia.org/wiki/CUDA
+        # https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capability
+        if (${CUDAToolkit_VERSION} VERSION_GREATER_EQUAL "11.1")
+            set_property(TARGET vpt PROPERTY CUDA_ARCHITECTURES 61 75 86)
+        elseif (${CUDAToolkit_VERSION} VERSION_GREATER_EQUAL "10.0")
+            set_property(TARGET vpt PROPERTY CUDA_ARCHITECTURES 61 75)
+        else()
+            set_property(TARGET vpt PROPERTY CUDA_ARCHITECTURES 61)
+        endif()
+        set_target_properties(vpt PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+        MESSAGE(STATUS "CUDA toolkit version: " ${CUDAToolkit_VERSION})
+    endif()
+
+    target_link_libraries(vpt PRIVATE ${TORCH_LIBRARIES})
+    target_include_directories(vpt PRIVATE ${TORCH_INCLUDE_DIR})
+    target_link_libraries(vpt PRIVATE sgl ${Boost_LIBRARIES})
+    target_include_directories(vpt PRIVATE ${sgl_INCLUDES} ${Boost_INCLUDE_DIR})
+    install(
+            TARGETS vpt
+            ARCHIVE DESTINATION modules
+            LIBRARY DESTINATION modules
+            RUNTIME DESTINATION bin
+    )
 endif()
 
 
@@ -233,46 +300,67 @@ target_include_directories(CloudRendering PRIVATE ${sgl_INCLUDES} ${TINYXML2_INC
 
 if (JSONCPP_LIBRARIES)
     target_link_libraries(CloudRendering PRIVATE ${JSONCPP_LIBRARIES})
-    if (USE_GTEST)
+    if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE ${JSONCPP_LIBRARIES})
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE ${JSONCPP_LIBRARIES})
     endif()
 endif()
 if (TARGET jsoncpp_lib)
     get_target_property(jsoncpp_INCLUDES jsoncpp_lib INTERFACE_INCLUDE_DIRECTORIES)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_lib)
-    if (USE_GTEST)
+    if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE jsoncpp_lib)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE jsoncpp_lib)
     endif()
 elseif(TARGET jsoncpp_static)
     get_target_property(jsoncpp_INCLUDES jsoncpp_static INTERFACE_INCLUDE_DIRECTORIES)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_static)
-    if (USE_GTEST)
+    if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE jsoncpp_static)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE jsoncpp_static)
     endif()
 endif()
 if (TARGET jsoncpp_object)
     target_link_libraries(CloudRendering PRIVATE jsoncpp_object)
-    if (USE_GTEST)
+    if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE jsoncpp_object)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE jsoncpp_object)
     endif()
 endif()
 target_include_directories(CloudRendering PRIVATE ${jsoncpp_INCLUDES})
-if (USE_GTEST)
+if (${USE_GTEST})
     target_include_directories(CloudRendering_test PRIVATE ${jsoncpp_INCLUDES})
+endif()
+if (${PYTORCH_MODULE_ENABLED})
+    target_include_directories(vpt PRIVATE ${jsoncpp_INCLUDES})
 endif()
 
 if (SUPPORT_OPENEXR)
     if (${USE_OPENEXR_PKGCONFIG})
         if (OpenEXR_FOUND)
             target_link_libraries(CloudRendering PRIVATE ${OpenEXR_LIBRARIES})
-            if (USE_GTEST)
+            if (${USE_GTEST})
                 target_link_libraries(CloudRendering_test PRIVATE ${OpenEXR_LIBRARIES})
+            endif()
+            if (${PYTORCH_MODULE_ENABLED})
+                target_link_libraries(vpt PRIVATE ${OpenEXR_LIBRARIES})
             endif()
         endif()
         if (IlmBase_FOUND)
             target_link_libraries(CloudRendering PRIVATE ${IlmBase_LIBRARIES})
-            if (USE_GTEST)
+            if (${USE_GTEST})
                 target_link_libraries(CloudRendering_test PRIVATE ${IlmBase_LIBRARIES})
+            endif()
+            if (${PYTORCH_MODULE_ENABLED})
+                target_link_libraries(vpt PRIVATE ${IlmBase_LIBRARIES})
             endif()
         endif()
     else()
@@ -289,7 +377,7 @@ if (SUPPORT_OPENEXR)
                 $<$<TARGET_EXISTS:IlmBase::IlmThread>:IlmBase::IlmThread>
                 $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
         )
-        if (USE_GTEST)
+        if (${USE_GTEST})
             target_link_libraries(
                     CloudRendering_test PRIVATE
                     # For OpenEXR/Imath 3.x:
@@ -304,10 +392,28 @@ if (SUPPORT_OPENEXR)
                     $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
             )
         endif()
+        if (${PYTORCH_MODULE_ENABLED})
+            target_link_libraries(
+                    vpt PRIVATE
+                    # For OpenEXR/Imath 3.x:
+                    $<$<TARGET_EXISTS:OpenEXR::OpenEXR>:OpenEXR::OpenEXR>
+                    $<$<TARGET_EXISTS:Imath::Imath>:Imath::Imath>
+                    $<$<TARGET_EXISTS:Imath::Half>:Imath::Half>
+                    # For OpenEXR 2.4/2.5:
+                    $<$<TARGET_EXISTS:OpenEXR::IlmImf>:OpenEXR::IlmImf>
+                    $<$<TARGET_EXISTS:IlmBase::Imath>:IlmBase::Imath>
+                    $<$<TARGET_EXISTS:IlmBase::Half>:IlmBase::Half>
+                    $<$<TARGET_EXISTS:IlmBase::IlmThread>:IlmBase::IlmThread>
+                    $<$<TARGET_EXISTS:IlmBase::Iex>:IlmBase::Iex>
+            )
+        endif()
     endif()
     target_compile_definitions(CloudRendering PRIVATE SUPPORT_OPENEXR)
-    if (USE_GTEST)
+    if (${USE_GTEST})
         target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_OPENEXR)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_compile_definitions(vpt PRIVATE SUPPORT_OPENEXR)
     endif()
 endif()
 
