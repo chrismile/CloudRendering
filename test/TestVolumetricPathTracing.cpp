@@ -90,7 +90,7 @@ protected:
                         + "_1.png",
                         frameData1, width, height);
             }
-            ASSERT_NEAR(mean0[c], mean1[c], 1e-3);
+            ASSERT_NEAR(mean0[c], mean1[c], 2e-3);
         }
     }
 
@@ -110,8 +110,8 @@ protected:
     }
 
     sgl::vk::Renderer* renderer = nullptr;
-    int numSamples = 128;
-    int renderingResolution = 256;
+    int numSamples = 64;
+    int renderingResolution = 128;
     std::shared_ptr<VolumetricPathTracingTestRenderer> vptRenderer0;
     std::shared_ptr<VolumetricPathTracingTestRenderer> vptRenderer1;
 };

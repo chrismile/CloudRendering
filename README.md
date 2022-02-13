@@ -125,7 +125,8 @@ export USE_VULKAN=1
 python setup.py install
 ```
 
-The PyTorch Vulkan backend is planned to also be supported once the PyTorch Vulkan code base has sufficiently matured.
+It is planned to also add support for the PyTorch Vulkan backend once the PyTorch Vulkan code base has sufficiently
+matured. As of 2022-02-14, there are still some problems building PyTorch with Vulkan support on x86_64 Linux.
 
 
 ## How to add new data sets
