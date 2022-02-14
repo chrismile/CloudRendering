@@ -17,7 +17,7 @@ jobs:
         os: [ ubuntu-18.04, ubuntu-20.04 ]
 
     runs-on: ${{ matrix.os }}
-    name: "Build on ${{ matrix.os }} (Vulkan: ${{ matrix.use-vulkan }})"
+    name: "Build on ${{ matrix.os }}"
 
     env:
       sgl_REPO_DIR: ${{ github.workspace }}/sgl-repo
@@ -45,7 +45,6 @@ jobs:
         libpng-dev libboost-filesystem-dev libtinyxml2-dev libarchive-dev libglew-dev libjsoncpp-dev libopenexr-dev
 
     - name: Install Vulkan SDK
-      if: matrix.use-vulkan
       shell: bash
       run: |
         distro_code_name=$(lsb_release -c | grep -oP "\:\s+\K\S+")

@@ -2,7 +2,7 @@
 
 This repository contains a volumetric path tracing renderer written in C++ using Vulkan.
 
-![Teaser image of different data sets displayed using LineVis.](https://chrismile.net/github/cloud-rendering/vpt.png)
+![Teaser image of a cloud rendered using volumetric path tracing.](https://chrismile.net/github/cloud-rendering/vpt-cloud.png)
 
 
 ## Building and running the programm
