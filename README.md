@@ -24,8 +24,7 @@ Below, more information concerning different Linux distributions tested can be f
 
 Arch Linux and its derivative Manjaro are fully supported using both build modes (package manager and vcpkg).
 
-The Vulkan SDK (which is an optional dependency for different advanced rendering modes) will be automatically installed
-using the package manager `pacman` when using the scripts.
+The Vulkan SDK will be automatically installed using the package manager `pacman` when using the scripts.
 
 #### Ubuntu 18.04 & 20.04
 
@@ -35,8 +34,8 @@ The Vulkan SDK will be automatically installed using the official PPA.
 
 Please note that Ubuntu 18.04 is only partially supported. It ships an old version of CMake, which causes the build
 process using vcpkg to fail if not updating CMake manually beforehand. Also, an old version of GLEW in the package
-sources causes the Vulkan support in sgl to be disabled regardless of whether the Vulkan SDK is installed if the system
-packages are used.
+sources causes the Vulkan interoperability support in sgl to be disabled regardless of whether the Vulkan SDK is
+installed if the system packages are used.
 
 #### Other Linux Distributions
 
