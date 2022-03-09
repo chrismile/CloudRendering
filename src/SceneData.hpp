@@ -29,23 +29,12 @@
 #ifndef LINEVIS_SCENEDATA_HPP
 #define LINEVIS_SCENEDATA_HPP
 
-#include <Graphics/Scene/Camera.hpp>
-#include <Graphics/Buffers/FBO.hpp>
-#include <Graphics/Color.hpp>
-
 struct SceneData {
     SceneData(
-            sgl::FramebufferObjectPtr& framebuffer, sgl::TexturePtr& sceneTexture,
-            sgl::RenderbufferObjectPtr& sceneDepthRBO, sgl::CameraPtr& camera,
-            sgl::Color& clearColor, bool& screenshotTransparentBackground, bool& recordingMode, bool& useCameraFlight)
-            : framebuffer(framebuffer), sceneTexture(sceneTexture), sceneDepthRBO(sceneDepthRBO), camera(camera),
-              clearColor(clearColor), screenshotTransparentBackground(screenshotTransparentBackground),
+            sgl::CameraPtr& camera, sgl::Color& clearColor,
+            bool& screenshotTransparentBackground, bool& recordingMode, bool& useCameraFlight)
+            : camera(camera), clearColor(clearColor), screenshotTransparentBackground(screenshotTransparentBackground),
               recordingMode(recordingMode), useCameraFlight(useCameraFlight) {}
-
-    sgl::FramebufferObjectPtr& framebuffer;
-    sgl::TexturePtr& sceneTexture;
-    sgl::RenderbufferObjectPtr& sceneDepthRBO;
-
     sgl::CameraPtr& camera;
     sgl::Color& clearColor;
     bool& screenshotTransparentBackground;

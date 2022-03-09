@@ -79,8 +79,7 @@ void signalHandler(int signum) {
 
 MainApp::MainApp()
         : sceneData(
-                sceneFramebuffer, sceneTexture, sceneDepthRBO, camera, clearColor,
-                screenshotTransparentBackground, recording, useCameraFlight) {
+                camera, clearColor, screenshotTransparentBackground, recording, useCameraFlight) {
     sgl::AppSettings::get()->getVulkanInstance()->setDebugCallback(&vulkanErrorCallback);
 
 #ifdef SUPPORT_OPTIX
@@ -90,6 +89,8 @@ MainApp::MainApp()
     checkpointWindow.setStandardWindowSize(1254, 390);
     checkpointWindow.setStandardWindowPosition(841, 53);
 
+    propertyEditor.setInitWidthValues(sgl::ImGuiWrapper::get()->getScaleDependentSize(280.0f));
+
     camera->setNearClipDistance(0.01f);
     camera->setFarClipDistance(100.0f);
 
@@ -98,7 +99,6 @@ MainApp::MainApp()
     sgl::AppSettings::get()->getSettings().getValueOpt("useFixedSizeViewport", useFixedSizeViewport);
     showPropertyEditor = useDockSpaceMode;
     sgl::ImGuiWrapper::get()->setUseDockSpaceMode(useDockSpaceMode);
-    useDockSpaceMode = true;
 
 #ifdef NDEBUG
     showFpsOverlay = false;
@@ -330,11 +330,9 @@ void MainApp::renderGui() {
                         || int(sizeContent.y) != int(dataView->viewportHeight)) {
                     dataView->resize(int(sizeContent.x), int(sizeContent.y));
                     if (dataView->viewportWidth > 0 && dataView->viewportHeight > 0) {
-
                         volumetricPathTracingPass->setOutputImage(dataView->dataViewTexture->getImageView());
                         volumetricPathTracingPass->recreateSwapchain(
                                 dataView->viewportWidth, dataView->viewportHeight);
-
                     }
                     reRender = true;
                 }
@@ -372,7 +370,8 @@ void MainApp::renderGui() {
 
                     if (isViewOpen) {
                         ImTextureID textureId = dataView->getImGuiTextureId();
-                        ImGui::Image(textureId, sizeContent, ImVec2(0, 0), ImVec2(1, 1));
+                        ImGui::Image(
+                                textureId, sizeContent, ImVec2(0, 0), ImVec2(1, 1));
                         if (ImGui::IsItemHovered()) {
                             mouseHoverWindowIndex = 0;
                         }

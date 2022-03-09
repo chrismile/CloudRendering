@@ -182,7 +182,8 @@ torch::Tensor renderFrameCuda(torch::Tensor inputTensor) {
             imageDataDevicePtr, { int(height), int(width), int(channels) },
             torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
 
-    return outputTensor.permute({2, 0, 1}).detach().clone();
+    //return outputTensor.permute({2, 0, 1}).detach().clone();
+    return outputTensor.permute({2, 0, 1}).detach();
 }
 #endif
 
