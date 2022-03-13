@@ -84,7 +84,7 @@ jobs:
         fi
 
     - name: Setup vcpkg
-      uses: lukka/run-vcpkg@v10
+      uses: lukka/run-vcpkg@v10.2
       with:
         vcpkgGitCommitId: 'be5c4ef68b51142ba705f0678b45d284977de677'
         #doNotCacheOnWorkflowFailure: true
@@ -119,6 +119,8 @@ jobs:
           export VULKAN_SDK="/usr"
         elif [ "$RUNNER_OS" == "Windows" ]; then
           export VULKAN_SDK="C:/VulkanSDK/$(ls C:/VulkanSDK)"
+        elif [ "$RUNNER_OS" == "macOS" ]; then
+          source "$HOME/VulkanSDK/$(ls $HOME/VulkanSDK)/setup-env.sh"
         fi
         cmake -B "${{github.workspace}}/build" -DCMAKE_TOOLCHAIN_FILE="${{env.VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DVCPKG_TARGET_TRIPLET=${{env.VCPKG_DEFAULT_TRIPLET}} -Dsgl_DIR=${{env.sgl_DIR}}/lib/cmake/sgl
 
