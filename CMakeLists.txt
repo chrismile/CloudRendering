@@ -67,7 +67,7 @@ if (${BUILD_PYTORCH_MODULE} AND NOT Torch_FOUND)
 endif()
 
 
-if (UNIX AND NOT APPLE)
+if ((UNIX OR MSYS) AND (NOT APPLE OR NOT VCPKG_TOOLCHAIN))
     find_package(PkgConfig REQUIRED)
 endif()
 
@@ -295,11 +295,17 @@ target_include_directories(CloudRendering PRIVATE ${sgl_INCLUDES} ${TINYXML2_INC
 
 if (JSONCPP_LIBRARIES)
     target_link_libraries(CloudRendering PRIVATE ${JSONCPP_LIBRARIES})
+    target_link_directories(CloudRendering PRIVATE ${JSONCPP_LIBRARY_DIRS})
+    target_include_directories(CloudRendering PRIVATE ${JSONCPP_INCLUDE_DIRS})
     if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE ${JSONCPP_LIBRARIES})
+        target_link_directories(CloudRendering_test PRIVATE ${JSONCPP_LIBRARY_DIRS})
+        target_include_directories(CloudRendering_test PRIVATE ${JSONCPP_INCLUDE_DIRS})
     endif()
     if (${PYTORCH_MODULE_ENABLED})
         target_link_libraries(vpt PRIVATE ${JSONCPP_LIBRARIES})
+        target_link_directories(vpt PRIVATE ${JSONCPP_LIBRARY_DIRS})
+        target_include_directories(vpt PRIVATE ${JSONCPP_INCLUDE_DIRS})
     endif()
 endif()
 if (TARGET jsoncpp_lib)
