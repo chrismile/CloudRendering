@@ -48,8 +48,7 @@ jobs:
             echo "$RUNNER_OS is not supported."
             exit 1
           fi
-          brew install cmake zlib libpng glm sdl2 sdl2_image libarchive boost tinyxml2 \
-          jsoncpp eigen openexr netcdf zeromq cppzmq python@3.9
+          brew install cmake zlib libpng glm sdl2 sdl2_image libarchive boost tinyxml2 jsoncpp openexr
 
       - name: Install Vulkan SDK
         shell: bash
@@ -86,7 +85,6 @@ jobs:
             params+=(-DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=False -DCMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=False -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="/usr/local/opt/zlib")
           fi
           cmake "${{env.sgl_REPO_DIR}}" -B "${{env.sgl_REPO_DIR}}/build" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX="${{env.sgl_DIR}}" -DCMAKE_PREFIX_PATH="$(brew --prefix)" "${params[@]}"
-
 
       - name: Build (sgl)
         run: cmake --build ${{env.sgl_REPO_DIR}}/build --config ${{env.BUILD_TYPE}} --parallel 4
