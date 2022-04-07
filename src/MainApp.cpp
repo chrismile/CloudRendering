@@ -107,7 +107,7 @@ MainApp::MainApp()
     sgl::AppSettings::get()->getSettings().getValueOpt("showFpsOverlay", showFpsOverlay);
     sgl::AppSettings::get()->getSettings().getValueOpt("showCoordinateAxesOverlay", showCoordinateAxesOverlay);
 
-    useLinearRGB = false;
+    useLinearRGB = true;
     coordinateAxesOverlayWidget.setClearColor(clearColor);
 
     if (usePerformanceMeasurementMode) {
@@ -127,6 +127,7 @@ MainApp::MainApp()
     volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
     volumetricPathTracingPass->setFileDialogInstance(fileDialogInstance);
     dataView = std::make_shared<DataView>(camera, rendererVk, volumetricPathTracingPass);
+    dataView->useLinearRGB = useLinearRGB;
     if (useDockSpaceMode) {
         cameraHandle = dataView->camera;
     } else {
