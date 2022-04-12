@@ -254,7 +254,7 @@ echo "------------------------"
 [ -d $destination_dir ]             || mkdir $destination_dir
 
 rsync -a $build_dir/CloudRendering $destination_dir
-rsync -a "VULKAN_SDK/lib/libMoltenVK.dylib" $destination_dir
+rsync -a "$VULKAN_SDK/lib/libMoltenVK.dylib" $destination_dir
 
 echo ""
 echo "All done!"
