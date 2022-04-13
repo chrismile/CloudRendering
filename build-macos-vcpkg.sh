@@ -77,14 +77,6 @@ if ! command -v git &> /dev/null; then
     exit 1
 fi
 
-if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
-    echo "------------------------"
-    echo "initializing submodules "
-    echo "------------------------"
-    git submodule init
-    git submodule update
-fi
-
 [ -d "./third_party/" ] || mkdir "./third_party/"
 pushd third_party > /dev/null
 
@@ -105,7 +97,7 @@ if [ -z "${VULKAN_SDK+1}" ]; then
       sudo /Volumes/vulkansdk-macos-$VULKAN_SDK_VERSION/InstallVulkan.app/Contents/MacOS/InstallVulkan \
       --root ~/VulkanSDK/$VULKAN_SDK_VERSION --accept-licenses --default-answer --confirm-command install
       pushd ~/VulkanSDK/$VULKAN_SDK_VERSION
-      sudo ./install_vulkan.py
+      sudo python3 ./install_vulkan.py
       popd
       sudo hdiutil unmount /Volumes/vulkansdk-macos-$VULKAN_SDK_VERSION
       source "$HOME/VulkanSDK/$(ls $HOME/VulkanSDK)/setup-env.sh"
@@ -195,7 +187,6 @@ echo "      generating        "
 echo "------------------------"
 pushd $build_dir >/dev/null
 cmake -DCMAKE_TOOLCHAIN_FILE="$PROJECTPATH/third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-      -DPYTHONHOME="./python3" \
       -DCMAKE_BUILD_TYPE=$cmake_config \
       -Dsgl_DIR="$PROJECTPATH/third_party/sgl/install/lib/cmake/sgl/" ..
 popd >/dev/null

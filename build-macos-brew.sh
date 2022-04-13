@@ -99,20 +99,8 @@ if command -v brew &> /dev/null; then
     if ! is_installed_brew "jsoncpp"; then
         brew install jsoncpp
     fi
-    if ! is_installed_brew "eigen"; then
-        brew install eigen
-    fi
     if ! is_installed_brew "openexr"; then
         brew install openexr
-    fi
-    if ! is_installed_brew "netcdf"; then
-        brew install netcdf
-    fi
-    if ! is_installed_brew "zeromq"; then
-        brew install zeromq
-    fi
-    if ! is_installed_brew "cppzmq"; then
-        brew install cppzmq
     fi
     if ! is_installed_brew "python@3.9"; then
         brew install python@3.9
@@ -126,14 +114,6 @@ fi
 if ! command -v git &> /dev/null; then
     echo "git was not found, but is required to build the program."
     exit 1
-fi
-
-if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
-    echo "------------------------"
-    echo "initializing submodules "
-    echo "------------------------"
-    git submodule init
-    git submodule update
 fi
 
 [ -d "./third_party/" ] || mkdir "./third_party/"
@@ -156,7 +136,7 @@ if [ -z "${VULKAN_SDK+1}" ]; then
       sudo /Volumes/vulkansdk-macos-$VULKAN_SDK_VERSION/InstallVulkan.app/Contents/MacOS/InstallVulkan \
       --root ~/VulkanSDK/$VULKAN_SDK_VERSION --accept-licenses --default-answer --confirm-command install
       pushd ~/VulkanSDK/$VULKAN_SDK_VERSION
-      sudo ./install_vulkan.py
+      sudo python3 ./install_vulkan.py
       popd
       sudo hdiutil unmount /Volumes/vulkansdk-macos-$VULKAN_SDK_VERSION
       source "$HOME/VulkanSDK/$(ls $HOME/VulkanSDK)/setup-env.sh"
@@ -237,7 +217,6 @@ pushd $build_dir >/dev/null
 cmake -DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=False -DCMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=False \
       -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="/usr/local/opt/zlib" \
       -DCMAKE_PREFIX_PATH="$(brew --prefix)" \
-      -DPYTHONHOME="./python3" \
       -DCMAKE_BUILD_TYPE=$cmake_config \
       -Dsgl_DIR="$PROJECTPATH/third_party/sgl/install/lib/cmake/sgl/" ..
 popd >/dev/null
