@@ -229,18 +229,6 @@ cmake --build $build_dir --parallel
 echo "------------------------"
 echo "   copying new files    "
 echo "------------------------"
-
-[ -d $destination_dir ]             || mkdir $destination_dir
-
-rsync -a $build_dir/CloudRendering $destination_dir
-rsync -a "$VULKAN_SDK/lib/libMoltenVK.dylib" $destination_dir
-
-echo ""
-echo "All done!"
-
-
-pushd $build_dir >/dev/null
-
 # https://stackoverflow.com/questions/2829613/how-do-you-tell-if-a-string-contains-another-string-in-posix-sh
 contains() {
     string="$1"
@@ -252,6 +240,119 @@ contains() {
         return 1
     fi
 }
+startswith() {
+    string="$1"
+    prefix="$2"
+    if test "${string#$prefix}" != "$string"
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+brew_prefix="$(brew --prefix)"
+mkdir -p $destination_dir/bin
+
+# Copy sgl to the destination directory.
+if [ $debug = true ] ; then
+    cp "./third_party/sgl/install/lib/libsgld.dylib" "$destination_dir/bin"
+else
+    cp "./third_party/sgl/install/lib/libsgl.dylib" "$destination_dir/bin"
+fi
+
+# Copy CloudRendering to the destination directory.
+cp "$build_dir/CloudRendering" "$destination_dir/bin"
+cp "README.md" "$destination_dir"
+
+# Copy all dependencies of LineVis and sgl to the destination directory.
+rsync -a "$VULKAN_SDK/lib/libMoltenVK.dylib" "$destination_dir/bin"
+copy_dependencies_recursive() {
+    local binary_path="$1"
+    local binary_name=$(basename "$binary_path")
+    local binary_target_path="$destination_dir/bin/$binary_name"
+    if contains "$(file "$binary_target_path")" "dynamically linked shared library"; then
+        install_name_tool -id "@executable_path/$binary_name" "$binary_target_path" &> /dev/null
+    fi
+    local otool_output="$(otool -L "$binary_path")"
+    local otool_output=${otool_output#*$'\n'}
+    while read -r line
+    do
+        local stringarray=($line)
+        local library=${stringarray[0]}
+        local library_name=$(basename "$library")
+        local library_target_path="$destination_dir/bin/$library_name"
+        if ! startswith "$library" "@rpath/" \
+            && ! startswith "$library" "@loader_path/" \
+            && ! startswith "$library" "/System/Library/Frameworks/" \
+            && ! startswith "$library" "/usr/lib/"
+        then
+            install_name_tool -change "$library" "@executable_path/$library_name" "$binary_target_path"
+
+            if [ ! -f "$library_target_path" ]; then
+                cp "$library" "$destination_dir/bin"
+                copy_dependencies_recursive "$library"
+            fi
+        elif startswith "$library" "@rpath/"; then
+            install_name_tool -change "$library" "@executable_path/$library_name" "$binary_target_path" &> /dev/null
+
+            local rpath_grep_string="$(otool -l "$binary_target_path" | grep RPATH -A2)"
+            local counter=0
+            while read -r grep_rpath_line
+            do
+                if [ $(( counter % 4 )) -eq 2 ]; then
+                    local stringarray_grep_rpath_line=($grep_rpath_line)
+                    local rpath=${stringarray_grep_rpath_line[1]}
+                    local library_rpath="${rpath}${library#"@rpath"}"
+
+                    if [ -f "$library_rpath" ]; then
+                        if [ ! -f "$library_target_path" ]; then
+                            cp "$library_rpath" "$destination_dir/bin"
+                            copy_dependencies_recursive "$library_rpath"
+                        fi
+                        break
+                    fi
+                fi
+                counter=$((counter + 1))
+            done < <(echo "$rpath_grep_string")
+        fi
+    done < <(echo "$otool_output")
+}
+copy_dependencies_recursive "$build_dir/LineVis"
+if [ $debug = true ]; then
+    copy_dependencies_recursive "./third_party/sgl/install/lib/libsgld.dylib"
+else
+    copy_dependencies_recursive "./third_party/sgl/install/lib/libsgl.dylib"
+fi
+
+# Fix code signing for arm64.
+for filename in $destination_dir/bin/*
+do
+    if contains "$(file "$filename")" "arm64"; then
+        codesign --force -s - "$filename" &> /dev/null
+    fi
+done
+
+# Copy the docs to the destination directory.
+cp "README.md" "$destination_dir"
+if [ ! -d "$destination_dir/LICENSE" ]; then
+    mkdir -p "$destination_dir/LICENSE"
+    cp -r "docs/license-libraries/." "$destination_dir/LICENSE/"
+    cp -r "LICENSE" "$destination_dir/LICENSE/LICENSE-cloudrendering.txt"
+fi
+if [ ! -d "$destination_dir/docs" ]; then
+    cp -r "docs" "$destination_dir"
+fi
+
+# Create a run script.
+printf "#!/bin/sh\npushd bin >/dev/null\n./CloudRendering\npopd\n" > "$destination_dir/run.sh"
+chmod +x "$destination_dir/run.sh"
+
+echo ""
+echo "All done!"
+
+
+pushd $build_dir >/dev/null
 
 if [ -z "${DYLD_LIBRARY_PATH+x}" ]; then
     export DYLD_LIBRARY_PATH="${PROJECTPATH}/third_party/sgl/install/lib"
