@@ -265,7 +265,7 @@ fi
 cp "$build_dir/CloudRendering" "$destination_dir/bin"
 cp "README.md" "$destination_dir"
 
-# Copy all dependencies of LineVis and sgl to the destination directory.
+# Copy all dependencies of CloudRendering and sgl to the destination directory.
 rsync -a "$VULKAN_SDK/lib/libMoltenVK.dylib" "$destination_dir/bin"
 copy_dependencies_recursive() {
     local binary_path="$1"
@@ -318,7 +318,7 @@ copy_dependencies_recursive() {
         fi
     done < <(echo "$otool_output")
 }
-copy_dependencies_recursive "$build_dir/LineVis"
+copy_dependencies_recursive "$build_dir/CloudRendering"
 if [ $debug = true ]; then
     copy_dependencies_recursive "./third_party/sgl/install/lib/libsgld.dylib"
 else
