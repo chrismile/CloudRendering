@@ -139,6 +139,10 @@ void DataView::endRender() {
     }
 }
 
+void DataView::syncCamera() {
+    camera->copyState(parentCamera);
+}
+
 void DataView::saveScreenshot(const std::string& filename) {
     rendererVk->transitionImageLayout(
             compositedDataViewTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

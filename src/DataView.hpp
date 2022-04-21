@@ -48,6 +48,7 @@ public:
     void resize(int newWidth, int newHeight);
     void beginRender();
     void endRender();
+    void syncCamera();
     void saveScreenshot(const std::string& filename);
     void saveScreenshotDataIfAvailable();
     [[nodiscard]] ImTextureID getImGuiTextureId() const;

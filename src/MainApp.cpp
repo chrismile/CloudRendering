@@ -644,6 +644,7 @@ void MainApp::update(float dt) {
 }
 
 void MainApp::hasMoved() {
+    dataView->syncCamera();
     volumetricPathTracingPass->onHasMoved();
 }
 
