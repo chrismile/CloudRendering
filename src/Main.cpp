@@ -71,6 +71,7 @@ int main(int argc, char *argv[]) {
 #ifdef SUPPORT_OPTIX
     optionalDeviceExtensions = sgl::vk::Device::getCudaInteropDeviceExtensions();
 #endif
+    optionalDeviceExtensions.push_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
 
     sgl::vk::Instance* instance = sgl::AppSettings::get()->getVulkanInstance();
     sgl::vk::Device* device = new sgl::vk::Device;
@@ -84,8 +85,7 @@ int main(int argc, char *argv[]) {
                     //VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
                     //VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
                     //VK_KHR_RAY_QUERY_EXTENSION_NAME,
-                    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,
-                    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME
+                    VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME
             },
             optionalDeviceExtensions);
     sgl::vk::Swapchain* swapchain = new sgl::vk::Swapchain(device);
