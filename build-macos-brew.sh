@@ -176,7 +176,7 @@ if [ ! -d "./sgl/install" ]; then
     cmake .. \
          -DCMAKE_BUILD_TYPE=Debug \
          -DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=False -DCMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=False \
-         -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="/usr/local/opt/zlib" \
+         -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="$(brew --prefix)/opt/zlib" \
          -DCMAKE_PREFIX_PATH="$(brew --prefix)" -DCMAKE_INSTALL_PREFIX="../install"
     popd >/dev/null
 
@@ -184,7 +184,7 @@ if [ ! -d "./sgl/install" ]; then
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=False -DCMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=False \
-        -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="/usr/local/opt/zlib" \
+        -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="$(brew --prefix)/opt/zlib" \
         -DCMAKE_PREFIX_PATH="$(brew --prefix)" -DCMAKE_INSTALL_PREFIX="../install"
     popd >/dev/null
 
@@ -221,7 +221,7 @@ echo "      generating        "
 echo "------------------------"
 pushd $build_dir >/dev/null
 cmake -DCMAKE_FIND_USE_CMAKE_SYSTEM_PATH=False -DCMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH=False \
-      -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="/usr/local/opt/zlib" \
+      -DCMAKE_FIND_FRAMEWORK=LAST -DCMAKE_FIND_APPBUNDLE=NEVER -DZLIB_ROOT="$(brew --prefix)/opt/zlib" \
       -DCMAKE_PREFIX_PATH="$(brew --prefix)" \
       -DCMAKE_BUILD_TYPE=$cmake_config \
       -Dsgl_DIR="$PROJECTPATH/third_party/sgl/install/lib/cmake/sgl/" ..
