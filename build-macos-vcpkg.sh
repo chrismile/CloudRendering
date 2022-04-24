@@ -160,10 +160,10 @@ if [ ! -d "./sgl/install" ]; then
         -DCMAKE_INSTALL_PREFIX="../install"
     popd >/dev/null
 
-    cmake --build $build_dir_debug --parallel
+    cmake --build $build_dir_debug --parallel $(sysctl -n hw.ncpu)
     cmake --build $build_dir_debug --target install
 
-    cmake --build $build_dir_release --parallel
+    cmake --build $build_dir_release --parallel $(sysctl -n hw.ncpu)
     cmake --build $build_dir_release --target install
 
     popd >/dev/null
@@ -200,7 +200,7 @@ popd >/dev/null
 echo "------------------------"
 echo "      compiling         "
 echo "------------------------"
-cmake --build $build_dir --parallel
+cmake --build $build_dir --parallel $(sysctl -n hw.ncpu)
 
 echo "------------------------"
 echo "   copying new files    "
