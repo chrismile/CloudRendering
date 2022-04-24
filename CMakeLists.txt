@@ -173,6 +173,18 @@ else()
     add_executable(CloudRendering ${SOURCES})
 endif()
 
+if (APPLE)
+    set_target_properties(${PROJECT}
+            PROPERTIES
+            OUTPUT_NAME "CloudRendering"
+            MACOSX_BUNDLE_EXECUTABLE_NAME "CloudRendering"
+            MACOSX_BUNDLE_BUNDLE_NAME "CloudRendering"
+            FOLDER "CloudRendering"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING ""
+            MACOSX_BUNDLE_LONG_VERSION_STRING ""
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/CMake/MacOSXBundleInfo.plist.in")
+endif()
+
 if (${USE_GTEST})
     include(GoogleTest)
     enable_testing()
