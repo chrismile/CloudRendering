@@ -293,7 +293,7 @@ copy_dependencies_recursive() {
             && ! startswith "$library" "/System/Library/Frameworks/" \
             && ! startswith "$library" "/usr/lib/"
         then
-            install_name_tool -change "$library" "@executable_path/$library_name" "$binary_target_path"
+            install_name_tool -change "$library" "@executable_path/$library_name" "$binary_target_path" &> /dev/null
 
             if [ ! -f "$library_target_path" ]; then
                 cp "$library" "$destination_dir/bin"
