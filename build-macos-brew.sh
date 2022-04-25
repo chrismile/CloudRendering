@@ -268,7 +268,7 @@ else
 fi
 
 # Copy CloudRendering to the destination directory.
-cp "$build_dir/CloudRendering" "$destination_dir/bin"
+cp "$build_dir/CloudRendering.app/Contents/MacOS/CloudRendering" "$destination_dir/bin"
 cp "README.md" "$destination_dir"
 
 # Copy all dependencies of CloudRendering and sgl to the destination directory.
@@ -328,7 +328,7 @@ copy_dependencies_recursive() {
         fi
     done < <(echo "$otool_output")
 }
-copy_dependencies_recursive "$build_dir/CloudRendering"
+copy_dependencies_recursive "$build_dir/CloudRendering.app/Contents/MacOS/CloudRendering"
 if [ $debug = true ]; then
     copy_dependencies_recursive "./third_party/sgl/install/lib/libsgld.dylib"
 else
