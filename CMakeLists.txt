@@ -169,23 +169,24 @@ endif()
 
 if(WIN32)
     add_executable(CloudRendering WIN32 ${SOURCES})
-#elseif(APPLE)
-#    add_executable(CloudRendering MACOSX_BUNDLE ${SOURCES})
+elseif(APPLE)
+    add_executable(CloudRendering MACOSX_BUNDLE ${SOURCES})
 else()
     add_executable(CloudRendering ${SOURCES})
 endif()
 
-#if (APPLE)
-#    set_target_properties(
-#            CloudRendering PROPERTIES
-#            OUTPUT_NAME "CloudRendering"
-#            MACOSX_BUNDLE_EXECUTABLE_NAME "CloudRendering"
-#            MACOSX_BUNDLE_BUNDLE_NAME "CloudRendering"
-#            FOLDER "CloudRendering"
-#            MACOSX_BUNDLE_SHORT_VERSION_STRING ""
-#            MACOSX_BUNDLE_LONG_VERSION_STRING ""
-#            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/CMake/MacOSXBundleInfo.plist.in")
-#endif()
+if (APPLE)
+    set(BUNDLE_PATH ${CMAKE_CURRENT_BINARY_DIR}/CloudRendering.app)
+    set_target_properties(
+            CloudRendering PROPERTIES
+            OUTPUT_NAME "CloudRendering"
+            MACOSX_BUNDLE_EXECUTABLE_NAME "CloudRendering"
+            MACOSX_BUNDLE_BUNDLE_NAME "CloudRendering"
+            FOLDER "CloudRendering"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING ""
+            MACOSX_BUNDLE_LONG_VERSION_STRING ""
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/CMake/MacOSXBundleInfo.plist.in")
+endif()
 
 if (${USE_GTEST})
     include(GoogleTest)
