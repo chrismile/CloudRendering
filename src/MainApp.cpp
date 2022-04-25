@@ -275,8 +275,8 @@ void MainApp::renderGui() {
 
             std::string filenameLower = boost::to_lower_copy(filename);
             selectedDataSetIndex = 0;
-            if (boost::ends_with(filenameLower, ".xyz")
-                || boost::ends_with(filenameLower, ".nvdb")) {
+            if (!boost::ends_with(filenameLower, ".xyz")
+                    && !boost::ends_with(filenameLower, ".nvdb")) {
                 sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
             }
             customDataSetFileName = filename;
