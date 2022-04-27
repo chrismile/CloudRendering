@@ -67,9 +67,25 @@ the directory `docs/compilation`.
 
 ### macOS
 
-Unfortunately, macOS is currently not supported due to a lack of devices to test this program on.
-MoltenVK, a Vulkan wrapper based on Apple's Metal API, might theoretically be able to run this program with only minor
-modifications.
+There are two ways to build the program on macOS.
+- Using [Homebrew](https://brew.sh/) to install the dependencies and compile the program using LLVM/Clang (recommended).
+- Using [vcpkg](https://github.com/microsoft/vcpkg) to install the dependencies and compile the program using
+  LLVM/Clang.
+
+In the project root directory, two scripts `build-macos-vcpkg.sh` and `build-macos-brew.sh` can be found.
+As macOS does not natively support Vulkan, MoltenVK, a Vulkan wrapper based on Apple's Metal API, is utilized.
+Installing it via the scripts requires admin rights. MoltenVK can also be installed manually from
+[the website](https://vulkan.lunarg.com/sdk/home#mac).
+
+Notes:
+- I rented Apple hardware for a few days once for testing that running the program works on macOS.
+  As I do not regularly have access to a real system running macOS, it is only tested that the program can compile in a
+  CI pipeline build script on an x86_64 macOS virtual machine provided by GitHub Actions. So please note that it is not
+  guaranteed that the program will continue working correctly on macOS indefinitely due to the lack of regular testing.
+- To enable high DPI support, the program needs to be run from an app bundle. This happens automatically when the script
+  `build-macos-brew.sh` has finished building the program. Please note that the app bundle only contains the Info.plist
+  file necessary for high DPI support and is currently not yet redistributable. If you want to help with improving the
+  macOS app bundle support for this project by contributing development time, please feel free to contact me.
 
 
 ### Unit Tests

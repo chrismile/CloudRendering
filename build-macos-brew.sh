@@ -370,4 +370,5 @@ elif contains "${DYLD_LIBRARY_PATH}" "${PROJECTPATH}/third_party/sgl/install/lib
     export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:${PROJECTPATH}/third_party/sgl/install/lib"
 fi
 export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:$destination_dir"
-open ./CloudRendering.app
+#open ./CloudRendering.app
+./CloudRendering.app/Contents/MacOS/CloudRendering
