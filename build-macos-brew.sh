@@ -358,7 +358,7 @@ if [ ! -d "$destination_dir/docs" ]; then
 fi
 
 # Create a run script.
-printf "#!/bin/sh\npushd bin >/dev/null\n./$program_name.app/Contents/MacOS/$program_name\npopd\n" > "$destination_dir/run.sh"
+printf "#!/bin/sh\npushd \"\$(dirname \"\$0\")\" >/dev/null\n./$program_name.app/Contents/MacOS/$program_name\npopd\n" > "$destination_dir/run.sh"
 chmod +x "$destination_dir/run.sh"
 
 echo ""
