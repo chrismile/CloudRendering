@@ -208,7 +208,7 @@ echo "------------------------"
 
 [ -d $destination_dir ]             || mkdir $destination_dir
 
-rsync -a $build_dir/CloudRendering $destination_dir
+rsync -a "$build_dir/CloudRendering.app/Contents/MacOS/CloudRendering" $destination_dir
 
 echo ""
 echo "All done!"
@@ -233,4 +233,5 @@ if [ -z "${DYLD_LIBRARY_PATH+x}" ]; then
 elif contains "${DYLD_LIBRARY_PATH}" "${PROJECTPATH}/third_party/sgl/install/lib"; then
     export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:${PROJECTPATH}/third_party/sgl/install/lib"
 fi
-./CloudRendering
+#open ./CloudRendering.app
+./CloudRendering.app/Contents/MacOS/CloudRendering
