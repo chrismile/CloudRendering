@@ -68,7 +68,7 @@ if command -v apt &> /dev/null; then
         echo "------------------------"
         echo "installing build essentials"
         echo "------------------------"
-        sudo apt install cmake git curl pkg-config build-essential
+        sudo apt install -y cmake git curl pkg-config build-essential
     fi
 
     # Dependencies of sgl and CloudRendering.
@@ -80,7 +80,7 @@ if command -v apt &> /dev/null; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
-        sudo apt install libglm-dev libsdl2-dev libsdl2-image-dev libpng-dev libboost-filesystem-dev libtinyxml2-dev \
+        sudo apt install -y libglm-dev libsdl2-dev libsdl2-image-dev libpng-dev libboost-filesystem-dev libtinyxml2-dev \
         libarchive-dev libglew-dev libjsoncpp-dev libopenexr-dev
     fi
 elif command -v pacman &> /dev/null; then
@@ -143,16 +143,24 @@ if [[ ! -v VULKAN_SDK ]]; then
 
     found_vulkan=false
 
-    if lsb_release -a 2> /dev/null | grep -q 'Ubuntu'; then
-        if ! compgen -G "/etc/apt/sources.list.d/lunarg-vulkan-*" > /dev/null; then
-            distro_code_name=$(lsb_release -c | grep -oP "\:\s+\K\S+")
+    if [ -d "VulkanSDK" ]; then
+        VK_LAYER_PATH=""
+        source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
+        found_vulkan=true
+    fi
+
+    if ! $found_vulkan && lsb_release -a 2> /dev/null | grep -q 'Ubuntu'; then
+        distro_code_name=$(lsb_release -c | grep -oP "\:\s+\K\S+")
+        if ! compgen -G "/etc/apt/sources.list.d/lunarg-vulkan-*" > /dev/null \
+              && ! curl -s -I "https://packages.lunarg.com/vulkan/lunarg-vulkan-${distro_code_name}.list" | grep "2 404" > /dev/null; then
             echo "Setting up Vulkan SDK for Ubuntu $(lsb_release -r | grep -oP "\:\s+\K\S+")..."
             wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
             sudo curl --silent --show-error --fail \
             https://packages.lunarg.com/vulkan/lunarg-vulkan-${distro_code_name}.list \
             --output /etc/apt/sources.list.d/lunarg-vulkan-${distro_code_name}.list
             sudo apt update
-            sudo apt install vulkan-sdk shaderc
+            sudo apt install -y vulkan-sdk shaderc
         fi
     fi
 
@@ -161,6 +169,22 @@ if [[ ! -v VULKAN_SDK ]]; then
             echo 'export VULKAN_SDK="/usr"' >> ~/.bashrc
         fi
         VULKAN_SDK="/usr"
+        found_vulkan=true
+    fi
+
+    if ! $found_vulkan; then
+        curl --silent --show-error --fail -O https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.gz
+        mkdir -p VulkanSDK
+        tar -xzf vulkan-sdk.tar.gz -C VulkanSDK
+        VK_LAYER_PATH=""
+        source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+
+        # Fix pkgconfig file.
+        shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig/shaderc.pc"
+        prefix_path=$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64")
+        sed -i '3s;.*;prefix=\"'$prefix_path'\";' "$shaderc_pkgconfig_file"
+        sed -i '5s;.*;libdir=${prefix}/lib;' "$shaderc_pkgconfig_file"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
         found_vulkan=true
     fi
 
