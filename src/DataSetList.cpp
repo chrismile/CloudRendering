@@ -33,6 +33,7 @@
 #include <Utils/File/Logfile.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/Regex/TransformString.hpp>
+#include <Utils/File/FileUtils.hpp>
 
 #include "DataSetList.hpp"
 
@@ -58,14 +59,24 @@ void processDataSetNodeChildren(Json::Value& childList, DataSetInformation* data
         // Get the display name and the associated filenames.
         dataSetInformation->name = source["name"].asString();
         Json::Value filenames = source["filename"];
-        const std::string lineDataSetsDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
+        const std::string cloudDataSetsDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
         if (filenames.isArray()) {
             for (Json::Value::const_iterator filenameIt = filenames.begin();
-                 filenameIt != filenames.end(); ++filenameIt) {
-                dataSetInformation->filename = lineDataSetsDirectory + filenameIt->asString();
+                    filenameIt != filenames.end(); ++filenameIt) {
+                bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(filenameIt->asString());
+                if (isAbsolutePath) {
+                    dataSetInformation->filename = filenameIt->asString();
+                } else {
+                    dataSetInformation->filename = cloudDataSetsDirectory + filenameIt->asString();
+                }
             }
         } else {
-            dataSetInformation->filename = lineDataSetsDirectory + filenames.asString();
+            bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(filenames.asString());
+            if (isAbsolutePath) {
+                dataSetInformation->filename = filenames.asString();
+            } else {
+                dataSetInformation->filename = cloudDataSetsDirectory + filenames.asString();
+            }
         }
 
         if (dataSetInformation->type == DATA_SET_TYPE_NODE) {

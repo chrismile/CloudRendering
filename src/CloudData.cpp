@@ -27,8 +27,12 @@
  */
 
 #include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/trim.hpp>
 
 #include <Utils/AppSettings.hpp>
+#include <Utils/Convert.hpp>
+#include <Utils/StringUtils.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/File/FileLoader.hpp>
@@ -98,6 +102,9 @@ bool CloudData::loadFromFile(const std::string& filename) {
         return loadFromXyzFile(filename);
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".nvdb")) {
         return loadFromNvdbFile(filename);
+    } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".dat")
+            || sgl::FileUtils::get()->hasExtension(filename.c_str(), ".raw")) {
+        return loadFromDatRawFile(filename);
     } else {
         sgl::Logfile::get()->writeError(
                 "Error in CloudData::loadFromFile: The file \"" + filename + "\" has an unknown extension!");
@@ -154,6 +161,206 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     float maxVal = std::numeric_limits<float>::lowest();
 
     size_t totalSize = gridSizeX * gridSizeY * gridSizeZ;
+#if _OPENMP >= 201107
+    #pragma omp parallel for default(none) shared(densityField, totalSize) reduction(min: minVal) reduction(max: maxVal)
+#endif
+    for (size_t i = 0; i < totalSize; i++) {
+        float val = densityField[i];
+        minVal = std::min(minVal, val);
+        maxVal = std::max(maxVal, val);
+    }
+
+#if _OPENMP >= 201107
+    #pragma omp parallel for default(none) shared(densityField, totalSize, minVal, maxVal)
+#endif
+    for (size_t i = 0; i < totalSize; i++) {
+        densityField[i] = (densityField[i] - minVal) / (maxVal - minVal);
+    }
+
+    return true;
+}
+
+bool CloudData::loadFromDatRawFile(const std::string& filename) {
+    std::string datFilePath;
+    std::string rawFilePath;
+
+    if (boost::ends_with(filename, ".dat")) {
+        datFilePath = filename;
+    }
+    if (boost::ends_with(filename, ".raw")) {
+        rawFilePath = filename;
+
+        // We need to find the corresponding .dat file.
+        std::string rawFileDirectory = sgl::FileUtils::get()->getPathToFile(rawFilePath);
+        std::vector<std::string> filesInDir = sgl::FileUtils::get()->getFilesInDirectoryVector(rawFileDirectory);
+        for (const std::string& filePath : filesInDir) {
+            if (boost::ends_with(filePath, ".dat")) {
+                datFilePath = filePath;
+                break;
+            }
+        }
+        if (datFilePath.empty()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in DatRawFileLoader::load: No .dat file found for \"" + rawFilePath + "\".");
+        }
+    }
+
+    // Load the .dat metadata file.
+    uint8_t* bufferDat = nullptr;
+    size_t lengthDat = 0;
+    bool loadedDat = sgl::loadFileFromSource(datFilePath, bufferDat, lengthDat, false);
+    if (!loadedDat) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Couldn't open file \"" + datFilePath + "\".");
+    }
+    char* fileBuffer = reinterpret_cast<char*>(bufferDat);
+
+    std::string lineBuffer;
+    std::string stringBuffer;
+    std::vector<std::string> splitLineString;
+    std::map<std::string, std::string> datDict;
+    for (size_t charPtr = 0; charPtr < lengthDat; ) {
+        lineBuffer.clear();
+        while (charPtr < lengthDat) {
+            char currentChar = fileBuffer[charPtr];
+            if (currentChar == '\n' || currentChar == '\r') {
+                charPtr++;
+                break;
+            }
+            lineBuffer.push_back(currentChar);
+            charPtr++;
+        }
+
+        if (lineBuffer.empty()) {
+            continue;
+        }
+
+        splitLineString.clear();
+        sgl::splitString(lineBuffer, ':', splitLineString);
+        if (splitLineString.empty()) {
+            continue;
+        }
+        if (splitLineString.size() != 2) {
+            sgl::Logfile::get()->throwError(
+                    "Error in DatRawFileLoader::load: Invalid entry in file \"" + datFilePath + "\".");
+        }
+
+        std::string datKey = splitLineString.at(0);
+        std::string datValue = splitLineString.at(1);
+        boost::trim(datKey);
+        boost::to_lower(datKey);
+        boost::trim(datValue);
+        datDict.insert(std::make_pair(datKey, datValue));
+    }
+    delete[] bufferDat;
+
+    // Next, process the metadata.
+    if (rawFilePath.empty()) {
+        auto it = datDict.find("objectfilename");
+        if (it == datDict.end()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in DatRawFileLoader::load: Entry 'ObjectFileName' missing in \""
+                    + datFilePath + "\".");
+        }
+        if (datDict.find("objectindices") != datDict.end()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in DatRawFileLoader::load: ObjectIndices found in file \"" + datFilePath
+                    + "\" is not yet supported.");
+        }
+        rawFilePath = it->second;
+        bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(rawFilePath);
+        if (!isAbsolutePath) {
+            rawFilePath = sgl::FileUtils::get()->getPathToFile(datFilePath) + rawFilePath;
+        }
+    }
+
+    auto itResolution = datDict.find("resolution");
+    if (itResolution == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Entry 'Resolution' missing in \"" + datFilePath + "\".");
+    }
+    std::vector<std::string> resolutionSplit;
+    sgl::splitStringWhitespace(itResolution->second, resolutionSplit);
+    if (resolutionSplit.size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Entry 'Resolution' in \"" + datFilePath
+                + "\" does not have three values.");
+    }
+    auto xs = sgl::fromString<uint32_t>(resolutionSplit.at(0));
+    auto ys = sgl::fromString<uint32_t>(resolutionSplit.at(1));
+    auto zs = sgl::fromString<uint32_t>(resolutionSplit.at(2));
+    float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
+    float cellStep = 1.0f / maxDimension;
+
+    auto itFormat = datDict.find("format");
+    if (itFormat == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Entry 'Format' missing in \"" + datFilePath + "\".");
+    }
+    std::string formatString = boost::to_lower_copy(itFormat->second);
+    size_t bytesPerEntry = 0;
+    if (formatString == "float") {
+        bytesPerEntry = 4;
+    } else if (formatString == "uchar") {
+        bytesPerEntry = 1;
+    } else if (formatString == "ushort") {
+        bytesPerEntry = 2;
+    } else {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Unsupported format '" + formatString + "' in file \""
+                + datFilePath + "\".");
+    }
+
+    // Finally, load the data from the .raw file.
+    uint8_t* bufferRaw = nullptr;
+    size_t lengthRaw = 0;
+    bool loadedRaw = sgl::loadFileFromSource(rawFilePath, bufferRaw, lengthRaw, true);
+    if (!loadedRaw) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Couldn't open file \"" + rawFilePath + "\".");
+    }
+
+    gridSizeX = xs;
+    gridSizeY = ys;
+    gridSizeZ = zs;
+    voxelSizeX = cellStep;
+    voxelSizeY = cellStep;
+    voxelSizeZ = cellStep;
+
+    size_t numBytesData = lengthRaw;
+    size_t totalSize = size_t(xs) * size_t(ys) * size_t(zs);
+    if (numBytesData != totalSize * bytesPerEntry) {
+        sgl::Logfile::get()->throwError(
+                "Error in DatRawFileLoader::load: Invalid number of entries for file \""
+                + rawFilePath + "\".");
+    }
+
+    computeGridBounds();
+
+    densityField = new float[totalSize];
+    if (formatString == "float") {
+        memcpy(densityField, bufferRaw, sizeof(float) * totalSize);
+    } else if (formatString == "uchar") {
+        auto* dataField = bufferRaw;
+#if _OPENMP >= 201107
+        #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
+#endif
+        for (size_t i = 0; i < totalSize; i++) {
+            densityField[i] = float(dataField[i]) / 255.0f;
+        }
+    } else if (formatString == "ushort") {
+        auto* dataField = reinterpret_cast<uint16_t*>(bufferRaw);
+#if _OPENMP >= 201107
+        #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
+#endif
+        for (size_t i = 0; i < totalSize; i++) {
+            densityField[i] = float(dataField[i]) / 65535.0f;
+        }
+    }
+
+    float minVal = 0.0f;//std::numeric_limits<float>::max();
+    float maxVal = std::numeric_limits<float>::lowest();
+
 #if _OPENMP >= 201107
     #pragma omp parallel for default(none) shared(densityField, totalSize) reduction(min: minVal) reduction(max: maxVal)
 #endif

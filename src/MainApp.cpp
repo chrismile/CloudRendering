@@ -276,7 +276,9 @@ void MainApp::renderGui() {
             std::string filenameLower = boost::to_lower_copy(filename);
             selectedDataSetIndex = 0;
             if (!boost::ends_with(filenameLower, ".xyz")
-                    && !boost::ends_with(filenameLower, ".nvdb")) {
+                    && !boost::ends_with(filenameLower, ".nvdb")
+                    && !boost::ends_with(filenameLower, ".dat")
+                    && !boost::ends_with(filenameLower, ".raw")) {
                 sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
             }
             customDataSetFileName = filename;
@@ -484,7 +486,7 @@ void MainApp::openFileDialog() {
     IGFD_OpenModal(
             fileDialogInstance,
             "ChooseDataSetFile", "Choose a File",
-            ".*,.xyz,.nvdb",
+            ".*,.xyz,.nvdb,.dat,.raw",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
             ImGuiFileDialogFlags_ConfirmOverwrite);
