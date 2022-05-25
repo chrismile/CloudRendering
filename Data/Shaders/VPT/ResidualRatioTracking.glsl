@@ -70,7 +70,7 @@ float residualRatioTrackingEstimator(
         float T_c_local = exp(-mu_c * (dTravelled - dStart));
         float T_local = T * T_r * T_c_local;
         // https://developer.download.nvidia.com//ray-tracing-gems/rtg2-chapter22-preprint.pdf
-        float reservoirWeight = T_local * Ps;
+        float reservoirWeight = T_local;
         reservoirWeightSum += reservoirWeight;
         float xi = random();
         if (xi < reservoirWeight / reservoirWeightSum) {

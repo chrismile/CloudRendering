@@ -719,7 +719,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         }
         if (propertyEditor.addCombo(
                 "VPT Mode", (int*)&vptMode, VPT_MODE_NAMES,
-                IM_ARRAYSIZE(VPT_MODE_NAMES))) {
+                IM_ARRAYSIZE(VPT_MODE_NAMES) - 1)) {
             optionChanged = true;
             updateVptMode();
             setShaderDirty();

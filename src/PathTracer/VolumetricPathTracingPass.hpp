@@ -57,11 +57,11 @@ const char* const FEATURE_MAP_NAMES[] = {
 };
 
 enum class VptMode {
-    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, RESIDUAL_RATIO_TRACKING, DECOMPOSITION_TRACKING
+    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING
 };
 const char* const VPT_MODE_NAMES[] = {
-        "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking", "Residual Ratio Tracking",
-        "Decomposition Tracking"
+        "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
+        "Decomposition Tracking", "Residual Ratio Tracking"
 };
 
 enum class GridInterpolationType {
