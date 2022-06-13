@@ -140,6 +140,16 @@ export USE_VULKAN=1
 python setup.py install
 ```
 
+HINT: In case the CUDA Toolkit is not found, the build process might just continue without building CUDA support.
+Assuming the CUDA Toolkit was installed to `/usr/local/cuda-11.5` using the manual NVIDIA CUDA Toolkit installer, the
+following lines might need to be added to `~/.profile` in order for PyTorch to find the installed CUDA version:
+
+```shell
+export CPATH=/usr/local/cuda-11.5/targets/x86_64-linux/include:$CPATH
+export LD_LIBRARY_PATH=/usr/local/cuda-11.5/targets/x86_64-linux/lib:$LD_LIBRARY_PATH
+export PATH=/usr/local/cuda-11.5/bin:$PATH
+```
+
 It is planned to also add support for the PyTorch Vulkan backend once the PyTorch Vulkan code base has sufficiently
 matured. As of 2022-02-14, there are still some problems building PyTorch with Vulkan support on x86_64 Linux.
 
