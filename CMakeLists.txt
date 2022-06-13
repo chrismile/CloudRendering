@@ -213,7 +213,7 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
         MESSAGE(STATUS "sgl was not built with CUDA interoperability support. Disabling PyTorch module CUDA support.")
     endif()
 
-    if(${CUDAToolkit_FOUND} OR ${CUDA_FOUND})
+    if(CUDAToolkit_FOUND OR CUDA_FOUND)
         add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${PYTORCH_MODULE_SOURCES_CUDA} ${VPT_SOURCES} ${SHADER_FILES})
         enable_language(CUDA)
         set_target_properties(vpt PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
@@ -222,7 +222,7 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
         add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${VPT_SOURCES} ${SHADER_FILES})
     endif()
 
-    if(${CUDAToolkit_FOUND})
+    if(CUDAToolkit_FOUND)
         # https://en.wikipedia.org/wiki/CUDA
         # https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capability
         if (${CUDAToolkit_VERSION} VERSION_GREATER_EQUAL "11.1")
