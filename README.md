@@ -150,6 +150,14 @@ export LD_LIBRARY_PATH=/usr/local/cuda-11.5/targets/x86_64-linux/lib:$LD_LIBRARY
 export PATH=/usr/local/cuda-11.5/bin:$PATH
 ```
 
+HINT 2: On Ubuntu 22.04 with Python 3.9 installed via Conda, a problem one user noticed was that GLIBCXX_3.4.30 was
+used for building the PyTorch module using the system libstdc++, but the Conda libstdc++ did not support GLIBCXX_3.4.30.
+The problem could be fixed by installing a newer version of libstdc++ in the Conda environment using the commands below.
+
+```shell
+conda install -c conda-forge libgcc-ng libstdcxx-ng
+```
+
 It is planned to also add support for the PyTorch Vulkan backend once the PyTorch Vulkan code base has sufficiently
 matured. As of 2022-02-14, there are still some problems building PyTorch with Vulkan support on x86_64 Linux.
 
