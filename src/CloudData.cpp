@@ -462,7 +462,8 @@ void CloudData::computeSparseGridMetadata() {
 }
 
 bool CloudData::loadFromNvdbFile(const std::string& filename) {
-    sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, gridName);
+    //sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, gridName);
+    sparseGridHandle = nanovdb::io::readGrid<nanovdb::HostBuffer>(filename, 0);
     computeSparseGridMetadata();
     return !sparseGridHandle.empty();
 }
