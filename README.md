@@ -136,7 +136,6 @@ cd pytorch
 export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"}
 export TORCH_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=1"
 export USE_MKLDNN=1
-export USE_VULKAN=1
 python setup.py install
 ```
 
