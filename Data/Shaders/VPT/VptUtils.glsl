@@ -311,3 +311,7 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
 float maxComponent(vec3 v) {
     return max(v.x, max(v.y, v.z));
 }
+
+float avgComponent(vec3 v) {
+    return (v.x + v.y + v.z) / 3.0;
+}

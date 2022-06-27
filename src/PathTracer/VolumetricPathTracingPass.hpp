@@ -73,6 +73,17 @@ const char* const GRID_INTERPOLATION_TYPE_NAMES[] = {
         "Nearest", "Stochastic", "Trilinear"
 };
 
+/**
+ * Choices of collision probabilities for spectral delta tracking.
+ * For more details see: https://jannovak.info/publications/SDTracking/SDTracking.pdf
+ */
+enum class SpectralDeltaTrackingCollisionProbability {
+    MAX_BASED, AVG_BASED, PATH_HISTORY_AVG_BASED
+};
+const char* const SPECTRAL_DELTA_TRACKING_COLLISION_PROBABILITY_NAMES[] = {
+        "Max-based", "Avg-based", "Path History Avg-based"
+};
+
 class VolumetricPathTracingPass : public sgl::vk::ComputePass {
 public:
     explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera);
@@ -113,6 +124,8 @@ private:
 
     void updateVptMode();
     VptMode vptMode = VptMode::DELTA_TRACKING;
+    SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
+            SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
     std::shared_ptr<SuperVoxelGridResidualRatioTracking> superVoxelGridResidualRatioTracking;
     std::shared_ptr<SuperVoxelGridDecompositionTracking> superVoxelGridDecompositionTracking;
     int superVoxelSize = 8;

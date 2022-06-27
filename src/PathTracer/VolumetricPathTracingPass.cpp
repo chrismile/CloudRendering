@@ -279,8 +279,8 @@ void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
     setShaderDirty();
 }
 
-void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* fileDialogInstance) {
-    this->fileDialogInstance = fileDialogInstance;
+void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
+    this->fileDialogInstance = _fileDialogInstance;
 }
 
 void VolumetricPathTracingPass::onHasMoved() {
@@ -406,6 +406,13 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_DELTA_TRACKING", "" });
     } else if (vptMode == VptMode::SPECTRAL_DELTA_TRACKING) {
         customPreprocessorDefines.insert({ "USE_SPECTRAL_DELTA_TRACKING", "" });
+        if (sdtCollisionProbability == SpectralDeltaTrackingCollisionProbability::MAX_BASED) {
+            customPreprocessorDefines.insert({ "MAX_BASED_PROBABILITY", "" });
+        } else if (sdtCollisionProbability == SpectralDeltaTrackingCollisionProbability::AVG_BASED) {
+            customPreprocessorDefines.insert({ "AVG_BASED_PROBABILITY", "" });
+        } else { // SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED
+            customPreprocessorDefines.insert({ "PATH_HISTORY_AVG_BASED_PROBABILITY", "" });
+        }
     } else if (vptMode == VptMode::RATIO_TRACKING) {
         customPreprocessorDefines.insert({ "USE_RATIO_TRACKING", "" });
     } else if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
@@ -726,6 +733,16 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             setDataDirty();
         }
 
+        if (vptMode == VptMode::SPECTRAL_DELTA_TRACKING) {
+            if (propertyEditor.addCombo(
+                    "Collision Probability", (int*)&sdtCollisionProbability,
+                    SPECTRAL_DELTA_TRACKING_COLLISION_PROBABILITY_NAMES,
+                    IM_ARRAYSIZE(SPECTRAL_DELTA_TRACKING_COLLISION_PROBABILITY_NAMES))) {
+                optionChanged = true;
+                setShaderDirty();
+            }
+        }
+
         if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING || vptMode == VptMode::DECOMPOSITION_TRACKING) {
             if (propertyEditor.addSliderInt("Super Voxel Size", &superVoxelSize, 1, 64)) {
                 optionChanged = true;
@@ -765,7 +782,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             IGFD_OpenModal(
                     fileDialogInstance,
                     "ChooseEnvironmentMapImage", "Choose an Environment Map Image",
-                    ".*,.png",
+                    ".*,.png,.exr",
                     sgl::AppSettings::get()->getDataDirectory().c_str(),
                     "", 1, nullptr,
                     ImGuiFileDialogFlags_ConfirmOverwrite);
