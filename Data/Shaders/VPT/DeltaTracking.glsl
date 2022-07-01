@@ -103,6 +103,9 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w) {
                 d -= t;
                 weights *= sigma_n / (majorant * Pn);
             }
+#if !defined(MAX_BASED_PROBABILITY) && !defined(AVG_BASED_PROBABILITY)
+            weights = min(weights, vec3(100.0, 100.0, 100.0));
+#endif
         }
     }
 
