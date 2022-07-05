@@ -128,7 +128,8 @@ python3-setuptools python3-yaml wget intel-mkl
 conda create --name cloud_rendering python=3.8
 conda activate cloud_rendering
 
-conda install numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing
+conda install astunparse numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing typing_extensions future \
+six requests dataclasses
 conda install -c pytorch magma-cuda115
 
 git clone --recursive https://github.com/pytorch/pytorch
