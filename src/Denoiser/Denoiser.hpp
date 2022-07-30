@@ -52,14 +52,22 @@ const char* const DENOISER_NAMES[] = {
 #endif
 };
 
+enum class FeatureMapType {
+    COLOR, ALBEDO, NORMAL, DEPTH, POSITION, FLOW
+};
+
 class Denoiser {
 public:
     virtual ~Denoiser() = default;
     virtual DenoiserType getDenoiserType() = 0;
     [[nodiscard]] virtual const char* getDenoiserName() const = 0;
     [[nodiscard]] virtual bool getIsEnabled() const { return true; }
-    virtual void setOutputImage(sgl::vk::ImageViewPtr& outputImage)=0;
-    virtual void setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) = 0;
+    virtual void setOutputImage(sgl::vk::ImageViewPtr& outputImage) = 0;
+    virtual void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) = 0;
+    [[nodiscard]] virtual bool getUseFeatureMap(FeatureMapType featureMapType) const = 0;
+    virtual void setUseFeatureMap(FeatureMapType featureMapType, bool useNormals) = 0;
+    virtual void setTemporalDenoisingEnabled(bool enabled) = 0;
+    virtual void resetFrameNumber() = 0; // For temporal denoisers to indicate reset of temporal accumulation.
     virtual void denoise() = 0;
     virtual void recreateSwapchain(uint32_t width, uint32_t height) {}
 
@@ -67,6 +75,11 @@ public:
     virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }
 };
 
-std::shared_ptr<Denoiser> createDenoiserObject(DenoiserType denoiserType, sgl::vk::Renderer* renderer);
+enum class DenoisingMode {
+    PATH_TRACING, AMBIENT_OCCLUSION, VOLUMETRIC_PATH_TRACING
+};
+
+std::shared_ptr<Denoiser> createDenoiserObject(
+        DenoiserType denoiserType, sgl::vk::Renderer* renderer, DenoisingMode mode);
 
 #endif //CLOUDRENDERING_DENOISER_HPP

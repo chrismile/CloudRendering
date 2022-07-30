@@ -30,14 +30,10 @@
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
+#include <Graphics/Vulkan/Render/ComputePipeline.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
 #include "OptixVptDenoiser.hpp"
-
-#ifndef TOSTRING
-#define STRINGIFY(x) #x
-#define TOSTRING(x) STRINGIFY(x)
-#endif
 
 #include <optix_stubs.h>
 #include <optix_function_table_definition.h>
@@ -111,6 +107,10 @@ bool OptixVptDenoiser::initGlobal() {
         sgl::Logfile::get()->writeInfo("OptiX shared library was not found. Disabling OptiX support.");
         return false;
     }
+    if (result == OPTIX_ERROR_UNSUPPORTED_ABI_VERSION) {
+        sgl::Logfile::get()->writeInfo("Unsupported OptiX ABI version. Disabling OptiX support.");
+        return false;
+    }
     checkOptixResult(result, "Error in optixInitWithHandle: ");
 
     OptixDeviceContextOptions contextOptions{};
@@ -146,6 +146,8 @@ OptixVptDenoiser::OptixVptDenoiser(sgl::vk::Renderer* renderer) : renderer(rende
     CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamCreate(&stream, CU_STREAM_DEFAULT);
     sgl::vk::checkCUresult(cuResult, "Error in cuStreamCreate: ");
 
+    normalBlitPass = std::make_shared<VectorBlitPass>(renderer);
+
     createDenoiser();
 }
 
@@ -156,10 +158,9 @@ void OptixVptDenoiser::createDenoiser() {
         denoiser = {};
     }
 
-    // TODO: Support OPTIX_DENOISER_MODEL_KIND_TEMPORAL?
     OptixDenoiserOptions options;
-    options.guideAlbedo = 0;
-    options.guideNormal = 0;
+    options.guideAlbedo = useAlbedo && albedoImageVulkan ? 1 : 0;
+    options.guideNormal = useNormalMap && normalImageVulkan ? 1 : 0;
     OptixResult result = optixDenoiserCreate(
             context, denoiserModelKind, &options, &denoiser);
     checkOptixResult(result, "Error in optixDenoiserCreate: ");
@@ -176,18 +177,59 @@ void OptixVptDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
     outputImageVulkan = outputImage;
 }
 
-void OptixVptDenoiser::setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) {
-    if (featureMapName == "color") {
+void OptixVptDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
+    if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
-    } else if (featureMapName == "position") {
-        // Ignore.
-    } else if (featureMapName == "normal") {
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        normalImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        albedoImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::FLOW) {
+        flowImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::DEPTH || featureMapType == FeatureMapType::POSITION) {
         // Ignore.
     } else {
-        sgl::Logfile::get()->writeInfo(
-                "Warning in OptixVptDenoiser::setFeatureMap::setFeatureMap: Unknown feature map '"
-                + featureMapName + "'.");
+        sgl::Logfile::get()->writeWarning("Warning in OptixVptDenoiser::setFeatureMap: Unknown feature map.");
     }
+}
+
+bool OptixVptDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
+    if (featureMapType == FeatureMapType::COLOR) {
+        return true;
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        return useAlbedo;
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        return useNormalMap;
+    } else if (featureMapType == FeatureMapType::FLOW) {
+        return denoiserModelKind == OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+    } else {
+        return false;
+    }
+}
+
+void OptixVptDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) {
+    if ((featureMapType == FeatureMapType::ALBEDO && useAlbedo != useFeature)
+            || (featureMapType == FeatureMapType::NORMAL && useNormalMap != useFeature)
+            || (featureMapType == FeatureMapType::FLOW && getUseFeatureMap(FeatureMapType::FLOW) != useFeature)) {
+        recreateDenoiserNextFrame = true;
+    }
+    if (featureMapType == FeatureMapType::COLOR) {
+        if (!useFeature) {
+            sgl::Logfile::get()->writeError(
+                    "Warning in OptixVptDenoiser::setUseFeatureMap: Cannot disable use of color feature map.");
+        }
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        useAlbedo = useFeature;
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        useNormalMap = useFeature;
+    } else if (featureMapType == FeatureMapType::FLOW) {
+        denoiserModelKind = useFeature ? OPTIX_DENOISER_MODEL_KIND_HDR : OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+        denoiserModelKindIndex = useFeature ? 0 : 2;
+    }
+}
+
+void OptixVptDenoiser::setTemporalDenoisingEnabled(bool enabled) {
+    numDenoisersSupported = IM_ARRAYSIZE(OPTIX_DENOISER_MODEL_KIND_NAME) - (enabled ? 0 : 1);
 }
 
 void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
@@ -229,20 +271,74 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
             true, true);
     inputImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(inputImageBufferVk);
 
-    outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(
-            device, inputWidth * inputHeight * 4 * sizeof(float),
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
-            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
-            true, true);
-    outputImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputImageBufferVk);
-
     inputImageOptix = {};
     inputImageOptix.width = inputWidth;
     inputImageOptix.height = inputHeight;
     inputImageOptix.format = OPTIX_PIXEL_FORMAT_FLOAT4;
     inputImageOptix.pixelStrideInBytes = 4 * sizeof(float);
     inputImageOptix.rowStrideInBytes = inputWidth * 4 * sizeof(float);
-    inputImageOptix.data = inputImageBufferCu->getCudaDevicePtr(); // TODO
+    inputImageOptix.data = inputImageBufferCu->getCudaDevicePtr();
+
+    if (useAlbedo && albedoImageVulkan) {
+        albedoImageBufferVk = std::make_shared<sgl::vk::Buffer>(
+                device, inputWidth * inputHeight * 4 * sizeof(float),
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                true, true);
+        albedoImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(albedoImageBufferVk);
+
+        albedoImageOptix = {};
+        albedoImageOptix.width = inputWidth;
+        albedoImageOptix.height = inputHeight;
+        albedoImageOptix.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+        albedoImageOptix.pixelStrideInBytes = 4 * sizeof(float);
+        albedoImageOptix.rowStrideInBytes = inputWidth * 4 * sizeof(float);
+        albedoImageOptix.data = albedoImageBufferCu->getCudaDevicePtr();
+    }
+
+    if (useNormalMap && normalImageVulkan) {
+        normalImageBufferVk = std::make_shared<sgl::vk::Buffer>(
+                device, inputWidth * inputHeight * 3 * sizeof(float),
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                true, true);
+        normalImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(normalImageBufferVk);
+
+        normalImageOptix = {};
+        normalImageOptix.width = inputWidth;
+        normalImageOptix.height = inputHeight;
+        normalImageOptix.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+        normalImageOptix.pixelStrideInBytes = 3 * sizeof(float);
+        normalImageOptix.rowStrideInBytes = inputWidth * 3 * sizeof(float);
+        normalImageOptix.data = normalImageBufferCu->getCudaDevicePtr();
+
+        normalBlitPass->setInputImage(normalImageVulkan);
+        normalBlitPass->setOutputBuffer(normalImageBufferVk);
+    }
+
+    if (getUseFeatureMap(FeatureMapType::FLOW) && flowImageVulkan) {
+        flowImageBufferVk = std::make_shared<sgl::vk::Buffer>(
+                device, inputWidth * inputHeight * 2 * sizeof(float),
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+                | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                true, true);
+        flowImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(flowImageBufferVk);
+
+        flowImageOptix = {};
+        flowImageOptix.width = inputWidth;
+        flowImageOptix.height = inputHeight;
+        flowImageOptix.format = OPTIX_PIXEL_FORMAT_FLOAT2;
+        flowImageOptix.pixelStrideInBytes = 2 * sizeof(float);
+        flowImageOptix.rowStrideInBytes = inputWidth * 2 * sizeof(float);
+        flowImageOptix.data = flowImageBufferCu->getCudaDevicePtr();
+    }
+
+    outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(
+            device, inputWidth * inputHeight * 4 * sizeof(float),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
+            | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+            true, true);
+    outputImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputImageBufferVk);
 
     outputImageOptix = {};
     outputImageOptix.width = inputWidth;
@@ -255,7 +351,6 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
     size_t numImages = swapchain ? swapchain->getNumImages() : 1;
 
-    timelineValue = 0;
     postRenderCommandBuffers.clear();
     renderFinishedSemaphores.clear();
     denoiseFinishedSemaphores.clear();
@@ -279,7 +374,6 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 
 void OptixVptDenoiser::_freeBuffers() {
     if (denoiserState) {
-        sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamSynchronize(stream);
         CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuMemFree(denoiserState);
         sgl::vk::checkCUresult(cuResult, "Error in cuMemFree: ");
         denoiserState = {};
@@ -294,6 +388,10 @@ void OptixVptDenoiser::_freeBuffers() {
         sgl::vk::checkCUresult(cuResult, "Error in cuMemFree: ");
         imageIntensity = {};
     }
+}
+
+void OptixVptDenoiser::resetFrameNumber() {
+    isFirstFrame = true;
 }
 
 void OptixVptDenoiser::denoise() {
@@ -311,7 +409,36 @@ void OptixVptDenoiser::denoise() {
 
     inputImageVulkan->getImage()->transitionImageLayout(
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-    inputImageVulkan->getImage()->copyToBuffer(inputImageBufferVk, renderer->getVkCommandBuffer());
+    inputImageVulkan->getImage()->copyToBuffer(
+            inputImageBufferVk, renderer->getVkCommandBuffer());
+
+    if (useAlbedo && albedoImageVulkan) {
+        albedoImageVulkan->getImage()->transitionImageLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        albedoImageVulkan->getImage()->copyToBuffer(
+                albedoImageBufferVk, renderer->getVkCommandBuffer());
+    }
+
+    if (useNormalMap && normalImageVulkan) {
+        if (normalImageVulkan->getImage()->getImageSettings().format == VK_FORMAT_R32G32B32_SFLOAT) {
+            normalImageVulkan->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            normalImageVulkan->getImage()->copyToBuffer(
+                    normalImageBufferVk, renderer->getVkCommandBuffer());
+        } else {
+            normalImageVulkan->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            normalBlitPass->render();
+        }
+    }
+
+    if (getUseFeatureMap(FeatureMapType::FLOW) && flowImageVulkan) {
+        flowImageVulkan->getImage()->transitionImageLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        flowImageVulkan->getImage()->copyToBuffer(
+                flowImageBufferVk, renderer->getVkCommandBuffer());
+    }
+
     //renderer->insertBufferMemoryBarrier(
     //        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT,
     //        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
@@ -322,9 +449,7 @@ void OptixVptDenoiser::denoise() {
 #ifdef USE_TIMELINE_SEMAPHORES
     renderFinishedSemaphore->setSignalSemaphoreValue(timelineValue);
 #endif
-    if (commandBufferPreDenoise->getSignalSemaphoresVk().empty()) {
-        commandBufferPreDenoise->pushSignalSemaphore(renderFinishedSemaphore);
-    }
+    commandBufferPreDenoise->pushSignalSemaphore(renderFinishedSemaphore);
     renderer->endCommandBuffer();
 
     runOptixDenoiser();
@@ -336,10 +461,8 @@ void OptixVptDenoiser::denoise() {
 #endif
     renderer->pushCommandBuffer(postRenderCommandBuffer);
     renderer->beginCommandBuffer();
-    if (postRenderCommandBuffer->getWaitSemaphoresVk().empty()) {
-        postRenderCommandBuffer->pushWaitSemaphore(
-                denoiseFinishedSemaphore, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
-    }
+    postRenderCommandBuffer->pushWaitSemaphore(
+            denoiseFinishedSemaphore, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
     //renderer->insertBufferMemoryBarrier(
     //        VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
@@ -373,15 +496,39 @@ void OptixVptDenoiser::runOptixDenoiser() {
         params.hdrIntensity = imageIntensity;
     }
 
-    OptixDenoiserGuideLayer guideLayer{};
-    //guideLayer.albedo;
-    //guideLayer.normal;
-    //guideLayer.flow;
-
     OptixDenoiserLayer denoiserLayer{};
     denoiserLayer.input = inputImageOptix;
     denoiserLayer.output = outputImageOptix;
-    //denoiserLayer.previousOutput;
+    OptixDenoiserGuideLayer guideLayer{};
+
+    if (useAlbedo && albedoImageVulkan) {
+        guideLayer.albedo = albedoImageOptix;
+    }
+
+    if (useNormalMap && normalImageVulkan) {
+        guideLayer.normal = normalImageOptix;
+    }
+
+    if (denoiserModelKind == OPTIX_DENOISER_MODEL_KIND_TEMPORAL) {
+        if (isFirstFrame) {
+            denoiserLayer.previousOutput = inputImageOptix;
+            guideLayer.flow = flowImageOptix; // All flow vectors set to zero.
+            sgl::vk::g_cudaDeviceApiFunctionTable.cuMemsetD8Async(
+                    flowImageBufferCu->getCudaDevicePtr(), 0, sizeof(float) * 2 * inputWidth * inputHeight, stream);
+        } else {
+            /**
+             * https://raytracing-docs.nvidia.com/optix7/guide/index.html#ai_denoiser#structure-and-use-of-image-buffers
+             * "previousOutput is read in optixDenoiserInvoke before writing a new output, so previousOutput could be
+             * set to output (the same buffer) for efficiency if useful in the application."
+             */
+            denoiserLayer.previousOutput = outputImageOptix;
+            guideLayer.flow = flowImageOptix;
+        }
+#if OPTIX_VERSION >= 70500
+        params.temporalModeUsePreviousLayers = isFirstFrame ? 0 : 1;
+#endif
+    }
+    isFirstFrame = false;
 
     OptixResult result = optixDenoiserInvoke(
             denoiser, stream, &params, denoiserState, denoiserStateSizeInBytes,
@@ -401,12 +548,61 @@ bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
     bool reRender = false;
 
     if (propertyEditor.addCombo(
-            "Feature Map", (int*)&denoiserModelKindIndex, OPTIX_DENOISTER_MODEL_KIND_NAME,
-            IM_ARRAYSIZE(OPTIX_DENOISTER_MODEL_KIND_NAME))) {
+            "Feature Map", (int*)&denoiserModelKindIndex,
+            OPTIX_DENOISER_MODEL_KIND_NAME, numDenoisersSupported)) {
         reRender = true;
-        denoiserModelKind = OptixDenoiserModelKind(denoiserModelKindIndex + int(OPTIX_DENOISER_MODEL_KIND_LDR));
+        if (denoiserModelKindIndex == 0) {
+            denoiserModelKind = OPTIX_DENOISER_MODEL_KIND_LDR;
+        } else if (denoiserModelKindIndex == 1) {
+            denoiserModelKind = OPTIX_DENOISER_MODEL_KIND_HDR;
+        } else if (denoiserModelKindIndex == 2) {
+            denoiserModelKind = OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
+        }
         recreateDenoiserNextFrame = true;
     }
 
+    if (propertyEditor.addCheckbox("Use Albedo", &useAlbedo)) {
+        reRender = true;
+        recreateDenoiserNextFrame = true;
+    }
+
+    if (propertyEditor.addCheckbox("Use Normal Map", &useNormalMap)) {
+        reRender = true;
+        recreateDenoiserNextFrame = true;
+    }
+
+    if (reRender) {
+        resetFrameNumber();
+    }
+
     return reRender;
+}
+
+
+
+VectorBlitPass::VectorBlitPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+}
+
+void VectorBlitPass::setInputImage(const sgl::vk::ImageViewPtr& _inputImage) {
+    inputImage = _inputImage;
+    if (computeData) {
+        computeData->setStaticImageView(inputImage, "inputImage");
+    }
+}
+
+void VectorBlitPass::setOutputBuffer(const sgl::vk::BufferPtr& _outputBuffer) {
+    outputBuffer = _outputBuffer;
+    if (computeData) {
+        computeData->setStaticBuffer(outputBuffer, "OutputBuffer");
+    }
+}
+
+void VectorBlitPass::loadShader() {
+    shaderStages = sgl::vk::ShaderManager->getShaderStages({ "VectorBlit.Compute" });
+}
+
+void VectorBlitPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+    computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
+    computeData->setStaticImageView(inputImage, "inputImage");
+    computeData->setStaticBuffer(outputBuffer, "OutputBuffer");
 }

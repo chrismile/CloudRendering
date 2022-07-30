@@ -49,7 +49,7 @@ class FileDialog;
 }
 typedef IGFD::FileDialog ImGuiFileDialog;
 
-enum class FeatureMapType {
+enum class FeatureMapTypeVpt {
     RESULT, FIRST_X, FIRST_W, PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const FEATURE_MAP_NAMES[] = {
@@ -120,7 +120,7 @@ private:
     const glm::ivec2 blockSize2D = glm::ivec2(16, 16);
     sgl::vk::ImageViewPtr sceneImageView;
     CloudDataPtr cloudData;
-    FeatureMapType featureMapType = FeatureMapType::RESULT;
+    FeatureMapTypeVpt featureMapType = FeatureMapTypeVpt::RESULT;
 
     void updateVptMode();
     VptMode vptMode = VptMode::DELTA_TRACKING;
@@ -142,6 +142,7 @@ private:
 
     sgl::vk::ImageViewPtr resultImageView;
     sgl::vk::TexturePtr resultImageTexture;
+    sgl::vk::TexturePtr resultTexture;
     sgl::vk::ImageViewPtr denoisedImageView;
     sgl::vk::TexturePtr accImageTexture;
     sgl::vk::TexturePtr firstXTexture;
@@ -173,6 +174,7 @@ private:
     float environmentMapIntensityFactor = 1.5f;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
+    sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
 

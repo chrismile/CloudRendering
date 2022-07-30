@@ -26,8 +26,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CLOUDRENDERING_EAWDENOISER_HPP
-#define CLOUDRENDERING_EAWDENOISER_HPP
+#ifndef LINEVIS_EAWDENOISER_HPP
+#define LINEVIS_EAWDENOISER_HPP
 
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
 
@@ -49,9 +49,21 @@ public:
     [[nodiscard]] const char* getDenoiserName() const override { return "EAW Denoiser"; }
     [[nodiscard]] bool getIsEnabled() const override;
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
-    void setFeatureMap(const std::string& featureMapName, const sgl::vk::TexturePtr& featureTexture) override;
+    void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;
+    [[nodiscard]] bool getUseFeatureMap(FeatureMapType featureMapType) const override;
+    void setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) override;
+    void resetFrameNumber() override {} // No temporal denoising, thus unused.
+    void setTemporalDenoisingEnabled(bool enabled) override {} // No temporal denoising, thus unused.
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;
+
+    void setNumIterations(int its);
+    void setPhiColor(float phi);
+    void setPhiPosition(float phi);
+    void setPhiNormal(float phi);
+    void setWeightScaleColor(float scale);
+    void setWeightScalePosition(float scale);
+    void setWeightScaleNormal(float scale);
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
@@ -61,6 +73,7 @@ private:
 };
 
 class EAWBlitPass : public sgl::vk::BlitRenderPass {
+    friend class EAWDenoiser;
 public:
     explicit EAWBlitPass(sgl::vk::Renderer* renderer);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
@@ -75,18 +88,25 @@ public:
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
 
+protected:
+    void loadShader() override;
+
 private:
     void createRasterData(sgl::vk::Renderer* renderer, sgl::vk::GraphicsPipelinePtr& graphicsPipeline) override;
     void _render() override;
-
-    bool showWindow = true;
+    void _renderRaster();
+    void _renderCompute();
 
     bool useColorWeights = true;
     bool usePositionWeights = true;
-    bool useNormalWeights = false;
-    float phiColor = 0.1f;
+    bool useNormalWeights = true;
+    float phiColor = 5.0f;
     float phiPosition = 0.1f;
     float phiNormal = 0.1f;
+    // Use custom scales for different types of image generation processes.
+    float phiColorScale = 1.0f;
+    float phiPositionScale = 1.0f;
+    float phiNormalScale = 1.0f;
 
     sgl::vk::TexturePtr colorTexture;
     sgl::vk::TexturePtr positionTexture;
@@ -95,7 +115,13 @@ private:
     int maxNumIterations = 0;
     sgl::vk::TexturePtr pingPongRenderTextures[2];
     sgl::vk::FramebufferPtr framebuffersPingPong[3];
-    sgl::vk::RasterDataPtr rasterDataPingPong[4];
+    sgl::vk::RasterDataPtr rasterDataPingPong[3];
+
+    bool useSharedMemory = true;
+    const int computeBlockSize = 16;
+    sgl::vk::ShaderStagesPtr shaderStagesCompute;
+    sgl::vk::ComputeDataPtr computeDataPingPong[3];
+    sgl::vk::ComputeDataPtr computeDataPingPongFinal[3];
 
     struct UniformData {
         float phiColor;
@@ -117,4 +143,4 @@ private:
     sgl::vk::BufferPtr offsetBuffer;
 };
 
-#endif //CLOUDRENDERING_EAWDENOISER_HPP
+#endif //LINEVIS_EAWDENOISER_HPP
