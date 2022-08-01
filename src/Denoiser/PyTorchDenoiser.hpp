@@ -55,7 +55,7 @@ class FeatureCombinePass;
  * Loads a PyTorch denoiser model from a TorchScript intermediate representation file.
  *
  * Information on how to save a PyTorch model to a TorchScript intermediate representation file in Python:
- * Models saved using "torch.save(model.state_dict(), 'model_name.pth')" can only be read in Python. Instead, use:
+ * Models saved using "torch.save(model.state_dict(), 'model_name.pt')" can only be read in Python. Instead, use:
  *
  * https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html
  * example_input, example_label = next(iter(dataloader))
@@ -73,13 +73,18 @@ class FeatureCombinePass;
  *
  * https://pytorch.org/docs/stable/jit.html
  * Mixing tracing and scripting: @torch.jit.script - "Traced functions can call script functions."
+ *
+ * How to add metadata? Add _extra_files=extra_files as an argument to torch.jit.save, e.g.:
+ * extra_files = { 'model_info.json': '{ "input_feature_maps": [ "color", "normal" ] }' }
+ * torch.jit.save(script_module, 'model_name.pt', _extra_files=extra_files)
  */
 class PyTorchDenoiser : public Denoiser {
 public:
     explicit PyTorchDenoiser(sgl::vk::Renderer* renderer);
     ~PyTorchDenoiser() override;
     DenoiserType getDenoiserType() override { return DenoiserType::EAW; }
-    [[nodiscard]] const char* getDenoiserName() const override { return "EAW Denoiser"; }
+    [[nodiscard]] const char* getDenoiserName() const override { return "PyTorch Denoiser Module"; }
+    [[nodiscard]] bool getIsEnabled() const override { return wrapper != nullptr; }
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
     void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;
     [[nodiscard]] bool getUseFeatureMap(FeatureMapType featureMapType) const override;

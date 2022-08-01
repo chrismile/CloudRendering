@@ -29,6 +29,7 @@
 #include <memory>
 #include <boost/algorithm/string/case_conv.hpp>
 
+#include <json/json.h>
 #include <torch/script.h>
 #include <torch/cuda.h>
 #include <c10/core/MemoryFormat.h>
@@ -92,7 +93,7 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
     denoiseFinishedFence = std::make_shared<sgl::vk::Fence>(device);
     featureCombinePass = std::make_shared<FeatureCombinePass>(renderer);
 
-    // TODO: Store metadata in TorchScript model.
+    // When loading a model, the metadata in the TorchScript file is read to get the used feature map names.
     inputFeatureMapsUsed = { FeatureMapType::COLOR };
     for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
         inputFeatureMapsIndexMap.insert(std::make_pair(inputFeatureMapsUsed.at(i), i));
@@ -388,15 +389,90 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 
 bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     torch::DeviceType deviceType = getTorchDeviceType(pyTorchDevice);
+    torch::jit::ExtraFilesMap extraFilesMap;
     try {
         // std::shared_ptr<torch::jit::script::Module>
         wrapper = std::make_shared<ModuleWrapper>();
-        wrapper->module = torch::jit::load(modelPath, deviceType);
+        wrapper->module = torch::jit::load(modelPath, deviceType, extraFilesMap);
     } catch (const c10::Error& e) {
         sgl::Logfile::get()->writeError("Error: Couldn't load the PyTorch module from \"" + modelPath + "\"!");
         wrapper = {};
         return false;
     }
+
+    // Read the model JSON metadata next.
+    inputFeatureMapsUsed.clear();
+    inputFeatureMapsIndexMap.clear();
+    inputFeatureMaps.clear();
+    auto it = extraFilesMap.find("model_info.json");
+    if (it == extraFilesMap.end()) {
+        sgl::Logfile::get()->writeError(
+                "Error: Couldn't find model_info.json in the PyTorch module loaded from \"" + modelPath + "\"!");
+        wrapper = {};
+        return false;
+    }
+
+    Json::CharReaderBuilder builder;
+    std::unique_ptr<Json::CharReader> const charReader(builder.newCharReader());
+    JSONCPP_STRING errorString;
+    Json::Value root;
+    if (!charReader->parse(
+            it->second.c_str(), it->second.c_str() + it->second.size(), &root, &errorString)) {
+        sgl::Logfile::get()->writeError("Error in PyTorchDenoiser::loadModelFromFile: " + errorString);
+        wrapper = {};
+        return false;
+    }
+
+    /*
+     * Example: { "input_feature_maps": [ "color", "normal" ] }
+     */
+    if (root.isMember("input_feature_maps")) {
+        sgl::Logfile::get()->writeError(
+                "Error: Array 'input_feature_maps' could not be found in the model_info.json file of the PyTorch "
+                "module loaded from \"" + modelPath + "\"!");
+        wrapper = {};
+        return false;
+    }
+    Json::Value& inputFeatureMapsNode = root["input_feature_maps"];
+    if (!inputFeatureMapsNode.isArray()) {
+        sgl::Logfile::get()->writeError(
+                "Error: 'input_feature_maps' is not an array in the model_info.json file of the PyTorch "
+                "module loaded from \"" + modelPath + "\"!");
+        wrapper = {};
+        return false;
+    }
+
+    for (Json::Value& inputFeatureMapNode : inputFeatureMapsNode) {
+        if (!inputFeatureMapNode.isString()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: A child of the array 'input_feature_maps' in the model_info.json file of the PyTorch "
+                    "module loaded from \"" + modelPath + "\" is not a string!");
+            wrapper = {};
+            return false;
+        }
+        std::string inputFeatureMapName = boost::to_lower_copy(inputFeatureMapNode.asString());
+        int i;
+        for (i = 0; i < IM_ARRAYSIZE(FEATURE_MAP_NAMES); i++) {
+            if (boost::to_lower_copy(std::string() + FEATURE_MAP_NAMES[i]) == inputFeatureMapName) {
+                inputFeatureMapsUsed.push_back(FeatureMapType(i));
+                break;
+            }
+        }
+        if (i == IM_ARRAYSIZE(FEATURE_MAP_NAMES)) {
+            std::string errorStringLogfile = "Error: Invalid feature map name '" + inputFeatureMapName;
+            errorStringLogfile +=
+                    "' found in the model_info.json file of the PyTorch module loaded from \"" + modelPath + "\"!";
+            sgl::Logfile::get()->writeError(errorStringLogfile);
+            wrapper = {};
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+        inputFeatureMapsIndexMap.insert(std::make_pair(inputFeatureMapsUsed.at(i), i));
+    }
+    inputFeatureMaps.resize(inputFeatureMapsUsed.size());
+    computeNumChannels();
 
     return true;
 }
