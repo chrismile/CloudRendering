@@ -205,7 +205,7 @@ pnanovdb_readaccessor_t createAccessor() {
     return accessor;
 }
 #if defined(GRID_INTERPOLATION_NEAREST)
-float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -215,7 +215,7 @@ float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     return pnanovdb_read_float(buf, address);
 }
 #elif defined(GRID_INTERPOLATION_STOCHASTIC)
-float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -225,7 +225,7 @@ float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     return pnanovdb_read_float(buf, address);
 }
 #elif defined(GRID_INTERPOLATION_TRILINEAR)
-float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos) - vec3(0.5);
@@ -272,7 +272,7 @@ float sampleCloud(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 }
 #endif
 #else
-float sampleCloud(in vec3 pos) {
+float sampleCloudRaw(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
@@ -283,9 +283,17 @@ float sampleCloud(in vec3 pos) {
 #endif
 
 #ifdef USE_DENSITY_TRANSFER_FUNCTION
-float sampleCloud(in vec3 pos) {
+float sampleCloud(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
+#endif
+        in vec3 pos) {
     // Idea: Returns (color.rgb, density).
-    float densityRaw = sampleCloud(pos);
+    float densityRaw = sampleCloudRaw(
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            pos);
     return texture(densityTransferFunction, density).x;
 }
 #else
