@@ -59,7 +59,7 @@ public:
     /// Called when the resolution of the application window has changed.
     void setRenderingResolution(
             uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype);
-    bool settingsDiffer(
+    [[nodiscard]] bool settingsDiffer(
             uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype) const;
     [[nodiscard]] inline bool getHasFrameData() const { return renderImageView.get() != nullptr; }
     [[nodiscard]] inline uint32_t getFrameWidth() const { return renderImageView->getImage()->getImageSettings().width; }

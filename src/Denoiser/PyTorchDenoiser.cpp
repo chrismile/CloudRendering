@@ -37,6 +37,7 @@
 #include <c10/cuda/CUDAStream.h>
 #endif
 
+#include <Math/Math.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
@@ -636,5 +637,9 @@ void FeatureCombinePass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk:
 }
 
 void FeatureCombinePass::_render() {
-    ComputePass::_render();
+    auto width = int(inputFeatureMaps.front()->getImage()->getImageSettings().width);
+    auto height = int(inputFeatureMaps.front()->getImage()->getImageSettings().height);
+    renderer->dispatch(
+            computeData,
+            sgl::iceil(width, BLOCK_SIZE), sgl::iceil(height, BLOCK_SIZE), 1);
 }

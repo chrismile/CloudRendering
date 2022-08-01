@@ -159,6 +159,7 @@ private:
     bool getUseFeatureMap(FeatureMapType featureMapType);
     static std::string getFeatureMapImageName(FeatureMapType featureMapType);
 
+    const int BLOCK_SIZE = 16;
     struct UniformData {
         uint32_t numChannelsOut = 0;
         uint32_t colorWriteStartOffset = 0;
