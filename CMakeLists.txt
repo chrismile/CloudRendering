@@ -35,6 +35,7 @@ endif()
 
 option(USE_GTEST "Build the GoogleTest test suites." OFF)
 option(BUILD_PYTORCH_MODULE "Build the PyTorch module." OFF)
+option(SUPPORT_PYTORCH_DENOISER "Build the PyTorch module." OFF)
 
 set(DATA_PATH "${CMAKE_SOURCE_DIR}/Data" CACHE PATH "Location of folder 'Data'")
 add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
@@ -59,11 +60,11 @@ if (${USE_GTEST})
     )
 endif()
 
-if (${BUILD_PYTORCH_MODULE})
+if (${BUILD_PYTORCH_MODULE} OR ${SUPPORT_PYTORCH_DENOISER})
     find_package(Torch QUIET)
 endif()
-if (${BUILD_PYTORCH_MODULE} AND NOT Torch_FOUND)
-    MESSAGE(STATUS "The PyTorch module build was enabled, but PyTorch couldn't be found. Disabling PyTorch module.")
+if ((${BUILD_PYTORCH_MODULE} OR ${SUPPORT_PYTORCH_DENOISER}) AND NOT Torch_FOUND)
+    MESSAGE(STATUS "The PyTorch module or denoiser build was enabled, but PyTorch couldn't be found. Disabling PyTorch support.")
 endif()
 
 
@@ -166,6 +167,13 @@ if (NOT SUPPORT_OPENEXR)
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
 endif()
 
+if (NOT ${SUPPORT_PYTORCH_DENOISER} OR NOT Torch_FOUND)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.hpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.hpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp)
+endif()
+
 
 if(WIN32)
     add_executable(CloudRendering WIN32 ${SOURCES})
@@ -236,6 +244,15 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
         MESSAGE(STATUS "CUDA toolkit version: " ${CUDAToolkit_VERSION})
     endif()
 
+    if (WIN32)
+        set(DLLIMPORT "__declspec(dllimport)")
+        set(DLLEXPORT "__declspec(dllexport)")
+        target_compile_definitions(vpt INTERFACE MODULE_OP_API=${DLLIMPORT})
+        target_compile_definitions(vpt PRIVATE MODULE_OP_API=${DLLEXPORT})
+    else()
+        target_compile_definitions(vpt PUBLIC MODULE_OP_API=)
+    endif()
+
     target_link_libraries(vpt PRIVATE ${TORCH_LIBRARIES})
     target_include_directories(vpt PRIVATE ${TORCH_INCLUDE_DIR})
     target_link_libraries(vpt PRIVATE sgl ${Boost_LIBRARIES})
@@ -246,6 +263,12 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
             LIBRARY DESTINATION modules
             RUNTIME DESTINATION bin
     )
+endif()
+
+if (${SUPPORT_PYTORCH_DENOISER} AND Torch_FOUND)
+    target_link_libraries(CloudRendering PRIVATE ${TORCH_LIBRARIES})
+    target_include_directories(CloudRendering PRIVATE ${TORCH_INCLUDE_DIR})
+    target_compile_definitions(CloudRendering PRIVATE SUPPORT_PYTORCH_DENOISER)
 endif()
 
 

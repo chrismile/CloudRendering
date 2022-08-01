@@ -68,7 +68,6 @@ public:
 
 private:
     sgl::vk::Renderer* renderer = nullptr;
-    bool showWindow = true;
 
     // Global CUDA and OptiX data.
     static CUcontext cuContext;

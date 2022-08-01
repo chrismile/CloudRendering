@@ -32,9 +32,9 @@
 #include <torch/script.h>
 #include <torch/types.h>
 
-void initialize();
-void cleanup();
-torch::Tensor renderFrame(torch::Tensor inputTensor);
+MODULE_OP_API void initialize();
+MODULE_OP_API void cleanup();
+MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor);
 
 class VolumetricPathTracingModuleRenderer;
 extern VolumetricPathTracingModuleRenderer* vptRenderer;

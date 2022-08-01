@@ -31,6 +31,8 @@
 #version 460
 #extension GL_EXT_scalar_block_layout : enable
 
+layout(local_size_x = 16, local_size_y = 16) in;
+
 layout(binding = 0, rgba32f) uniform readonly image2D inputImage;
 
 layout(scalar, binding = 1) writeonly buffer OutputBuffer {

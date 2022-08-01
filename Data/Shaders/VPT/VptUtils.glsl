@@ -184,6 +184,9 @@ vec3 sampleSkybox(in vec3 dir) {
     return col;
 #endif
 }
+/*
+ * See, e.g.: https://www.cs.princeton.edu/courses/archive/fall16/cos526/papers/importance.pdf
+ */
 vec3 sampleLight(in vec3 dir) {
     int N = 10;
     float phongNorm = (N + 1) / (2 * 3.14159);
@@ -277,6 +280,16 @@ float sampleCloud(in vec3 pos) {
 #endif
     return texture(gridImage, coord).x;
 }
+#endif
+
+#ifdef USE_DENSITY_TRANSFER_FUNCTION
+float sampleCloud(in vec3 pos) {
+    // Idea: Returns (color.rgb, density).
+    float densityRaw = sampleCloud(pos);
+    return texture(densityTransferFunction, density).x;
+}
+#else
+#define sampleCloud sampleCloudRaw
 #endif
 
 void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {
