@@ -93,7 +93,7 @@ void main() {
         return;
     }
     ivec2 readPos = ivec2(gl_GlobalInvocationID.xy);
-    uint writePos = (gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * inputImageSize.x) * numChannels;
+    uint writePos = (gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * inputImageSize.x) * numChannelsOut;
 
 #ifdef USE_COLOR
     vec4 colorInput = imageLoad(colorMap, readPos);

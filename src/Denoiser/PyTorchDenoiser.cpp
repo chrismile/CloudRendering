@@ -40,6 +40,7 @@
 #include <Math/Math.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/File/Logfile.hpp>
+#include <Utils/File/FileUtils.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
@@ -220,12 +221,17 @@ void PyTorchDenoiser::denoise() {
         cudaStream_t stream = at::cuda::getCurrentCUDAStream();
         timelineValue++;
 
-        if (inputFeatureMapsUsed.size() == 1 && inputFeatureMapsUsed.at(0) == FeatureMapType::COLOR) {
+        if (false) {
             inputImageVulkan->getImage()->transitionImageLayout(
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
             inputImageVulkan->getImage()->copyToBuffer(
                     inputImageBufferVk, renderer->getVkCommandBuffer());
         } else {
+            for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+                const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
+                featureMap->getImage()->transitionImageLayout(
+                        VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            }
             // Use shader that combines all feature maps.
             featureCombinePass->render();
         }
@@ -457,6 +463,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     }
 
     // Read the model JSON metadata next.
+    auto inputFeatureMapsUsedOld = inputFeatureMapsUsed;
     inputFeatureMapsUsed.clear();
     inputFeatureMapsIndexMap.clear();
     auto it = extraFilesMap.find("model_info.json");
@@ -528,6 +535,12 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     }
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     computeNumChannels();
+    if (inputFeatureMapsUsed != inputFeatureMapsUsedOld) {
+        renderer->getDevice()->waitIdle();
+        recreateSwapchain(
+                inputImageVulkan->getImage()->getImageSettings().width,
+                inputImageVulkan->getImage()->getImageSettings().height);
+    }
 
     // Does the model use 3 or 4 input dimensions?
     if (wrapper->module.parameters().size() > 0) {
@@ -588,6 +601,8 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
                 currentPath = nullptr;
             }
 
+            fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(filename);
+
             modelFilePath = filename;
             loadModelFromFile(modelFilePath);
             reRender = true;
@@ -602,11 +617,17 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
     }
     ImGui::SameLine();
     if (ImGui::Button("Open from Disk...")) {
+        if (fileDialogDirectory.empty() || !sgl::FileUtils::get()->directoryExists(fileDialogDirectory)) {
+            fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory() + "LineDataSets/";
+            if (!sgl::FileUtils::get()->exists(fileDialogDirectory)) {
+                fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory();
+            }
+        }
         IGFD_OpenModal(
                 fileDialogInstance,
                 "ChoosePyTorchModelFile", "Choose TorchScript Model File",
                 ".*,.pt,.pth",
-                sgl::AppSettings::get()->getDataDirectory().c_str(),
+                fileDialogDirectory.c_str(),
                 "", 1, nullptr,
                 ImGuiFileDialogFlags_ConfirmOverwrite);
     }
@@ -653,6 +674,7 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
         const std::unordered_map<FeatureMapType, size_t>& _inputFeatureMapsIndexMap,
         const std::vector<uint32_t>& _inputFeatureMapsChannelOffset,
         uint32_t _numChannels) {
+    setShaderDirty();
     inputFeatureMapsUsed = _inputFeatureMapsUsed;
     inputFeatureMapsIndexMap = _inputFeatureMapsIndexMap;
     inputFeatureMapsChannelOffset = _inputFeatureMapsChannelOffset;
@@ -675,7 +697,7 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
 void FeatureCombinePass::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
     if (computeData) {
-        computeData->setStaticImageView(
+        computeData->setStaticImageViewOptional(
                 featureTexture->getImageView(), getFeatureMapImageName(featureMapType));
     }
 }
@@ -688,7 +710,9 @@ void FeatureCombinePass::setOutputBuffer(const sgl::vk::BufferPtr& _outputBuffer
 }
 
 void FeatureCombinePass::loadShader() {
+    sgl::vk::ShaderManager->invalidateShaderCache();
     std::map<std::string, std::string> preprocessorDefines;
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE", std::to_string(computeBlockSize)));
     for (int i = 0; i < IM_ARRAYSIZE(FEATURE_MAP_NAMES); i++) {
         auto featureMapType = FeatureMapType(i);
         auto it = inputFeatureMapsIndexMap.find(featureMapType);
@@ -720,6 +744,6 @@ void FeatureCombinePass::_render() {
     auto width = int(inputFeatureMaps.front()->getImage()->getImageSettings().width);
     auto height = int(inputFeatureMaps.front()->getImage()->getImageSettings().height);
     renderer->dispatch(
-            computeData,
-            sgl::iceil(width, BLOCK_SIZE), sgl::iceil(height, BLOCK_SIZE), 1);
+            computeData, sgl::iceil(width, computeBlockSize),
+            sgl::iceil(height, computeBlockSize), 1);
 }

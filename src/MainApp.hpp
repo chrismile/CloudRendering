@@ -104,6 +104,7 @@ private:
     int currentlyLoadedDataSetIndex = -1;
     std::string customDataSetFileName;
     ImGuiFileDialog* fileDialogInstance = nullptr;
+    std::string fileDialogDirectory;
 
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;

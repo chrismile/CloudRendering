@@ -273,6 +273,8 @@ void MainApp::renderGui() {
                 currentPath = nullptr;
             }
 
+            fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(filename);
+
             std::string filenameLower = boost::to_lower_copy(filename);
             selectedDataSetIndex = 0;
             if (!boost::ends_with(filenameLower, ".xyz")
@@ -479,9 +481,11 @@ void MainApp::renderGuiGeneralSettingsPropertyEditor() {
 
 void MainApp::openFileDialog() {
     selectedDataSetIndex = 0;
-    std::string fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
-    if (!sgl::FileUtils::get()->exists(fileDialogDirectory)) {
-        fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory();
+    if (fileDialogDirectory.empty() || !sgl::FileUtils::get()->directoryExists(fileDialogDirectory)) {
+        fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/";
+        if (!sgl::FileUtils::get()->exists(fileDialogDirectory)) {
+            fileDialogDirectory = sgl::AppSettings::get()->getDataDirectory();
+        }
     }
     IGFD_OpenModal(
             fileDialogInstance,

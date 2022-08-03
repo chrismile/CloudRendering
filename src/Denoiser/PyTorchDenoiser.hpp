@@ -127,6 +127,7 @@ private:
     uint32_t numChannels = 0;
     bool useBatchDimension = false; ///< Does the model use 3 or 4 input dimensions?
     ImGuiFileDialog* fileDialogInstance = nullptr;
+    std::string fileDialogDirectory;
 
     // Image data.
     sgl::vk::ImageViewPtr inputImageVulkan, outputImageVulkan;
@@ -172,7 +173,7 @@ private:
     bool getUseFeatureMap(FeatureMapType featureMapType);
     static std::string getFeatureMapImageName(FeatureMapType featureMapType);
 
-    const int BLOCK_SIZE = 16;
+    const int computeBlockSize = 16;
     struct UniformData {
         uint32_t numChannelsOut = 0;
         uint32_t colorWriteStartOffset = 0;
