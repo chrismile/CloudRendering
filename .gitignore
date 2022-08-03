@@ -82,6 +82,7 @@ Data/CloudDataSets/*
 Data/CameraPaths/*
 Data/Checkpoints/*
 Data/Screenshots/*
+Data/PyTorch/*
 Data/Videos/*
 Data/TransferFunctions/*
 Data/ReplayScripts/__pycache__/*

@@ -78,6 +78,8 @@ static torch::DeviceType getTorchDeviceType(PyTorchDevice pyTorchDevice) {
 PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(renderer) {
     sgl::vk::Device* device = renderer->getDevice();
 
+    sgl::AppSettings::get()->getSettings().getValueOpt("pyTorchDenoiserModelFilePath", modelFilePath);
+
 #ifdef SUPPORT_CUDA_INTEROP
     // Support CUDA on NVIDIA GPUs using the proprietary driver.
     if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY && torch::cuda::is_available()) {
@@ -104,6 +106,8 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
 }
 
 PyTorchDenoiser::~PyTorchDenoiser() {
+    sgl::AppSettings::get()->getSettings().addKeyValue("pyTorchDenoiserModelFilePath", modelFilePath);
+
     if (renderedImageData) {
         delete[] renderedImageData;
         renderedImageData = nullptr;
@@ -132,6 +136,7 @@ bool PyTorchDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
 
 void PyTorchDenoiser::computeNumChannels() {
     inputFeatureMapsChannelOffset.clear();
+    inputFeatureMapsChannelOffset.resize(inputFeatureMapsUsed.size());
     numChannels = 0;
     for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
         inputFeatureMapsChannelOffset.at(i) = numChannels;
@@ -156,10 +161,17 @@ void PyTorchDenoiser::denoise() {
     uint32_t width = inputImageVulkan->getImage()->getImageSettings().width;
     uint32_t height = inputImageVulkan->getImage()->getImageSettings().height;
 
+    at::IntArrayRef inputSizes;
+    if (useBatchDimension) {
+        inputSizes = { 1, int(height), int(width), int(numChannels) };
+    } else {
+        inputSizes = { int(height), int(width), int(numChannels) };
+    }
+
     // Copy color and auxiliary images from Vulkan to PyTorch.
     if (pyTorchDevice == PyTorchDevice::CPU) {
         for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
-            const sgl::vk::TexturePtr featureMap = inputFeatureMaps.at(i);
+            const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
             featureMap->getImage()->transitionImageLayout(
                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
             featureMap->getImage()->copyToBuffer(
@@ -194,10 +206,14 @@ void PyTorchDenoiser::denoise() {
         }
 
         inputTensor = torch::from_blob(
-                renderedImageData, {int(height), int(width), int(numChannels) },
+                renderedImageData, inputSizes,
                 torch::TensorOptions().dtype(torch::kFloat32).device(deviceType).memory_format(
                         c10::MemoryFormat::ChannelsLast));
-        //inputTensor = inputTensor.permute({2, 0, 1});
+        if (useBatchDimension) {
+            inputTensor = inputTensor.permute({0, 3, 1, 2}); // (n, h, w, c) -> (n, c, h, w)
+        } else {
+            inputTensor = inputTensor.permute({2, 0, 1}); // (h, w, c) -> (c, h, w)
+        }
     }
 #ifdef SUPPORT_CUDA_INTEROP
     else if (pyTorchDevice == PyTorchDevice::CUDA) {
@@ -222,11 +238,23 @@ void PyTorchDenoiser::denoise() {
         commandBufferPreDenoise->pushSignalSemaphore(renderFinishedSemaphore);
         renderer->endCommandBuffer();
 
+        /*
+         * 'model->forward()' uses device caching allocators, which may call functions like 'cudaStreamIsCapturing',
+         * which enforce synchronization of the stream with the host if more memory needs to be allocated. Thus, we must
+         * submit the Vulkan command buffers before this function, as otherwise, CUDA will wait forever on the render
+         * finished semaphore!
+         */
+        renderer->submitToQueue();
+
         inputTensor = torch::from_blob(
-                (void*)inputImageBufferCu->getCudaDevicePtr(), { int(height), int(width), int(numChannels) },
+                (void*)inputImageBufferCu->getCudaDevicePtr(), inputSizes,
                 torch::TensorOptions().dtype(torch::kFloat32).device(deviceType).memory_format(
                         c10::MemoryFormat::ChannelsLast));
-        //inputTensor = inputTensor.permute({2, 0, 1}); // (h, w, c) -> (c, h, w)
+        if (useBatchDimension) {
+            inputTensor = inputTensor.permute({0, 3, 1, 2}); // (n, h, w, c) -> (n, c, h, w)
+        } else {
+            inputTensor = inputTensor.permute({2, 0, 1}); // (h, w, c) -> (c, h, w)
+        }
 
 #ifdef USE_TIMELINE_SEMAPHORES
         renderFinishedSemaphore->waitSemaphoreCuda(stream, timelineValue);
@@ -239,19 +267,44 @@ void PyTorchDenoiser::denoise() {
     std::vector<torch::jit::IValue> inputs;
     inputs.emplace_back(inputTensor);
     at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
-    if (outputTensor.size(0) != height || outputTensor.size(1) != width) {
-        sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor sizes.");
+    uint32_t outputTensorWidth = 0;
+    uint32_t outputTensorHeight = 0;
+    uint32_t outputTensorChannels = 0;
+    if (useBatchDimension) {
+        if (outputTensor.sizes().size() != 4) {
+            sgl::Logfile::get()->throwError(
+                    "Error in PyTorchDenoiser::denoise: Expected 4 output dimensions, but got "
+                    + std::to_string(outputTensor.sizes().size()) + ".");
+        }
+        if (outputTensor.size(0) != 1) {
+            sgl::Logfile::get()->throwError(
+                    "Error in PyTorchDenoiser::denoise: Expected a batch dimension of 1, but got "
+                    + std::to_string(outputTensor.size(0)) + ".");
+        }
+        outputTensorChannels = uint32_t(outputTensor.size(1));
+        outputTensorHeight = uint32_t(outputTensor.size(2));
+        outputTensorWidth = uint32_t(outputTensor.size(3));
+        outputTensor = outputTensor.permute({0, 2, 3, 1}); // (n, c, h, w) -> (n, h, w, c)
+    } else {
+        if (outputTensor.sizes().size() != 3) {
+            sgl::Logfile::get()->throwError(
+                    "Error in PyTorchDenoiser::denoise: Expected 3 output dimensions, but got "
+                    + std::to_string(outputTensor.sizes().size()) + ".");
+        }
+        outputTensorChannels = uint32_t(outputTensor.size(0));
+        outputTensorHeight = uint32_t(outputTensor.size(1));
+        outputTensorWidth = uint32_t(outputTensor.size(2));
+        outputTensor = outputTensor.permute({1, 2, 0}); // (c, h, w) -> (h, w, c)
     }
-    if (outputTensor.size(2) != 4) {
+    if (outputTensorChannels != 4) {
         sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor channels.");
     }
-    // TODO: Check if permutation is necessary (due to using MemoryFormat::ChannelsLast for input).
-    // TODO: Support both NCHW and NHWC formats and convert if there is a mismatch? See if-case below.
-    if (outputTensor.size(0) == numChannels && outputTensor.size(1) == height && outputTensor.size(2) == width) {
-        outputTensor = outputTensor.permute({1, 2, 0}).contiguous(); // (c, h, w) -> (h, w, c)
+    if (outputTensorWidth != width || outputTensorHeight != height) {
+        sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor sizes.");
     }
     if (!outputTensor.is_contiguous()) {
-        sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Output tensor is not contiguous.");
+        sgl::Logfile::get()->writeWarning("Error in PyTorchDenoiser::denoise: Output tensor is not contiguous.");
+        outputTensor = outputTensor.contiguous();
     }
 
     // Read back denoised color image to Vulkan.
@@ -391,10 +444,12 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     torch::DeviceType deviceType = getTorchDeviceType(pyTorchDevice);
     torch::jit::ExtraFilesMap extraFilesMap;
+    extraFilesMap["model_info.json"] = "";
+    wrapper = std::make_shared<ModuleWrapper>();
     try {
         // std::shared_ptr<torch::jit::script::Module>
-        wrapper = std::make_shared<ModuleWrapper>();
         wrapper->module = torch::jit::load(modelPath, deviceType, extraFilesMap);
+        wrapper->module.to(deviceType);
     } catch (const c10::Error& e) {
         sgl::Logfile::get()->writeError("Error: Couldn't load the PyTorch module from \"" + modelPath + "\"!");
         wrapper = {};
@@ -404,7 +459,6 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     // Read the model JSON metadata next.
     inputFeatureMapsUsed.clear();
     inputFeatureMapsIndexMap.clear();
-    inputFeatureMaps.clear();
     auto it = extraFilesMap.find("model_info.json");
     if (it == extraFilesMap.end()) {
         sgl::Logfile::get()->writeError(
@@ -427,7 +481,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     /*
      * Example: { "input_feature_maps": [ "color", "normal" ] }
      */
-    if (root.isMember("input_feature_maps")) {
+    if (!root.isMember("input_feature_maps")) {
         sgl::Logfile::get()->writeError(
                 "Error: Array 'input_feature_maps' could not be found in the model_info.json file of the PyTorch "
                 "module loaded from \"" + modelPath + "\"!");
@@ -475,11 +529,29 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     computeNumChannels();
 
+    // Does the model use 3 or 4 input dimensions?
+    if (wrapper->module.parameters().size() > 0) {
+        auto paramSizes = (*wrapper->module.parameters().begin()).sizes();
+        if (paramSizes.size() == 4) {
+            useBatchDimension = true;
+        }
+    }
+
     return true;
 }
 
-void PyTorchDenoiser::setPyTorchDevice(PyTorchDevice newDevice) {
-    pyTorchDevice = newDevice;
+void PyTorchDenoiser::setPyTorchDevice(PyTorchDevice pyTorchDeviceNew) {
+    if (pyTorchDeviceNew == pyTorchDevice) {
+        return;
+    }
+    
+    pyTorchDevice = pyTorchDeviceNew;
+    if (inputImageVulkan) {
+        renderer->getDevice()->waitIdle();
+        recreateSwapchain(
+                inputImageVulkan->getImage()->getImageSettings().width,
+                inputImageVulkan->getImage()->getImageSettings().height);
+    }
     if (wrapper) {
         wrapper->module.to(getTorchDeviceType(pyTorchDevice));
     }
@@ -537,6 +609,14 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
                 sgl::AppSettings::get()->getDataDirectory().c_str(),
                 "", 1, nullptr,
                 ImGuiFileDialogFlags_ConfirmOverwrite);
+    }
+
+    PyTorchDevice pyTorchDeviceNew = pyTorchDevice;
+    if (propertyEditor.addCombo(
+            "Device", (int*)&pyTorchDeviceNew,
+            PYTORCH_DEVICE_NAMES, IM_ARRAYSIZE(PYTORCH_DEVICE_NAMES))) {
+        setPyTorchDevice(pyTorchDeviceNew);
+        reRender = true;
     }
 
     return reRender;

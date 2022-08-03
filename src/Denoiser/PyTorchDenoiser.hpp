@@ -42,11 +42,23 @@ enum class PyTorchDevice {
     CUDA
 #endif
 };
+const char* const PYTORCH_DEVICE_NAMES[] = {
+        "CPU", "CUDA"
+};
 
 namespace IGFD {
 class FileDialog;
 }
 typedef IGFD::FileDialog ImGuiFileDialog;
+
+namespace sgl {
+namespace vk {
+class BufferCudaDriverApiExternalMemoryVk;
+typedef std::shared_ptr<BufferCudaDriverApiExternalMemoryVk> BufferCudaDriverApiExternalMemoryVkPtr;
+class SemaphoreVkCudaDriverApiInterop;
+typedef std::shared_ptr<SemaphoreVkCudaDriverApiInterop> SemaphoreVkCudaDriverApiInteropPtr;
+}
+}
 
 struct ModuleWrapper;
 class FeatureCombinePass;
@@ -82,7 +94,7 @@ class PyTorchDenoiser : public Denoiser {
 public:
     explicit PyTorchDenoiser(sgl::vk::Renderer* renderer);
     ~PyTorchDenoiser() override;
-    DenoiserType getDenoiserType() override { return DenoiserType::EAW; }
+    DenoiserType getDenoiserType() override { return DenoiserType::PYTORCH_DENOISER; }
     [[nodiscard]] const char* getDenoiserName() const override { return "PyTorch Denoiser Module"; }
     [[nodiscard]] bool getIsEnabled() const override { return wrapper != nullptr; }
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
@@ -96,7 +108,7 @@ public:
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) override { this->fileDialogInstance = _fileDialogInstance; }
 
     bool loadModelFromFile(const std::string& modelPath);
-    void setPyTorchDevice(PyTorchDevice newDevice);
+    void setPyTorchDevice(PyTorchDevice pyTorchDeviceNew);
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
@@ -113,6 +125,7 @@ private:
     std::vector<sgl::vk::TexturePtr> inputFeatureMaps;
     std::vector<uint32_t> inputFeatureMapsChannelOffset;
     uint32_t numChannels = 0;
+    bool useBatchDimension = false; ///< Does the model use 3 or 4 input dimensions?
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     // Image data.

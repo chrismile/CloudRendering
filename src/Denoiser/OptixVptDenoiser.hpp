@@ -37,6 +37,13 @@
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
 #include <optix_types.h>
 
+namespace sgl {
+class BufferCudaDriverApiExternalMemoryVk;
+typedef std::shared_ptr<BufferCudaDriverApiExternalMemoryVk> BufferCudaDriverApiExternalMemoryVkPtr;
+class SemaphoreVkCudaDriverApiInterop;
+typedef std::shared_ptr<SemaphoreVkCudaDriverApiInterop> SemaphoreVkCudaDriverApiInteropPtr;
+}
+
 class VectorBlitPass;
 
 /**
@@ -74,6 +81,7 @@ private:
     static CUdevice cuDevice;
     static void* optixHandle;
     static OptixDeviceContext context;
+    static bool isOptixInitialized;
 
     // Denoiser data.
     void createDenoiser();
