@@ -125,6 +125,7 @@ private:
     std::vector<sgl::vk::TexturePtr> inputFeatureMaps;
     std::vector<uint32_t> inputFeatureMapsChannelOffset;
     uint32_t numChannels = 0;
+    bool isFirstContiguousWarning = true;
     bool useBatchDimension = false; ///< Does the model use 3 or 4 input dimensions?
     ImGuiFileDialog* fileDialogInstance = nullptr;
     std::string fileDialogDirectory;

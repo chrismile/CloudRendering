@@ -162,11 +162,11 @@ void PyTorchDenoiser::denoise() {
     uint32_t width = inputImageVulkan->getImage()->getImageSettings().width;
     uint32_t height = inputImageVulkan->getImage()->getImageSettings().height;
 
-    at::IntArrayRef inputSizes;
+    std::vector<int64_t> inputSizes;
     if (useBatchDimension) {
-        inputSizes = { 1, int(height), int(width), int(numChannels) };
+        inputSizes = { 1, int64_t(height), int64_t(width), int64_t(numChannels) };
     } else {
-        inputSizes = { int(height), int(width), int(numChannels) };
+        inputSizes = { int64_t(height), int64_t(width), int64_t(numChannels) };
     }
 
     // Copy color and auxiliary images from Vulkan to PyTorch.
@@ -309,7 +309,10 @@ void PyTorchDenoiser::denoise() {
         sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor sizes.");
     }
     if (!outputTensor.is_contiguous()) {
-        sgl::Logfile::get()->writeWarning("Error in PyTorchDenoiser::denoise: Output tensor is not contiguous.");
+        if (isFirstContiguousWarning) {
+            sgl::Logfile::get()->writeWarning("Error in PyTorchDenoiser::denoise: Output tensor is not contiguous.");
+            isFirstContiguousWarning = false;
+        }
         outputTensor = outputTensor.contiguous();
     }
 
@@ -370,8 +373,8 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     }
     renderImageStagingBuffers = {};
     denoisedImageStagingBuffer = {};
-    outputImageBufferVk = {};
     outputImageBufferCu = {};
+    outputImageBufferVk = {};
     postRenderCommandBuffers = {};
     renderFinishedSemaphores = {};
     denoiseFinishedSemaphores = {};
@@ -404,6 +407,7 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
             }
         }
 
+        inputImageBufferCu = {};
         inputImageBufferVk = std::make_shared<sgl::vk::Buffer>(
                 device, width * height * numChannels * sizeof(float),
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -412,6 +416,7 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
         inputImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(inputImageBufferVk);
         featureCombinePass->setOutputBuffer(inputImageBufferVk);
 
+        outputImageBufferCu = {};
         outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(
                 device, width * height * 4 * sizeof(float),
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT
@@ -458,6 +463,13 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
         wrapper->module.to(deviceType);
     } catch (const c10::Error& e) {
         sgl::Logfile::get()->writeError("Error: Couldn't load the PyTorch module from \"" + modelPath + "\"!");
+        sgl::Logfile::get()->writeError(std::string() + "What: " + e.what());
+        wrapper = {};
+        return false;
+    } catch (const torch::jit::ErrorReport& e) {
+        sgl::Logfile::get()->writeError("Error: Couldn't load the PyTorch module from \"" + modelPath + "\"!");
+        sgl::Logfile::get()->writeError(std::string() + "What: " + e.what());
+        sgl::Logfile::get()->writeError("Call stack: " + e.current_call_stack());
         wrapper = {};
         return false;
     }
@@ -541,6 +553,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
                 inputImageVulkan->getImage()->getImageSettings().width,
                 inputImageVulkan->getImage()->getImageSettings().height);
     }
+    isFirstContiguousWarning = true;
 
     // Does the model use 3 or 4 input dimensions?
     if (wrapper->module.parameters().size() > 0) {
