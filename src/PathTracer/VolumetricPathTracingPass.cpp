@@ -626,10 +626,16 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(accImageTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstXTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstWTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
-        renderer->transitionImageLayout(
-                blitPrimaryRayMomentTexturePass->getMomentTexture()->getImage(), VK_IMAGE_LAYOUT_GENERAL);
-        renderer->transitionImageLayout(
-                blitScatterRayMomentTexturePass->getMomentTexture()->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+            renderer->transitionImageLayout(
+                    blitPrimaryRayMomentTexturePass->getMomentTexture()->getImage(),
+                    VK_IMAGE_LAYOUT_GENERAL);
+        }
+        if (blitScatterRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
+            renderer->transitionImageLayout(
+                    blitScatterRayMomentTexturePass->getMomentTexture()->getImage(),
+                    VK_IMAGE_LAYOUT_GENERAL);
+        }
         auto& imageSettings = resultImageView->getImage()->getImageSettings();
         renderer->dispatch(
                 computeData,
@@ -669,9 +675,9 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         firstWTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
-        blitPrimaryRayMomentTexturePass->render();
+        blitPrimaryRayMomentTexturePass->renderOptional();
     } else if (featureMapType == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
-        blitScatterRayMomentTexturePass->render();
+        blitScatterRayMomentTexturePass->renderOptional();
     }
 
     if (!reachedTarget) {
@@ -922,13 +928,20 @@ void BlitMomentTexturePass::recreateMomentTexture() {
     sgl::vk::ImageSamplerSettings samplerSettings;
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
 
-    sgl::vk::ImageSettings imageSettings = outputImageViews.front()->getImage()->getImageSettings();
-    imageSettings.format = VK_FORMAT_R32_SFLOAT;
-    imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-    imageSettings.arrayLayers = numMoments + 1;
-    momentTexture = std::make_shared<sgl::vk::Texture>(
-            device, imageSettings, VK_IMAGE_VIEW_TYPE_2D_ARRAY, samplerSettings);
-    BlitRenderPass::setInputTexture(momentTexture);
+    if (momentType != MomentType::NONE) {
+        sgl::vk::ImageSettings imageSettings = outputImageViews.front()->getImage()->getImageSettings();
+        imageSettings.format = VK_FORMAT_R32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imageSettings.arrayLayers = numMoments + 1;
+        momentTexture = std::make_shared<sgl::vk::Texture>(
+                device, imageSettings, VK_IMAGE_VIEW_TYPE_2D_ARRAY, samplerSettings);
+        BlitRenderPass::setInputTexture(momentTexture);
+    } else {
+        momentTexture = {};
+        inputTexture = {};
+        rasterData = {};
+        setDataDirty();
+    }
 }
 
 bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
@@ -940,11 +953,16 @@ bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
     std::string headerName = prefix;
     if (propertyEditor.beginNode(headerName)) {
         std::string momentTypeName = "Moment Type## (" + prefix + ")";
+        MomentType momentTypeOld = momentType;
         if (propertyEditor.addCombo(
-                momentTypeName, (int*)&momentType, MOMENT_TYPE_NAMES,
+                momentTypeName, (int*)&momentTypeOld, MOMENT_TYPE_NAMES,
                 IM_ARRAYSIZE(MOMENT_TYPE_NAMES))) {
             reRender = true;
             momentTypeChanged = true;
+            if ((momentType == MomentType::NONE) != (momentTypeOld == MomentType::NONE)) {
+                shallRecreateMomentTexture = true;
+            }
+            momentType = momentTypeOld;
         }
         std::string numMomentName = "#Moments## (" + prefix + ")";
         if (propertyEditor.addCombo(
@@ -974,6 +992,18 @@ bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
 
 void BlitMomentTexturePass::createRasterData(sgl::vk::Renderer* renderer, sgl::vk::GraphicsPipelinePtr& graphicsPipeline) {
     BlitRenderPass::createRasterData(renderer, graphicsPipeline);
+}
+
+void BlitMomentTexturePass::renderOptional() {
+    if (!momentTexture) {
+        renderer->transitionImageLayout(
+                outputImageViews.front()->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        outputImageViews.front()->clearColor(
+                glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), renderer->getVkCommandBuffer());
+        return;
+    }
+
+    render();
 }
 
 void BlitMomentTexturePass::_render() {

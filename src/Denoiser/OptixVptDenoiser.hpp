@@ -65,7 +65,7 @@ public:
     void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;
     [[nodiscard]] bool getUseFeatureMap(FeatureMapType featureMapType) const override;
     void setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) override;
-    void setTemporalDenoisingEnabled(bool enabled); //< Call if renderer doesn't support temporal denoising.
+    void setTemporalDenoisingEnabled(bool enabled) override; //< Call if renderer doesn't support temporal denoising.
     void resetFrameNumber() override;
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;

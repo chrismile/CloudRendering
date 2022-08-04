@@ -236,6 +236,7 @@ public:
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage) override;
     void setVisualizeMomentTexture(bool visualizeMomentTexture);
+    void renderOptional(); ///< Calls 'render' if the moment texture is set.
     [[nodiscard]] inline MomentType getMomentType() const { return momentType; }
     [[nodiscard]] inline int getNumMoments() const { return numMoments; }
     inline sgl::vk::TexturePtr getMomentTexture() { return momentTexture; }
@@ -249,8 +250,8 @@ private:
     void _render() override;
     void recreateMomentTexture();
 
-    const char* const MOMENT_TYPE_NAMES[2] = {
-            "Power", "Trigonometric"
+    const char* const MOMENT_TYPE_NAMES[3] = {
+            "None", "Power", "Trigonometric"
     };
     const int NUM_MOMENTS_SUPPORTED[3] = {
             4, 6, 8
