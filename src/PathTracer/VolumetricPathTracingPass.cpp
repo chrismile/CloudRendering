@@ -69,11 +69,13 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY);
 
+    equalAreaPass = std::make_shared<OctohedralMappingPass>(renderer);
+
     if (sgl::AppSettings::get()->getSettings().getValueOpt(
             "vptEnvironmentMapImage", environmentMapFilenameGui)) {
         useEnvironmentMapImage = true;
         sgl::AppSettings::get()->getSettings().getValueOpt("vptUseEnvironmentMap", useEnvironmentMapImage);
-        loadEnvironmentMapImage();
+        loadEnvironmentMapImage(environmentMapFilenameGui);
     }
 
     blitResultRenderPass = std::make_shared<sgl::vk::BlitRenderPass>(renderer);
@@ -132,6 +134,9 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
     accImageTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     firstXTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     firstWTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    cloudOnlyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    depthDensityTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    positionTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
     blitResultRenderPass->setInputTexture(resultTexture);
     blitResultRenderPass->setOutputImage(imageView);
@@ -346,11 +351,70 @@ void VolumetricPathTracingPass::updateVptMode() {
     }
 }
 
-void VolumetricPathTracingPass::loadEnvironmentMapImage() {
-    if (!sgl::FileUtils::get()->exists(environmentMapFilenameGui)) {
+void VolumetricPathTracingPass::setUseEnvironmentMapFlag(bool useEnvironmentMap) {
+    this->useEnvironmentMapImage = useEnvironmentMap;
+}
+
+void VolumetricPathTracingPass::setEnvironmentMapIntensityFactor(float intensityFactor) {
+    this->environmentMapIntensityFactor = intensityFactor;
+}
+
+void VolumetricPathTracingPass::setScatteringAlbedo(glm::vec3 albedo) {
+    this->cloudScatteringAlbedo = albedo;
+}
+
+void VolumetricPathTracingPass::setExtinctionScale(double extinctionScale){
+    this->cloudExtinctionScale = extinctionScale;
+}
+void VolumetricPathTracingPass::setExtinctionBase(glm::vec3 extinctionBase){
+    this->cloudExtinctionBase = extinctionBase;
+}
+
+void VolumetricPathTracingPass::setFeatureMapType(FeatureMapTypeVpt type) {
+    this->featureMapType = type;
+}
+
+
+void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t mip_levels) {
+    sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+
+    sgl::vk::ImageSettings imageSettings;
+    imageSettings.imageType = VK_IMAGE_TYPE_2D;
+    imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+            | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL | VK_IMAGE_USAGE_STORAGE_BIT;
+    
+    // Resolution of 2^mip_level
+    imageSettings.width = 1 << mip_levels;
+    imageSettings.height = 1 << mip_levels;
+    //imageSettings.mipLevels = mip_levels;
+
+    sgl::vk::ImageSamplerSettings samplerSettings;
+
+    environmentMapOctohedralTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+
+    equalAreaPass->setInputImage(environmentMapTexture);
+    equalAreaPass->setOutputImage(environmentMapOctohedralTexture->getImageView());
+
+    VkCommandBuffer commandBuffer = device->beginSingleTimeCommands(0xFFFFFFFF, false);
+    renderer->setCustomCommandBuffer(commandBuffer);
+    renderer->beginCommandBuffer();
+
+    renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+
+    equalAreaPass->render();
+    renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    renderer->endCommandBuffer();
+    renderer->resetCustomCommandBuffer();
+    device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
+
+}
+
+void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filename) {
+    if (!sgl::FileUtils::get()->exists(filename)) {
         sgl::Logfile::get()->writeError(
                 "Error in VolumetricPathTracingPass::loadEnvironmentMapImage: The file \""
-                + environmentMapFilenameGui + "\" does not exist.");
+                + filename + "\" does not exist.");
         return;
     }
 
@@ -359,18 +423,18 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
 #ifdef SUPPORT_OPENEXR
     OpenExrImageInfo imageInfo;
 #endif
-    if (sgl::FileUtils::get()->hasExtension(environmentMapFilenameGui.c_str(), ".png")) {
+    if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".png")) {
         bitmap = std::make_shared<sgl::Bitmap>();
-        bitmap->fromFile(environmentMapFilenameGui.c_str());
+        bitmap->fromFile(filename.c_str());
         newEnvMapImageUsesLinearRgb = false; // Assume by default that .png images store sRGB.
     }
 #ifdef SUPPORT_OPENEXR
-    else if (sgl::FileUtils::get()->hasExtension(environmentMapFilenameGui.c_str(), ".exr")) {
-        bool isLoaded = loadOpenExrImageFile(environmentMapFilenameGui, imageInfo);
+    else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".exr")) {
+        bool isLoaded = loadOpenExrImageFile(filename, imageInfo);
         if (!isLoaded) {
             sgl::Logfile::get()->writeError(
                     "Error in VolumetricPathTracingPass::loadEnvironmentMapImage: The file \""
-                    + environmentMapFilenameGui + "\" couldn't be opened using OpenEXR.");
+                    + filename + "\" couldn't be opened using OpenEXR.");
             return;
         }
     }
@@ -378,7 +442,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
     else {
         sgl::Logfile::get()->writeError(
                 "Error in VolumetricPathTracingPass::loadEnvironmentMapImage: The file \""
-                + environmentMapFilenameGui + "\" has an unknown file extension.");
+                + filename + "\" has an unknown file extension.");
         return;
     }
 
@@ -416,7 +480,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
 
     environmentMapTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     environmentMapTexture->getImage()->uploadData(width * height * bytesPerPixel, pixelData);
-    loadedEnvironmentMapFilename = environmentMapFilenameGui;
+    loadedEnvironmentMapFilename = filename;
     isEnvironmentMapLoaded = true;
     frameInfo.frameCount = 0;
 
@@ -430,6 +494,8 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage() {
         delete[] imageInfo.pixelData;
     }
 #endif
+
+    createEnvironmentMapOctohedralTexture(8);
 }
 
 void VolumetricPathTracingPass::loadShader() {
@@ -532,8 +598,13 @@ void VolumetricPathTracingPass::createComputeData(
     computeData->setStaticImageView(accImageTexture->getImageView(), "accImage");
     computeData->setStaticImageView(firstXTexture->getImageView(), "firstX");
     computeData->setStaticImageView(firstWTexture->getImageView(), "firstW");
+    computeData->setStaticImageView(cloudOnlyTexture->getImageView(), "cloudOnlyImage");
+    computeData->setStaticImageView(depthDensityTexture->getImageView(), "depthDensityImage");
+    computeData->setStaticImageView(positionTexture->getImageView(), "positionImage");
+
     if (useEnvironmentMapImage) {
         computeData->setStaticTexture(environmentMapTexture, "environmentMapTexture");
+        computeData->setStaticTexture(environmentMapOctohedralTexture, "environmentMapOctohedralTexture");
     }
     if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
         computeData->setStaticImageView(
@@ -626,6 +697,9 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(accImageTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstXTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstWTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(depthDensityTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(positionTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(
                 blitPrimaryRayMomentTexturePass->getMomentTexture()->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(
@@ -672,12 +746,46 @@ void VolumetricPathTracingPass::_render() {
         blitPrimaryRayMomentTexturePass->render();
     } else if (featureMapType == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
         blitScatterRayMomentTexturePass->render();
+    } else if (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY) {
+        renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        cloudOnlyTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_DENSITY) {
+        renderer->transitionImageLayout(depthDensityTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthDensityTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::POSITION) {
+        renderer->transitionImageLayout(positionTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        positionTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     }
 
     if (!reachedTarget) {
         accumulationTimer->endGPU(eventName);
     }
 }
+
+sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTypeVpt type){
+    if (type == FeatureMapTypeVpt::RESULT) {
+        return accImageTexture;
+    } else if (type == FeatureMapTypeVpt::FIRST_X) {
+        return firstXTexture;
+    } else if (type == FeatureMapTypeVpt::FIRST_W) {
+        return firstWTexture;
+    } else if (type == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
+        return nullptr;
+    } else if (type == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
+        return nullptr;
+    } else if (type == FeatureMapTypeVpt::CLOUD_ONLY) {
+        return cloudOnlyTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_DENSITY) {
+        return depthDensityTexture;
+    } else if (type == FeatureMapTypeVpt::POSITION) {
+        return positionTexture;
+    }
+    return nullptr;
+}
+
 
 bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool optionChanged = false;
@@ -711,7 +819,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
 
             environmentMapFilenameGui = filename;
-            loadEnvironmentMapImage();
+            loadEnvironmentMapImage(environmentMapFilenameGui);
             setShaderDirty();
             reRender = true;
         }
@@ -812,7 +920,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
 
         propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
         if (propertyEditor.addButton("", "Load")) {
-            loadEnvironmentMapImage();
+            loadEnvironmentMapImage(environmentMapFilenameGui);
             setShaderDirty();
             reRender = true;
         }
@@ -983,4 +1091,39 @@ void BlitMomentTexturePass::_render() {
             0, selectedMomentBlitIdx);
     BlitRenderPass::_render();
     renderer->transitionImageLayout(momentTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+}
+
+
+OctohedralMappingPass::OctohedralMappingPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+}
+
+void OctohedralMappingPass::setInputImage(const sgl::vk::TexturePtr& _inputImage) {
+    inputImage = _inputImage;
+    setDataDirty();
+}
+
+void OctohedralMappingPass::setOutputImage(sgl::vk::ImageViewPtr& _outputImage) {
+    outputImage = _outputImage;
+    setDataDirty();
+}
+
+void OctohedralMappingPass::loadShader() {
+    std::map<std::string, std::string> preprocessorDefines;
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE", std::to_string(BLOCK_SIZE)));
+    shaderStages = sgl::vk::ShaderManager->getShaderStages(
+            { "OctohedralMapper.Compute" }, preprocessorDefines);
+}
+
+void OctohedralMappingPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+    computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
+    computeData->setStaticTexture(inputImage, "environmentMapTexture");
+    computeData->setStaticImageView(outputImage, "outputImage");
+}
+
+void OctohedralMappingPass::_render() {
+    auto width = int(outputImage->getImage()->getImageSettings().width);
+    auto height = int(outputImage->getImage()->getImageSettings().height);
+    renderer->dispatch(
+            computeData,
+            sgl::iceil(width, BLOCK_SIZE), sgl::iceil(height, BLOCK_SIZE), 1);
 }

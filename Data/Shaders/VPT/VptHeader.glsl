@@ -89,6 +89,13 @@ layout (binding = 10, r32f) uniform image2DArray primaryRayAbsorptionMomentsImag
 layout (binding = 11, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage;
 #endif
 
+layout (binding = 12, rgba32f) uniform image2D cloudOnlyImage;
+layout (binding = 13, rgba32f) uniform image2D depthDensityImage;
+layout (binding = 14, rgba32f) uniform image2D positionImage;
+
+layout (binding = 15) uniform sampler2D environmentMapOctohedralTexture;
+
+
 /**
  * This code is part of an GLSL port of the HLSL code accompanying the paper "Moment-Based Order-Independent
  * Transparency" by Münstermann, Krumpen, Klein, and Peters (http://momentsingraphics.de/?page_id=210).
@@ -97,7 +104,7 @@ layout (binding = 11, r32f) uniform image2DArray scatterRayAbsorptionMomentsImag
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 12) uniform MomentUniformData {
+layout(std140, binding = 16) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;

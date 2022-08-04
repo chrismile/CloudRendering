@@ -72,8 +72,8 @@ void main() {
 #endif
     );
 #elif defined(USE_SPECTRAL_DELTA_TRACKING)
-    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
-    vec3 result = deltaTrackingSpectral(x, w);
+    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
+    vec3 result = deltaTrackingSpectral(x, w, firstEvent);
 #elif defined(USE_RATIO_TRACKING)
     ScatterEvent firstEvent;
     vec3 result = ratioTracking(x, w, firstEvent);
@@ -94,11 +94,36 @@ void main() {
     }
 #endif
 
+    // Accumulate cloudOnly
+    vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
+    vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+    cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
+    imageStore(cloudOnlyImage, imageCoord, cloudOnly);
+
     // Accumulate result
     vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
     result = mix(resultOld, result, 1.0 / float(frame + 1));
     imageStore(accImage, imageCoord, vec4(result, 1));
     imageStore(resultImage, imageCoord, vec4(result,1));
+
+    vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(positionImage, imageCoord);
+    vec4 position = firstEvent.hasValue ? vec4(firstEvent.x, 1) : vec4(0);
+    position = mix(positionOld, position, 1.0 / float(frame + 1));
+    imageStore(positionImage, imageCoord, position);
+
+    vec4 depthOld = frame == 0 ? vec4(0) : imageLoad(depthDensityImage, imageCoord);
+    vec4 depth = firstEvent.hasValue ? vec4(firstEvent.depth, firstEvent.depth * firstEvent.depth, firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec4(0);
+    depth = mix(depthOld, depth, 1.0 / float(frame + 1));
+    imageStore(depthDensityImage, imageCoord, depth);
+
+
+    vec2 octoUV = worldToOctohedralUV(w);
+    vec3 octoCol = texture(environmentMapOctohedralTexture, octoUV).rgb;
+    octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
+    //octoCol = octohedralUVToWorld(octoUV);
+    //octoCol.r = octoUV.x > .5?1.:0.;
+    //octoCol.g = octoUV.y > .5?1.:0.;
+    imageStore(depthDensityImage, imageCoord, vec4(octoCol,1.));
 
     //vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
     //result += resultOld;

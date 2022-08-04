@@ -30,10 +30,12 @@
  * P. Kutz, R. Habel, Y. K. Li, and J. Novák. Spectral and decomposition tracking for rendering heterogeneous volumes.
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
-vec3 deltaTrackingSpectral(vec3 x, vec3 w) {
+vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
 #endif
+
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     float majorant = maxComponent(parameters.extinction);
 
@@ -88,12 +90,33 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w) {
             float xi = random();
 
             if (xi < Pa) {
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = 0; // TODO
+                    firstEvent.w = vec3(0.);
+                    firstEvent.pdf_w = 0;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
+                }
+
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
 
             if (xi < 1 - Pn) { // scattering event
                 float pdf_w;
                 w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = 0; // TODO
+                    firstEvent.w = w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
+                }
+
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
                     d = tMax - tMin;
@@ -128,7 +151,7 @@ vec3 deltaTracking(
     float depth = 0.0;
 #endif
 
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
 #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
@@ -205,6 +228,15 @@ vec3 deltaTracking(
             float xi = random();
 
             if (xi < Pa) {
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = 0;
+                    firstEvent.w = vec3(0.);
+                    firstEvent.pdf_w = 0;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * parameters.extinction.x;
+                    firstEvent.depth = tMax - d + t;
+                }
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
 
@@ -221,6 +253,8 @@ vec3 deltaTracking(
                     firstEvent.w = w;
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
+                    firstEvent.density = density * parameters.extinction.x;
+                    firstEvent.depth = tMax - d + t;
                 }
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {

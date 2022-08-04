@@ -43,6 +43,7 @@ typedef std::shared_ptr<CloudData> CloudDataPtr;
 class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
+class OctohedralMappingPass;
 
 namespace IGFD {
 class FileDialog;
@@ -50,10 +51,10 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
+    RESULT, FIRST_X, FIRST_W, PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS, CLOUD_ONLY, DEPTH_DENSITY, POSITION
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
+        "Result", "First X", "First W", "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments", "Cloud Only", "Depth and Density", "Position"
 };
 
 enum class VptMode {
@@ -100,6 +101,15 @@ public:
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
 
+    void loadEnvironmentMapImage(const std::string& filename);
+    void setUseEnvironmentMapFlag(bool useEnvironmentMap);
+    void setEnvironmentMapIntensityFactor(float intensityFactor);
+
+    void setScatteringAlbedo(glm::vec3 albedo);
+    void setExtinctionScale(double extinctionScale);
+    void setExtinctionBase(glm::vec3 extinctionBase);
+    void setFeatureMapType(FeatureMapTypeVpt type);
+
     // Called when the camera has moved.
     void onHasMoved();
     /// Returns if the data needs to be re-rendered, but the visualization mapping is valid.
@@ -107,7 +117,11 @@ public:
     /// Renders the GUI. The "reRender" flag might be set depending on the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
 
+    sgl::vk::TexturePtr getFeatureMapTexture(FeatureMapTypeVpt type);
+
 private:
+    std::shared_ptr<OctohedralMappingPass> equalAreaPass;
+
     void loadShader() override;
     void setComputePipelineInfo(sgl::vk::ComputePipelineInfo& pipelineInfo) override {}
     void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
@@ -147,6 +161,9 @@ private:
     sgl::vk::TexturePtr accImageTexture;
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
+    sgl::vk::TexturePtr cloudOnlyTexture;
+    sgl::vk::TexturePtr depthDensityTexture;
+    sgl::vk::TexturePtr positionTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
@@ -164,13 +181,14 @@ private:
     glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 1.0, 1.0);
 
     // Environment map data.
-    void loadEnvironmentMapImage();
     bool isEnvironmentMapLoaded = false;
     bool useEnvironmentMapImage = false;
     bool envMapImageUsesLinearRgb = false;
     std::string environmentMapFilenameGui;
     std::string loadedEnvironmentMapFilename;
+    void createEnvironmentMapOctohedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
+    sgl::vk::TexturePtr environmentMapOctohedralTexture;
     float environmentMapIntensityFactor = 1.5f;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
@@ -266,6 +284,23 @@ private:
     int numMoments = 8;
     int selectedMomentBlitIdx = 0;
     sgl::vk::TexturePtr momentTexture;
+};
+
+class OctohedralMappingPass : public sgl::vk::ComputePass {
+public:
+    explicit OctohedralMappingPass(sgl::vk::Renderer* renderer);
+    void setInputImage(const sgl::vk::TexturePtr& _inputImage);
+    void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
+
+protected:
+    void loadShader() override;
+    void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
+    void _render() override;
+
+private:
+    const int BLOCK_SIZE = 16;
+    sgl::vk::TexturePtr inputImage;
+    sgl::vk::ImageViewPtr outputImage;
 };
 
 #endif //CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP

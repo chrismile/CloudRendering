@@ -34,6 +34,8 @@ struct ScatterEvent {
     bool hasValue;
     vec3 x; float pdf_x;
     vec3 w; float pdf_w;
+    float depth;
+    float density;
 };
 
 
@@ -129,12 +131,52 @@ vec3 sRGBToLinearRGB(in vec3 linearRGB) {
     return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
 }
 
+vec3 octohedralUVToWorld(vec2 uv) {
+    uv = uv * 2. - 1.;
+    vec2 sgn = sign(uv);
+    uv = abs(uv);
+
+    float r = 1. - abs(1. - uv.x - uv.y);
+    float phi = .25 * PI * ( (uv.y - uv.x) / r + 1. );
+    if (r == 0.){
+        phi = 0.;
+    }
+
+    float x = sgn.x * cos(phi) * r * sqrt(2 - r * r);
+    float y = sgn.y * sin(phi) * r * sqrt(2 - r * r);
+    float z = sign(1. - uv.x - uv.y) * (1. - r * r);
+    return vec3(x, y, z);
+}
+
+vec2 worldToOctohedralUV(vec3 dir) {
+    dir = normalize(dir);
+    vec3 sgn = sign(dir);
+    dir = abs(dir);
+
+    float phi = atan(dir.y , dir.x);
+    float r = sqrt(1. - dir.z);
+
+    float v = r * 2. / PI * phi;
+    float u = r - v;
+
+    vec2 uv = vec2(u,v);
+    if (sgn.z < 0.){
+        uv = vec2(1.-v, 1.-u);
+    }
+    uv *= sgn.xy;// + 1.- abs(sgn.xy);
+
+    return uv * .5 + .5;
+}
 
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 vec3 sampleSkybox(in vec3 dir) {
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
     vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;
+    
+    // Make sure there is no infinity in the skybox
+    textureColor = min(textureColor , vec3(10000, 10000, 10000));
+
 #ifdef ENV_MAP_IMAGE_USES_LINEAR_RGB
 #ifdef USE_LINEAR_RGB
     return parameters.environmentMapIntensityFactor * textureColor;

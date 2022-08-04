@@ -45,12 +45,25 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::initialize", initialize);
     m.def("vpt::cleanup", cleanup);
     m.def("vpt::render_frame", renderFrame);
+    m.def("vpt::load_cloud_file", loadCloudFile);
+    m.def("vpt::load_environment_map", loadEnvironmentMap);
+    m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
+    m.def("vpt::set_scattering_albedo", setScatteringAlbedo);
+    m.def("vpt::set_extinction_base", setExtinctionBase);
+    m.def("vpt::set_extinction_scale", setExtinctionScale);
+    m.def("vpt::set_vpt_mode", setVPTMode);
+    m.def("vpt::set_camera_position", setCameraPosition);
+    m.def("vpt::set_camera_target", setCameraTarget);
+    m.def("vpt::set_camera_FOVy", setCameraFOVy);
+    m.def("vpt::set_feature_map_type", setFeatureMapType);
+    m.def("vpt::set_seed_offset", setSeedOffset);
+    m.def("vpt::get_feature_map", getFeatureMap);
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
 VolumetricPathTracingModuleRenderer* vptRenderer = nullptr;
 
-torch::Tensor renderFrame(torch::Tensor inputTensor) {
+torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount) {
     if (inputTensor.sizes().size() != 3) {
         sgl::Logfile::get()->throwError(
                 "Error in renderFrame: inputTensor.sizes().size() != 3.", false);
@@ -67,13 +80,13 @@ torch::Tensor renderFrame(torch::Tensor inputTensor) {
     }
 
     if (inputTensor.device().type() == torch::DeviceType::CPU) {
-        return renderFrameCpu(inputTensor);
+        return renderFrameCpu(inputTensor, frameCount);
     } else if (inputTensor.device().type() == torch::DeviceType::Vulkan) {
-        return renderFrameVulkan(inputTensor);
+        return renderFrameVulkan(inputTensor, frameCount);
     }
 #ifdef SUPPORT_CUDA_INTEROP
     else if (inputTensor.device().type() == torch::DeviceType::CUDA) {
-        return renderFrameCuda(inputTensor);
+        return renderFrameCuda(inputTensor, frameCount);
     }
 #endif
     else {
@@ -83,7 +96,75 @@ torch::Tensor renderFrame(torch::Tensor inputTensor) {
     return {};
 }
 
-torch::Tensor renderFrameCpu(torch::Tensor inputTensor) {
+torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
+
+    if (inputTensor.sizes().size() != 3) {
+        std::cout << "err" << std::endl;
+
+        sgl::Logfile::get()->throwError(
+                "Error in renderFrame: inputTensor.sizes().size() != 3.", false);
+    }
+    if (inputTensor.size(0) != 3 && inputTensor.size(0) != 4) {
+        std::cout << "err" << std::endl;
+
+        sgl::Logfile::get()->throwError(
+                "Error in renderFrame: The number of image channels is not equal to 3 or 4.",
+                false);
+    }
+    if (inputTensor.dtype() != torch::kFloat32) {
+        std::cout << "err" << std::endl;
+
+        sgl::Logfile::get()->throwError(
+                "Error in renderFrame: The only data type currently supported is 32-bit float.",
+                false);
+    }
+
+    // Expecting tensor of size CxHxW (channels x height x width).
+    const size_t channels = inputTensor.size(0);
+    const size_t height = inputTensor.size(1);
+    const size_t width = inputTensor.size(2);
+
+    if (!inputTensor.is_contiguous()) {
+        inputTensor = inputTensor.contiguous();
+    }
+    //inputTensor.data_ptr();
+
+    if (vptRenderer->settingsDiffer(
+            width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype())) {
+        vptRenderer->setRenderingResolution(
+                width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
+    }
+
+    if (inputTensor.device().type() == torch::DeviceType::CPU) {
+        void* imageDataPtr = vptRenderer->getFeatureMapCpu(FeatureMapTypeVpt(featureMap));
+
+        torch::Tensor outputTensor = torch::from_blob(
+                imageDataPtr, { int(height), int(width), int(channels) },
+                torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
+
+        return outputTensor.permute({2, 0, 1}).detach().clone();//.clone()
+    }
+#ifdef SUPPORT_CUDA_INTEROP
+    else if (inputTensor.device().type() == torch::DeviceType::CUDA) {
+        void* imageDataDevicePtr = vptRenderer->getFeatureMapCuda(FeatureMapTypeVpt(featureMap));
+
+        torch::Tensor outputTensor = torch::from_blob(
+                imageDataDevicePtr, { int(height), int(width), int(channels) },
+                torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
+
+        //return outputTensor.permute({2, 0, 1}).detach().clone();
+        return outputTensor.permute({2, 0, 1}).detach();
+    }
+#endif
+    else {
+        sgl::Logfile::get()->throwError("Unsupported PyTorch device type.", false);
+    }
+
+    return {};    
+}
+
+
+torch::Tensor renderFrameCpu(torch::Tensor inputTensor, int64_t frameCount) {
     std::cout << "Device type CPU." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
@@ -102,7 +183,7 @@ torch::Tensor renderFrameCpu(torch::Tensor inputTensor) {
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
 
-    void* imageDataPtr = vptRenderer->renderFrameCpu(NUM_FRAMES);
+    void* imageDataPtr = vptRenderer->renderFrameCpu(frameCount);
 
     torch::Tensor outputTensor = torch::from_blob(
             imageDataPtr, { int(height), int(width), int(channels) },
@@ -111,7 +192,7 @@ torch::Tensor renderFrameCpu(torch::Tensor inputTensor) {
     return outputTensor.permute({2, 0, 1}).detach().clone();//.clone()
 }
 
-torch::Tensor renderFrameVulkan(torch::Tensor inputTensor) {
+torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount) {
     std::cout << "Device type Vulkan." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
@@ -131,7 +212,7 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor) {
     }
 
     // TODO: Add support for not going the GPU->CPU->GPU route.
-    void* imageDataPtr = vptRenderer->renderFrameCpu(NUM_FRAMES);
+    void* imageDataPtr = vptRenderer->renderFrameCpu(frameCount);
 
     torch::Tensor outputTensor = torch::from_blob(
             imageDataPtr, { int(height), int(width), int(channels) },
@@ -141,7 +222,7 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor) {
 }
 
 #ifdef SUPPORT_CUDA_INTEROP
-torch::Tensor renderFrameCuda(torch::Tensor inputTensor) {
+torch::Tensor renderFrameCuda(torch::Tensor inputTensor, int64_t frameCount) {
     std::cout << "Device type CUDA." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
@@ -154,13 +235,13 @@ torch::Tensor renderFrameCuda(torch::Tensor inputTensor) {
     }
     //inputTensor.data_ptr();
 
-    if (vptRenderer->settingsDiffer(
+    if (true || vptRenderer->settingsDiffer(
             width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype())) {
         vptRenderer->setRenderingResolution(
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
 
-    void* imageDataDevicePtr = vptRenderer->renderFrameCuda(NUM_FRAMES);
+    void* imageDataDevicePtr = vptRenderer->renderFrameCuda(frameCount);
 
     /*auto* hostData = new float[channels * width * height];
     cudaMemcpy(hostData, imageDataDevicePtr, sizeof(float) * channels * width * height, cudaMemcpyKind::cudaMemcpyDeviceToHost);
@@ -239,6 +320,7 @@ void initialize() {
                 0.25f, nanovdb::Vec3<float>(0), 0.01f));
         vptRenderer->setCloudData(cloudData);
         vptRenderer->setVptMode(VptMode::DELTA_TRACKING);
+        vptRenderer->setUseLinearRGB(true);
     }
 
     libraryReferenceCount++;
@@ -253,4 +335,91 @@ void cleanup() {
         delete renderer;
         sgl::AppSettings::get()->release();
     }
+}
+
+void loadCloudFile(const std::string& filename) {
+    //std::cout << "loading cloud from " << filename << std::endl;
+    CloudDataPtr cloudData = std::make_shared<CloudData>();
+    cloudData->loadFromFile(filename);
+    vptRenderer->setCloudData(cloudData);
+}
+
+void loadEnvironmentMap(const std::string& filename) {
+    //std::cout << "loadEnvironmentMap from " << filename << std::endl;
+    vptRenderer->loadEnvironmentMapImage(filename);
+}
+
+void setEnvironmentMapIntensityFactor(double intensityFactor) {
+    //std::cout << "setEnvironmentMapIntensityFactor to " << intensityFactor << std::endl;
+    vptRenderer->setEnvironmentMapIntensityFactor(intensityFactor);
+}
+
+bool parseVector3(std::vector<double> data, glm::vec3& out){
+    if (data.size() != 3){
+        std::cerr << "exptected vector of size 3" << std:: endl;
+        return false;
+    }
+    out.x = data[0];
+    out.y = data[1];
+    out.z = data[2];
+ 
+    return true;
+}
+
+void setScatteringAlbedo(std::vector<double> albedo) {
+    glm::vec3 vec = glm::vec3(0,0,0);
+    if (parseVector3(albedo, vec)) {
+        //std::cout << "setScatteringAlbedo to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
+        vptRenderer->setScatteringAlbedo(vec);
+    }
+}
+
+void setExtinctionScale(double extinctionScale) {
+    //std::cout << "setExtinctionScale to " << extinctionScale << std::endl;
+    vptRenderer->setExtinctionScale(extinctionScale);
+}
+
+void setExtinctionBase(std::vector<double> extinctionBase) {
+    glm::vec3 vec = glm::vec3(0,0,0);
+    if (parseVector3(extinctionBase, vec)) {
+        //std::cout << "setExtinctionBase to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
+        vptRenderer->setExtinctionBase(vec);
+    }
+}
+
+void setVPTMode(int64_t mode){
+    //std::cout << "setVPTMode to " << mode << std::endl;
+    vptRenderer->setVptMode(VptMode(mode));
+}
+
+void setFeatureMapType(int64_t type) {
+    //std::cout << "setFeatureMapType to " << type << std::endl;
+    vptRenderer->setFeatureMapType(FeatureMapTypeVpt(type));
+}
+
+
+void setCameraPosition(std::vector<double> cameraPosition) {
+    glm::vec3 vec = glm::vec3(0,0,0);
+    if (parseVector3(cameraPosition, vec)) {
+        //std::cout << "setCameraPosition to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
+        vptRenderer->setCameraPosition(vec);
+    }
+}
+
+void setCameraTarget(std::vector<double> cameraTarget) {
+    glm::vec3 vec = glm::vec3(0,0,0);
+    if (parseVector3(cameraTarget, vec)) {
+        //std::cout << "setCameraTarget to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
+        vptRenderer->setCameraTarget(vec);
+    }
+}
+
+void setCameraFOVy(double FOVy){
+    //std::cout << "setCameraFOVy to " << FOVy << std::endl;
+    vptRenderer->setCameraFOVy(FOVy * sgl::PI / 180);
+}
+
+void setSeedOffset(int64_t offset){
+    //std::cout << "setSeedOffset to " << offset << std::endl;
+    vptRenderer->setCustomSeedOffset(offset);
 }

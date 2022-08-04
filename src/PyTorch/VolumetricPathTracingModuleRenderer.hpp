@@ -56,6 +56,18 @@ public:
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     void setCloudData(const CloudDataPtr& cloudData);
 
+    void loadEnvironmentMapImage(const std::string& filename);
+    void setEnvironmentMapIntensityFactor(float intensityFactor);
+
+    void setScatteringAlbedo(glm::vec3 albedo);
+    void setExtinctionScale(double extinctionScale);
+    void setExtinctionBase(glm::vec3 extinctionBase);
+    void setFeatureMapType(FeatureMapTypeVpt type);
+
+    void setCameraPosition(glm::vec3 cameraPosition);
+    void setCameraTarget(glm::vec3 cameraTarget);
+    void setCameraFOVy(double FOVy);
+
     /// Called when the resolution of the application window has changed.
     void setRenderingResolution(
             uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype);
@@ -88,16 +100,23 @@ public:
      * @return A CPU floating point array of size width * height * 3 containing the frame data.
      * NOTE: The returned data is managed by this class.
      */
-    float* renderFrameCpu(int numFrames);
+    float* renderFrameCpu(uint32_t numFrames);
 
-    float* renderFrameVulkan(int numFrames);
+    float* renderFrameVulkan(uint32_t numFrames);
+
+    float* getFeatureMapCpu(FeatureMapTypeVpt featureMap);
+    float* getFeatureMapCuda(FeatureMapTypeVpt featureMap);
 
 #ifdef SUPPORT_CUDA_INTEROP
-    float* renderFrameCuda(int numFrames);
+    void createCommandStructures(uint32_t numFrames);
+    float* renderFrameCuda(uint32_t numFrames);
 #endif
 
 private:
     sgl::CameraPtr camera;
+    glm::vec3 cameraPosition = glm::vec3(0,0,0);
+    glm::vec3 cameraTarget = glm::vec3(0,0,0);
+
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;
 
