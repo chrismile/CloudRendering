@@ -52,10 +52,6 @@
 #include <Graphics/Vulkan/Utils/ScreenshotReadbackHelper.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 
-#ifdef SUPPORT_CUDA_INTEROP
-#include <Graphics/Vulkan/Utils/InteropCuda.hpp>
-#endif
-
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_internal.h>
@@ -85,8 +81,38 @@ MainApp::MainApp()
                 camera, clearColor, screenshotTransparentBackground, recording, useCameraFlight) {
     sgl::AppSettings::get()->getVulkanInstance()->setDebugCallback(&vulkanErrorCallback);
 
+#ifdef SUPPORT_CUDA_INTEROP
+    sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+    if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY) {
+        cudaInteropInitialized = true;
+        if (!sgl::vk::initializeCudaDeviceApiFunctionTable()) {
+            cudaInteropInitialized = false;
+            sgl::Logfile::get()->writeError(
+                    "Error in MainApp::MainApp: sgl::vk::initializeCudaDeviceApiFunctionTable() returned false.",
+                    false);
+        }
+
+        if (cudaInteropInitialized) {
+            CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuInit(0);
+            if (cuResult == CUDA_ERROR_NO_DEVICE) {
+                sgl::Logfile::get()->writeInfo("No CUDA-capable device was found. Disabling CUDA interop support.");
+                cudaInteropInitialized = false;
+            } else {
+                sgl::vk::checkCUresult(cuResult, "Error in cuInit: ");
+            }
+        }
+
+        if (cudaInteropInitialized) {
+            CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxCreate(
+                    &cuContext, CU_CTX_SCHED_SPIN, cuDevice);
+            sgl::vk::checkCUresult(cuResult, "Error in cuCtxCreate: ");
+        }
+    }
+#endif
 #ifdef SUPPORT_OPTIX
-    optixInitialized = OptixVptDenoiser::initGlobal();
+    if (cudaInteropInitialized) {
+        optixInitialized = OptixVptDenoiser::initGlobal(cuContext, cuDevice);
+    }
 #endif
 
     checkpointWindow.setStandardWindowSize(1254, 390);
@@ -178,6 +204,11 @@ MainApp::~MainApp() {
 #endif
 #ifdef SUPPORT_CUDA_INTEROP
     if (sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+        if (cuContext) {
+            CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxDestroy(cuContext);
+            sgl::vk::checkCUresult(cuResult, "Error in cuCtxDestroy: ");
+            cuContext = {};
+        }
         sgl::vk::freeCudaDeviceApiFunctionTable();
     }
 #endif
