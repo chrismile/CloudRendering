@@ -386,7 +386,7 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
     // Resolution of 2^mip_level
     imageSettings.width = 1 << mip_levels;
     imageSettings.height = 1 << mip_levels;
-    //imageSettings.mipLevels = mip_levels;
+    imageSettings.mipLevels = mip_levels;
 
     sgl::vk::ImageSamplerSettings samplerSettings;
 
@@ -395,18 +395,30 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
     equalAreaPass->setInputImage(environmentMapTexture);
     equalAreaPass->setOutputImage(environmentMapOctohedralTexture->getImageView());
 
-    VkCommandBuffer commandBuffer = device->beginSingleTimeCommands(0xFFFFFFFF, false);
-    renderer->setCustomCommandBuffer(commandBuffer);
-    renderer->beginCommandBuffer();
+    VkCommandBuffer commandBuffer = renderer->getVkCommandBuffer();
+    bool transientCommandBuffer = commandBuffer == VK_NULL_HANDLE;
 
+    if (transientCommandBuffer) {
+        std::cout << "Using singletime command buffer" << std::endl;
+
+        commandBuffer = device->beginSingleTimeCommands(0xFFFFFFFF, false);
+        renderer->setCustomCommandBuffer(commandBuffer);
+        renderer->beginCommandBuffer();
+    }
+
+    renderer->transitionImageLayout(environmentMapTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
-
     equalAreaPass->render();
     renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    renderer->endCommandBuffer();
-    renderer->resetCustomCommandBuffer();
-    device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
+    if (transientCommandBuffer) {
+        renderer->endCommandBuffer();
+        renderer->resetCustomCommandBuffer();
+        device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
+
+        // TODO: Fix so that this also works with normal commandbuffer
+        environmentMapOctohedralTexture->getImage()->generateMipmaps();
+    }
 
 }
 

@@ -105,7 +105,13 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             if (xi < 1 - Pn) { // scattering event
                 float pdf_w;
-                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                //w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                float pdf_skybox;
+                vec3 prev_w = w;
+                w = importanceSampleSkybox(8, 0, pdf_skybox);
+                pdf_w = evaluatePhase(parameters.phaseG, prev_w, w);
+                weights *= pdf_w / pdf_skybox;
 
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;

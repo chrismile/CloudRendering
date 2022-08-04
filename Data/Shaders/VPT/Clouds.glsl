@@ -118,7 +118,7 @@ void main() {
 
 
     vec2 octoUV = worldToOctohedralUV(w);
-    vec3 octoCol = texture(environmentMapOctohedralTexture, octoUV).rgb;
+    vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rgb;
     octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
     //octoCol = octohedralUVToWorld(octoUV);
     //octoCol.r = octoUV.x > .5?1.:0.;

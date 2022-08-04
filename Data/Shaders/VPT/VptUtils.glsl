@@ -112,23 +112,10 @@ vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
     return sinTheta * sin(phi) * t0 + sinTheta * cos(phi) * t1 + cosTheta * D;
 }
 
-
-//--- Tools
-
-/**
- * Converts linear RGB to sRGB.
- * For more details see: https://en.wikipedia.org/wiki/SRGB
- */
-vec3 linearRGBTosRGB(in vec3 sRGB) {
-    return mix(1.055 * pow(sRGB, vec3(1.0 / 2.4)) - 0.055, sRGB * 12.92, lessThanEqual(sRGB, vec3(0.0031308)));
-}
-
-/**
- * Converts sRGB to linear RGB.
- * For more details see: https://en.wikipedia.org/wiki/SRGB
- */
-vec3 sRGBToLinearRGB(in vec3 linearRGB) {
-    return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
+float evaluatePhase(float GFactor, vec3 org_dir, vec3 scatter_dir) {
+    float cosTheta = dot(org_dir, scatter_dir);
+    float pdf = 0.25 / PI * (oneMinusG2) / pow(onePlusG2 - 2 * GFactor * cosTheta, 1.5);
+    return pdf;
 }
 
 vec3 octohedralUVToWorld(vec2 uv) {
@@ -166,6 +153,69 @@ vec2 worldToOctohedralUV(vec3 dir) {
     uv *= sgn.xy;// + 1.- abs(sgn.xy);
 
     return uv * .5 + .5;
+}
+
+vec3 importanceSampleSkybox(int maxMip, int minMip, out float pdf) {
+    vec2 rnd = vec2(random(), random());
+    ivec2 pos = ivec2(0,0);
+
+    pdf = 1.;
+
+    for (int mip = maxMip - 1; mip >= minMip; mip--) {
+        pos *= 2;
+        pdf *= 2;
+        float ul = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,0), mip).r + .001;
+        float ur = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,1), mip).r + .001;
+        float dl = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float dr = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,1), mip).r + .001;
+
+        float l = ul + dl;
+        float r = ur + dr;
+        float total = l + r;
+
+        float hSplit = l / total;
+        float vSplit;
+        if (rnd.x < hSplit) {
+            rnd.x = rnd.x / hSplit;
+            vSplit = ul / l;
+            pdf *= hSplit;
+        } else{
+            pos.x += 1;
+            rnd.x = (rnd.x - hSplit) / (1. - hSplit);
+            vSplit = ur / r;
+            pdf *= (1. - hSplit);
+        }
+
+        if (rnd.y < vSplit) {
+            rnd.y = rnd.y / vSplit;
+            pdf *= vSplit;
+        } else {
+            pos.y += 1;
+            rnd.y = (rnd.y - vSplit) / (1-vSplit);
+            pdf *= (1. - vSplit);
+        }
+
+    }
+
+    return octohedralUVToWorld((vec2(pos) + rnd) / vec2(1 << maxMip));
+}
+
+//--- Tools
+
+/**
+ * Converts linear RGB to sRGB.
+ * For more details see: https://en.wikipedia.org/wiki/SRGB
+ */
+vec3 linearRGBTosRGB(in vec3 sRGB) {
+    return mix(1.055 * pow(sRGB, vec3(1.0 / 2.4)) - 0.055, sRGB * 12.92, lessThanEqual(sRGB, vec3(0.0031308)));
+}
+
+/**
+ * Converts sRGB to linear RGB.
+ * For more details see: https://en.wikipedia.org/wiki/SRGB
+ */
+vec3 sRGBToLinearRGB(in vec3 linearRGB) {
+    return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
 }
 
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
