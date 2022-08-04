@@ -172,6 +172,11 @@ MainApp::~MainApp() {
         OptixVptDenoiser::freeGlobal();
     }
 #endif
+#ifdef SUPPORT_CUDA_INTEROP
+    if (sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+        sgl::vk::freeCudaDeviceApiFunctionTable();
+    }
+#endif
 
     IGFD_Destroy(fileDialogInstance);
 
