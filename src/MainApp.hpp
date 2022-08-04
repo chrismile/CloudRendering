@@ -37,6 +37,10 @@
 #include <Graphics/Shader/Shader.hpp>
 #include <ImGui/Widgets/TransferFunctionWindow.hpp>
 
+#ifdef SUPPORT_CUDA_INTEROP
+#include <Graphics/Vulkan/Utils/InteropCuda.hpp>
+#endif
+
 #include "SceneData.hpp"
 #include "DataSetList.hpp"
 #include "CloudData.hpp"
@@ -109,6 +113,11 @@ private:
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;
 
+#ifdef SUPPORT_CUDA_INTEROP
+    CUcontext cuContext = {};
+    CUdevice cuDevice = 0;
+#endif
+    bool cudaInteropInitialized = false;
     bool optixInitialized = false;
 
 

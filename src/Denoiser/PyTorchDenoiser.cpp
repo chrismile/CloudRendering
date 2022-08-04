@@ -85,10 +85,10 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
     // Support CUDA on NVIDIA GPUs using the proprietary driver.
     if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY && torch::cuda::is_available()) {
         pyTorchDevice = PyTorchDevice::CUDA;
-        if (!sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() && !sgl::vk::initializeCudaDeviceApiFunctionTable()) {
+        if (!sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
             sgl::Logfile::get()->throwError(
                     "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: "
-                    "sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() returned false.", false);
+                    "sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() returned false.");
         }
     }
 #endif
