@@ -8,7 +8,7 @@ layout(local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
 
 layout(binding = 0) uniform sampler2D environmentMapTexture;
 
-layout(binding = 1, rgba32f) uniform writeonly image2D outputImage;
+layout(binding = 1, r32f) uniform writeonly image2D outputImage;
 
 const float PI = 3.14159265359;
 
@@ -47,6 +47,7 @@ void main() {
     if (writePos.x < outputImageSize.x && writePos.y < outputImageSize.y) {
         vec3 dir = octohedralUVToWorld(uv);
         vec3 skybox = sampleSkybox(dir);
-        imageStore(outputImage, writePos, vec4(skybox, 1));
+        skybox = min(skybox, vec3(1000000,1000000,100000));
+        imageStore(outputImage, writePos, vec4(length(skybox),0,0,0));
     }
 }

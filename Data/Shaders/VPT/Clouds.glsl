@@ -39,6 +39,7 @@
 #include "RatioTracking.glsl"
 #include "ResidualRatioTracking.glsl"
 #include "DecompositionTracking.glsl"
+#include "NextEventTracking.glsl"
 
 void main() {
     uint frame = frameInfo.frameCount;
@@ -83,6 +84,9 @@ void main() {
 #elif defined(USE_DECOMPOSITION_TRACKING)
     ScatterEvent firstEvent;
     vec3 result = analogDecompositionTracking(x, w, firstEvent);
+#elif defined(USE_NEXT_EVENT_TRACKING)
+    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
+    vec3 result = nextEventTracking(x, w, firstEvent);
 #endif
 
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
@@ -99,6 +103,80 @@ void main() {
     vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
     cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
     imageStore(cloudOnlyImage, imageCoord, cloudOnly);
+
+    /*for (int i = 0; i < 10; i++) {
+        float pdf_skybox;
+
+        vec3 dir = importanceSampleSkybox(10, 0, pdf_skybox);
+        if (length(dir- w) < .01) {
+            result = vec3(100000,0,100000);
+        }
+    }*/
+
+    /*if (firstEvent.hasValue){
+        float pdf_skybox;
+        w = importanceSampleSkybox(10, 0, pdf_skybox);
+        result = sampleSkybox(w);
+    }*/
+
+    //result.x = evaluateSkyboxPDF(10,0,w);
+    //result.yz = vec2(0);
+
+    /*float l = length(imageCoord - ivec2(70,70));
+    if (l >= 20 && l < 40){
+        vec3 expected = vec3(0.);
+        for (int i = 0; i < 1000; i++){
+            float pdf_w;
+            vec3 sim_w = w;
+            for (int j = 0; j < 3; j++){
+                vec3 phase_sample = importanceSamplePhase(parameters.phaseG, sim_w, pdf_w);
+                sim_w = phase_sample;
+            }
+            expected += sampleSkybox(sim_w);
+        }
+        result = expected / 1000;
+    }
+    if (l < 20){
+        vec3 expected = vec3(0.);
+        for (int i = 0; i < 1000; i++){
+            float pdf_w;
+            vec3 sim_w = w;
+            float weight = 1.;
+            for (int j = 0; j < 3; j++){
+                vec3 uni_sample = importanceSamplePhase(0, sim_w, pdf_w);
+                float pdf_eval = evaluatePhase(parameters.phaseG, sim_w, uni_sample);
+                //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
+                sim_w = uni_sample;
+                weight *= pdf_eval / pdf_w;
+            }
+            expected += sampleSkybox(sim_w) * weight;
+        }
+        result = expected / 1000;
+    }
+
+    if (l >= 40 && l < 60){
+        vec3 expected = vec3(0.);
+        for (int i = 0; i < 1000; i++){
+            float pdf_w;
+            vec3 sim_w = w;
+            float weight = 1.;
+            for (int j = 0; j < 3; j++){
+                vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_w);
+                float pdf_eval = evaluatePhase(parameters.phaseG, sim_w, sky_sample);
+                //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
+                sim_w = sky_sample;
+                weight *= pdf_eval / pdf_w;
+            }
+            expected += sampleSkybox(sim_w) * weight;
+        }
+        result = expected / 1000;
+    }*/
+    //result -= parameters.sunIntensity * 1000;
+
+    //if (isinf(result.x)) {
+    //    result = vec3(result.x, 0, result.x);
+    //}
+
 
     // Accumulate result
     vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
@@ -118,9 +196,15 @@ void main() {
 
 
     vec2 octoUV = worldToOctohedralUV(w);
-    vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rgb;
+    vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rrr;
     octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
     //octoCol = octohedralUVToWorld(octoUV);
+    //octoCol -= parameters.sunIntensity * 1000;
+
+    //if (isinf(octoCol.r)){
+    //    octoCol = vec3(100000,0,100000);
+    //}
+
     //octoCol.r = octoUV.x > .5?1.:0.;
     //octoCol.g = octoUV.y > .5?1.:0.;
     imageStore(depthDensityImage, imageCoord, vec4(octoCol,1.));

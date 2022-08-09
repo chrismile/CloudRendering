@@ -57,11 +57,15 @@ layout(binding = 4, rgba32f) uniform readonly image2D positionMap;
 layout(binding = 5, rg32f) uniform readonly image2D flowMap;
 #endif
 
-layout(scalar, binding = 6) writeonly buffer OutputBuffer {
+#ifdef USE_CLOUDONLY
+layout(binding = 6, rgba32f) uniform readonly image2D cloudonlyMap;
+#endif
+
+layout(scalar, binding = 7) writeonly buffer OutputBuffer {
     float outputBuffer[];
 };
 
-layout(binding = 7) uniform UniformBuffer {
+layout(binding = 8) uniform UniformBuffer {
     uint numChannelsOut;
     uint colorWriteStartOffset;
     uint albedoWriteStartOffset;
@@ -69,7 +73,7 @@ layout(binding = 7) uniform UniformBuffer {
     uint depthWriteStartOffset;
     uint positionWriteStartOffset;
     uint flowWriteStartOffset;
-    uint padding;
+    uint cloudOnlyWriteStartOffset;
 };
 
 // Flattens the vec4 image to a vec3 buffer without padding for use, e.g., with OptiX.
@@ -86,6 +90,8 @@ void main() {
     ivec2 inputImageSize = imageSize(positionMap);
 #elif defined(USE_FLOW)
     ivec2 inputImageSize = imageSize(flowMap);
+#elif defined(USE_CLOUDONLY)
+    ivec2 inputImageSize = imageSize(cloudonlyMap);
 #endif
 
     uint channelsCounter = 0;
@@ -121,7 +127,7 @@ void main() {
     outputBuffer[writePosNormal + 2] = normalInput.z;
 #endif
 
-#ifdef USE_NORMAL
+#ifdef USE_DEPTH
     float depthInput = imageLoad(depthMap, readPos).x;
     uint writePosDepth = writePos + depthWriteStartOffset;
     outputBuffer[writePosDepth] = depthInput;
@@ -140,5 +146,14 @@ void main() {
     uint writePosFlow = writePos + flowWriteStartOffset;
     outputBuffer[writePosFlow] = flowInput.x;
     outputBuffer[writePosFlow + 1] = flowInput.y;
+#endif
+
+#ifdef USE_CLOUDONLY
+    vec4 cloudOnlyInput = imageLoad(cloudonlyMap, readPos);
+    uint writePosCloudOnly = writePos + cloudOnlyWriteStartOffset;
+    outputBuffer[writePosCloudOnly + 0] = cloudOnlyInput.x;
+    outputBuffer[writePosCloudOnly + 1] = cloudOnlyInput.y;
+    outputBuffer[writePosCloudOnly + 2] = cloudOnlyInput.z;
+    outputBuffer[writePosCloudOnly + 3] = cloudOnlyInput.w;
 #endif
 }

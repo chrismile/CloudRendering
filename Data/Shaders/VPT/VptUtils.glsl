@@ -113,7 +113,7 @@ vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
 }
 
 float evaluatePhase(float GFactor, vec3 org_dir, vec3 scatter_dir) {
-    float cosTheta = dot(org_dir, scatter_dir);
+    float cosTheta = dot(normalize(org_dir), normalize(scatter_dir));
     float pdf = 0.25 / PI * (oneMinusG2) / pow(onePlusG2 - 2 * GFactor * cosTheta, 1.5);
     return pdf;
 }
@@ -159,14 +159,14 @@ vec3 importanceSampleSkybox(int maxMip, int minMip, out float pdf) {
     vec2 rnd = vec2(random(), random());
     ivec2 pos = ivec2(0,0);
 
-    pdf = 1.;
+    pdf = 0.25 / PI;
 
     for (int mip = maxMip - 1; mip >= minMip; mip--) {
         pos *= 2;
-        pdf *= 2;
+        pdf *= 4;
         float ul = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,0), mip).r + .001;
-        float ur = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,1), mip).r + .001;
-        float dl = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float ur = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float dl = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,1), mip).r + .001;
         float dr = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,1), mip).r + .001;
 
         float l = ul + dl;
@@ -196,8 +196,54 @@ vec3 importanceSampleSkybox(int maxMip, int minMip, out float pdf) {
         }
 
     }
+    vec2 uv = (vec2(pos) + rnd) / vec2(1 << (maxMip - minMip));
+    //uv = vec2(random(), random());
+    //pdf = .25 / PI;
+    return octohedralUVToWorld(uv);
+}
 
-    return octohedralUVToWorld((vec2(pos) + rnd) / vec2(1 << maxMip));
+float evaluateSkyboxPDF(int maxMip, int minMip, vec3 sampledDir) {
+    vec2 uv = worldToOctohedralUV(sampledDir);
+    ivec2 pos = ivec2(0,0);
+
+    float pdf = 0.25 / PI;
+
+    for (int mip = maxMip - 1; mip >= minMip; mip--) {
+        pos *= 2;
+        pdf *= 4;
+        float ul = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,0), mip).r + .001;
+        float ur = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float dl = texelFetch(environmentMapOctohedralTexture, pos + ivec2(0,1), mip).r + .001;
+        float dr = texelFetch(environmentMapOctohedralTexture, pos + ivec2(1,1), mip).r + .001;
+
+        float l = ul + dl;
+        float r = ur + dr;
+        float total = l + r;
+
+        float hSplit = l / total;
+        float vSplit;
+        if (uv.x < .5) {
+            vSplit = ul / l;
+            pdf *= hSplit;
+            uv.x *= 2;
+        } else{
+            pos.x += 1;
+            vSplit = ur / r;
+            pdf *= (1. - hSplit);
+            uv.x = uv.x * 2. - 1.;
+        }
+
+        if (uv.y < .5) {
+            pdf *= vSplit;
+            uv.y = uv.y * 2.;
+        } else {
+            pos.y += 1;
+            pdf *= (1. - vSplit);
+            uv.y = uv.y * 2. - 1.;
+        }
+
+    }
+    return pdf;
 }
 
 //--- Tools
@@ -225,7 +271,7 @@ vec3 sampleSkybox(in vec3 dir) {
     vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;
     
     // Make sure there is no infinity in the skybox
-    textureColor = min(textureColor , vec3(10000, 10000, 10000));
+    textureColor = min(textureColor , vec3(100000, 100000, 100000));
 
 #ifdef ENV_MAP_IMAGE_USES_LINEAR_RGB
 #ifdef USE_LINEAR_RGB

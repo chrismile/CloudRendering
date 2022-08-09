@@ -23,14 +23,71 @@
  */
 
 // Pathtracing with Delta tracking and Spectral tracking.
+#ifdef USE_NEXT_EVENT_TRACKING
+float calculateTransmittance(vec3 x, vec3 w) {
+    float majorant = parameters.extinction.x;
+    float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
+    float scatteringAlbedo = parameters.scatteringAlbedo.x;
+    float PA = absorptionAlbedo * parameters.extinction.x;
+    float PS = scatteringAlbedo * parameters.extinction.x;
 
-#ifdef USE_SPECTRAL_DELTA_TRACKING
+    float transmittance = 1.0;
+    float rr_prob = 1.;
+
+    float tMin, tMax;
+    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+        x += w * tMin;
+        float d = tMax - tMin;
+        float pdf_x = 1;
+
+        while (true) {
+            float t = -log(max(0.0000000001, 1 - random()))/majorant;
+
+            if (t > d) {
+                break;
+            }
+
+            if (random() > min(1., transmittance * 3.)) {
+                return 0;
+            }else {
+                rr_prob *= min(1., transmittance * 3.);
+            }
+
+            x += w * t;
+
+            #ifdef USE_NANOVDB
+            float density = sampleCloud(accessor, x);
+            #else
+            float density = sampleCloud(x);
+            #endif
+
+            float sigma_a = PA * density;
+            float sigma_s = PS * density;
+            float sigma_n = majorant - parameters.extinction.x * density;
+
+            float Pa = sigma_a / majorant;
+            float Ps = sigma_s / majorant;
+            float Pn = sigma_n / majorant;
+
+            if (random() > Pn) {
+                return 0;
+            }
+            //transmittance *= 1.0 - Pa - Ps;
+
+            d -= t;
+        }
+    }
+    return transmittance / rr_prob;
+}
+
+
+
 /**
  * For more details on spectral delta tracking, please refer to:
  * P. Kutz, R. Habel, Y. K. Li, and J. Novák. Spectral and decomposition tracking for rendering heterogeneous volumes.
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
-vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
 #endif
@@ -45,6 +102,8 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
     float PA = maxComponent(absorptionAlbedo * parameters.extinction);
     float PS = maxComponent(scatteringAlbedo * parameters.extinction);
+
+    vec3 color = vec3(0,0,0);
 
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -91,7 +150,7 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             if (xi < Pa) {
                 if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
+                    firstEvent.x =  0 * x;
                     firstEvent.pdf_x = 0; // TODO
                     firstEvent.w = vec3(0.);
                     firstEvent.pdf_w = 0;
@@ -105,12 +164,33 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             if (xi < 1 - Pn) { // scattering event
                 float pdf_w;
+                float pdf_skybox;
+
+                vec3 old_w= w;
+
+                vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_skybox);
+                //sky_sample = importanceSamplePhase(parameters.phaseG, w, pdf_skybox);
+                float pdf_eval = evaluatePhase(parameters.phaseG, w, sky_sample);
+                color += weights * calculateTransmittance(x,sky_sample) * (sampleSkybox(sky_sample) + sampleLight(sky_sample)) * pdf_eval / pdf_skybox;
+
                 w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
+                /*if (random() > 1.1){
+                }else{
+                    // sample uniform
+                    //vec3 sky_sample = importanceSamplePhase(0, w, pdf_w);
+                    vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_w);
+                    float pdf_eval = evaluatePhase(parameters.phaseG, w, sky_sample);
+                    //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
+                    w = sky_sample;
+                    weights *= pdf_eval / pdf_w;
+                }*/
+
                 if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
-                    firstEvent.pdf_x = 0; // TODO
-                    firstEvent.w = w;
+                    firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
+                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
+                    firstEvent.pdf_x = 1.; // TODO
+                    firstEvent.w = importanceSampleSkybox(10, 0, pdf_w);
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
                     firstEvent.density = density * maxComponent(parameters.extinction);
@@ -122,6 +202,7 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     d = tMax - tMin;
                 }
                 weights *= sigma_s / (majorant * Ps);
+
             } else {
                 d -= t;
                 weights *= sigma_n / (majorant * Pn);
@@ -132,30 +213,20 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
         }
     }
 
-    return min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
-}
-#endif
-
-
-#ifdef USE_DELTA_TRACKING
-vec3 deltaTracking(
-        vec3 x, vec3 w, out ScatterEvent firstEvent
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-        , out float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1]
-#endif
-) {
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-    for (int i = 0; i <= NUM_SCATTER_RAY_ABSORPTION_MOMENTS; i++) {
-        scatterRayAbsorptionMoments[i] = 0.0;
+    if (!firstEvent.hasValue){
+        color += sampleSkybox(w) + sampleLight(w);
     }
-    float depth = 0.0;
-#endif
+    //return min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
+    return color * .5 + .5 * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
+}
 
+
+vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
-#ifdef USE_NANOVDB
+    #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
+    #endif
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
@@ -163,42 +234,19 @@ vec3 deltaTracking(
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
 
+    float transmittance = 1.0;
+
+    float bw_phase = 1.;
+    float cum_wp = 1.;
+    vec3 color = vec3(0.);
+
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-        //depth += tMin;
-#endif
         float d = tMax - tMin;
-
         float pdf_x = 1;
-        float transmittance = 1.0;
 
         while (true) {
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-            float absorbance = -log(transmittance);
-            if (absorbance > ABSORBANCE_MAX_VALUE) {
-                absorbance = ABSORBANCE_MAX_VALUE;
-            }
-#ifdef USE_POWER_MOMENTS_SCATTER_RAY
-            for (int i = 0; i <= NUM_SCATTER_RAY_ABSORPTION_MOMENTS; i++) {
-                scatterRayAbsorptionMoments[i] += absorbance * pow(depth, i);
-            }
-#else
-            float phase = fma(depth, wrapping_zone_parameters.y, wrapping_zone_parameters.y);
-            vec2 circlePoint = vec2(cos(phase), sin(phase));
-            scatterRayAbsorptionMoments[0] = absorbance;
-            scatterRayAbsorptionMoments[1] = absorbance * circlePoint.x;
-            scatterRayAbsorptionMoments[2] = absorbance * circlePoint.y;
-            vec2 circlePointNext = circlePoint;
-            for (int i = 2; i <= NUM_SCATTER_RAY_ABSORPTION_MOMENTS / 2; i++) {
-                circlePointNext = Multiply(circlePointNext, circlePoint);
-                scatterRayAbsorptionMoments[i * 2] = absorbance * circlePointNext.x;
-                scatterRayAbsorptionMoments[i * 2 + 1] = absorbance * circlePointNext.y;
-            }
-#endif
-            transmittance = 1.0;
-#endif
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
 
             if (t > d) {
@@ -206,16 +254,12 @@ vec3 deltaTracking(
             }
 
             x += w * t;
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-            depth += t;
-#endif
 
-#ifdef USE_NANOVDB
+            #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
-#else
+            #else
             float density = sampleCloud(x);
-#endif
-            transmittance *= 1.0 - density;
+            #endif
 
             float sigma_a = PA * density;
             float sigma_s = PS * density;
@@ -227,41 +271,46 @@ vec3 deltaTracking(
 
             float xi = random();
 
+            //transmittance *= 1.0 - Pa;
             if (xi < Pa) {
-                if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
-                    firstEvent.pdf_x = 0;
-                    firstEvent.w = vec3(0.);
-                    firstEvent.pdf_w = 0;
-                    firstEvent.hasValue = true;
-                    firstEvent.density = density * parameters.extinction.x;
-                    firstEvent.depth = tMax - d + t;
-                }
-                return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+                return color;
+                //return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
 
-            if (xi < 1 - Pn) // scattering event
+            if (xi < 1 - Pn)// scattering event
             {
-                float pdf_w;
-                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                float pdf_w, pdf_nee;
+                vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                vec3 nee_w = importanceSampleSkybox(10, 0, pdf_nee);
 
+                //next_w = importanceSamplePhase(0.5, w, pdf_w);
+                //next_w = importanceSampleSkybox(10, 0, pdf_w);
+                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
+                float pdf_phase_nee = evaluateSkyboxPDF(10, 0, next_w);
+                w = next_w;
+                //transmittance *= pdf_eval / pdf_w;
+
+                bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
+                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_phase_nee * pdf_nee_phase);
+
+                color += bw_nee * transmittance * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+                //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
+                cum_wp *= bw_phase;
+                //return color;
                 pdf_x *= exp(-majorant * t) * majorant * density;
 
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;
+                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
+                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
                     firstEvent.pdf_x = sigma_s * pdf_x;
                     firstEvent.w = w;
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
-                    firstEvent.density = density * parameters.extinction.x;
-                    firstEvent.depth = tMax - d + t;
                 }
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-                    depth += tMin;
-#endif
                     d = tMax - tMin;
                 }
             } else {
@@ -270,7 +319,10 @@ vec3 deltaTracking(
             }
         }
     }
-
-    return sampleSkybox(w) + sampleLight(w);
+    if (!firstEvent.hasValue){
+        //color += sampleSkybox(w) + sampleLight(w);
+    }
+    return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    return transmittance * (sampleSkybox(w) + sampleLight(w));
 }
 #endif

@@ -700,6 +700,7 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
     uniformData.depthWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::DEPTH);
     uniformData.positionWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::POSITION);
     uniformData.flowWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::FLOW);
+    uniformData.cloudOnlyWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::CLOUDONLY);
     uniformBuffer->updateData(
             sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
     renderer->insertMemoryBarrier(

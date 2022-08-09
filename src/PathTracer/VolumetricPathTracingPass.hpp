@@ -58,11 +58,11 @@ const char* const VPT_FEATURE_MAP_NAMES[] = {
 };
 
 enum class VptMode {
-    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING
+    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING, NEXT_EVENT_TRACKING
 };
 const char* const VPT_MODE_NAMES[] = {
         "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
-        "Decomposition Tracking", "Residual Ratio Tracking"
+        "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking"
 };
 
 enum class GridInterpolationType {
@@ -178,7 +178,7 @@ private:
     glm::vec3 sunlightDirection = glm::normalize(glm::vec3(0.5826f, 0.7660f, 0.2717f));
     float cloudExtinctionScale = 1024.0f;
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
-    glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 1.0, 1.0);
+    glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 0.9, 0.9);
 
     // Environment map data.
     bool isEnvironmentMapLoaded = false;

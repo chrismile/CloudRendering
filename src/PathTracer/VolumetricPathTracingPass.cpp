@@ -160,6 +160,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::NORMAL)) {
             denoiser->setFeatureMap(FeatureMapType::NORMAL, firstWTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::CLOUDONLY)) {
+            denoiser->setFeatureMap(FeatureMapType::CLOUDONLY, cloudOnlyTexture);
+        }
         denoiser->setOutputImage(denoisedImageView);
 
         featureMapUsedArray.resize(IM_ARRAYSIZE(FEATURE_MAP_NAMES));
@@ -387,6 +390,7 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
     imageSettings.width = 1 << mip_levels;
     imageSettings.height = 1 << mip_levels;
     imageSettings.mipLevels = mip_levels;
+    imageSettings.format = VK_FORMAT_R32_SFLOAT;
 
     sgl::vk::ImageSamplerSettings samplerSettings;
 
@@ -507,7 +511,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     }
 #endif
 
-    createEnvironmentMapOctohedralTexture(8);
+    createEnvironmentMapOctohedralTexture(10);
 }
 
 void VolumetricPathTracingPass::loadShader() {
@@ -533,6 +537,8 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_RESIDUAL_RATIO_TRACKING", "" });
     } else if (vptMode == VptMode::DECOMPOSITION_TRACKING) {
         customPreprocessorDefines.insert({ "USE_DECOMPOSITION_TRACKING", "" });
+    }else if (vptMode == VptMode::NEXT_EVENT_TRACKING) {
+        customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING", "" });
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });
@@ -885,7 +891,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         }
         if (propertyEditor.addCombo(
                 "VPT Mode", (int*)&vptMode, VPT_MODE_NAMES,
-                IM_ARRAYSIZE(VPT_MODE_NAMES) - 1)) {
+                IM_ARRAYSIZE(VPT_MODE_NAMES))) {
             optionChanged = true;
             updateVptMode();
             setShaderDirty();
