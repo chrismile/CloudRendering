@@ -373,6 +373,10 @@ void VolumetricPathTracingPass::setExtinctionBase(glm::vec3 extinctionBase){
     this->cloudExtinctionBase = extinctionBase;
 }
 
+void VolumetricPathTracingPass::setPhaseG(double phaseG){
+    this->uniformData.G = phaseG;
+}
+
 void VolumetricPathTracingPass::setFeatureMapType(FeatureMapTypeVpt type) {
     this->featureMapType = type;
 }

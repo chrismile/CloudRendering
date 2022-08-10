@@ -58,6 +58,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_feature_map_type", setFeatureMapType);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::get_feature_map", getFeatureMap);
+    m.def("vpt::set_phase_g", setPhaseG);
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -388,7 +389,7 @@ void setExtinctionBase(std::vector<double> extinctionBase) {
 }
 
 void setVPTMode(int64_t mode){
-    //std::cout << "setVPTMode to " << mode << std::endl;
+    std::cout << "setVPTMode to " << VPT_MODE_NAMES[mode] << std::endl;
     vptRenderer->setVptMode(VptMode(mode));
 }
 
@@ -422,4 +423,8 @@ void setCameraFOVy(double FOVy){
 void setSeedOffset(int64_t offset){
     //std::cout << "setSeedOffset to " << offset << std::endl;
     vptRenderer->setCustomSeedOffset(offset);
+}
+
+void setPhaseG(double phaseG){
+    vptRenderer->setPhaseG(phaseG);
 }

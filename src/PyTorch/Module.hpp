@@ -42,6 +42,7 @@ MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 MODULE_OP_API void setScatteringAlbedo(std::vector<double> albedo);
 MODULE_OP_API void setExtinctionScale(double extinctionScale);
 MODULE_OP_API void setExtinctionBase(std::vector<double> extinctionBase);
+MODULE_OP_API void setPhaseG(double phaseG);
 
 MODULE_OP_API void setCameraPosition(std::vector<double> cameraPosition);
 MODULE_OP_API void setCameraTarget(std::vector<double> cameraTarget);

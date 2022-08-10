@@ -62,6 +62,7 @@ public:
     void setScatteringAlbedo(glm::vec3 albedo);
     void setExtinctionScale(double extinctionScale);
     void setExtinctionBase(glm::vec3 extinctionBase);
+    void setPhaseG(double phaseG);
     void setFeatureMapType(FeatureMapTypeVpt type);
 
     void setCameraPosition(glm::vec3 cameraPosition);

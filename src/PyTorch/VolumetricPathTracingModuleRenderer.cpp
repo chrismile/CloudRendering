@@ -100,6 +100,10 @@ void VolumetricPathTracingModuleRenderer::setExtinctionScale(double extinctionSc
     vptPass->setExtinctionScale(extinctionScale);
 }
 
+void VolumetricPathTracingModuleRenderer::setPhaseG(double phaseG){
+    vptPass->setPhaseG(phaseG);
+}
+
 void VolumetricPathTracingModuleRenderer::setExtinctionBase(glm::vec3 extinctionBase){
     vptPass->setExtinctionBase(extinctionBase);
 }
@@ -274,6 +278,7 @@ void VolumetricPathTracingModuleRenderer::setGridInterpolationType(GridInterpola
 void VolumetricPathTracingModuleRenderer::setCustomSeedOffset(uint32_t offset) {
     vptPass->setCustomSeedOffset(offset);
 }
+
 
 void VolumetricPathTracingModuleRenderer::setUseLinearRGB(bool useLinearRGB) {
     vptPass->setUseLinearRGB(useLinearRGB);
