@@ -422,6 +422,8 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
 
         // TODO: Fix so that this also works with normal commandbuffer
         environmentMapOctohedralTexture->getImage()->generateMipmaps();
+    }else {
+        environmentMapOctohedralTexture->getImage()->generateMipmaps(renderer->getVkCommandBuffer());
     }
 
 }
