@@ -69,13 +69,14 @@ vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             float xi = random();
 
-            transmittance *= 1.0 - Pa;
+            //transmittance *= 1.0 - Pa;
             //if (xi < Pa) {
             //    return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             //}
 
             if (xi < 1 - Pn) // scattering event
             {
+                transmittance *= 1. - Pa / (Pa + Ps);
                 float pdf_w;
                 w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
