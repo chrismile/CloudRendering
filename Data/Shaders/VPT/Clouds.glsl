@@ -193,13 +193,13 @@ void main() {
     depthOld.y = depthOld.y * depthOld.y + depthOld.x * depthOld.x;
     vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
     depth = mix(depthOld, depth, 1.0 / float(frame + 1));
-    imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(depth.y - depth.x * depth.x),0,0));
+    imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(max(0.,depth.y - depth.x * depth.x)),0,0));
 
     vec2 densityOld = frame == 0 ? vec2(0) : imageLoad(densityImage, imageCoord).xy;
     densityOld.y = densityOld.y * densityOld.y + densityOld.x * densityOld.x;
     vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
     density = mix(densityOld, density, 1.0 / float(frame + 1));
-    imageStore(densityImage, imageCoord, vec4(density.x, sqrt(density.y - density.x * density.x),0,0));
+    imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.,density.y - density.x * density.x)),0,0));
 
     //vec2 octaUV = worldToOctahedralUV(w);
     //vec3 octaCol = textureLod(environmentMapOctahedralTexture, octaUV, parameters.phaseG * 8.).rrr;

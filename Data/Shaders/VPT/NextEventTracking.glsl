@@ -302,7 +302,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 //transmittance *= pdf_eval / pdf_w;
 
                 bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
-                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_phase_nee * pdf_nee_phase);
+                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
                 color += bw_nee * transmittance * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
                 //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
