@@ -412,35 +412,22 @@ void VolumetricPathTracingPass::createEnvironmentMapOctahedralTexture(uint32_t m
     equalAreaPass->setInputImage(environmentMapTexture);
     equalAreaPass->setOutputImage(environmentMapOctahedralTexture->getImageView());
 
-    VkCommandBuffer commandBuffer = renderer->getVkCommandBuffer();
-    bool transientCommandBuffer = commandBuffer == VK_NULL_HANDLE;
-    if (transientCommandBuffer) {
-        std::cout << "Using singletime command buffer" << std::endl;
 
-        commandBuffer = device->beginSingleTimeCommands(0xFFFFFFFF, false);
-        renderer->setCustomCommandBuffer(commandBuffer);
-        renderer->beginCommandBuffer();
-    }else {
-        std::cout << "Using renderer command buffer" << std::endl;
-
-    }
+    VkCommandBuffer commandBuffer = device->beginSingleTimeCommands(0xFFFFFFFF, false);
+    renderer->setCustomCommandBuffer(commandBuffer);
+    renderer->beginCommandBuffer();
+    
 
     renderer->transitionImageLayout(environmentMapTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     renderer->transitionImageLayout(environmentMapOctahedralTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
     equalAreaPass->render();
     renderer->transitionImageLayout(environmentMapOctahedralTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    
+    environmentMapOctahedralTexture->getImage()->generateMipmaps(commandBuffer);
 
-    if (transientCommandBuffer) {
-        renderer->endCommandBuffer();
-        renderer->resetCustomCommandBuffer();
-        device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
-
-        // TODO: Fix so that this also works with normal commandbuffer
-        environmentMapOctahedralTexture->getImage()->generateMipmaps();
-    }else {
-        environmentMapOctahedralTexture->getImage()->generateMipmaps(renderer->getVkCommandBuffer());
-    }
-
+    renderer->endCommandBuffer();
+    renderer->resetCustomCommandBuffer();
+    device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
 }
 
 void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filename) {
