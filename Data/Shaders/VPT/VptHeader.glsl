@@ -79,21 +79,21 @@ layout (binding = 8) uniform usampler3D superVoxelGridOccupancyImage;
 
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 layout (binding = 9) uniform sampler2D environmentMapTexture;
+layout (binding = 10) uniform sampler2D environmentMapOctahedralTexture;
 #endif
 
 #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
-layout (binding = 10, r32f) uniform image2DArray primaryRayAbsorptionMomentsImage;
+layout (binding = 11, r32f) uniform image2DArray primaryRayAbsorptionMomentsImage;
 #endif
 
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-layout (binding = 11, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage;
+layout (binding = 12, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage;
 #endif
 
-layout (binding = 12, rgba32f) uniform image2D cloudOnlyImage;
-layout (binding = 13, rg32f) uniform image2D depthImage;
-layout (binding = 14, rg32f) uniform image2D densityImage;
+layout (binding = 13, rgba32f) uniform image2D cloudOnlyImage;
+layout (binding = 14, rg32f) uniform image2D depthImage;
+layout (binding = 15, rg32f) uniform image2D densityImage;
 
-layout (binding = 15) uniform sampler2D environmentMapOctohedralTexture;
 
 
 /**

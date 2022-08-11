@@ -12,7 +12,7 @@ layout(binding = 1, r32f) uniform writeonly image2D outputImage;
 
 const float PI = 3.14159265359;
 
-vec3 octohedralUVToWorld(vec2 uv) {
+vec3 octahedralUVToWorld(vec2 uv) {
     uv = uv * 2. - 1.;
     vec2 sgn = sign(uv);
     uv = abs(uv);
@@ -45,7 +45,7 @@ void main() {
     vec2 uv = vec2(gl_GlobalInvocationID.xy) / vec2(outputImageSize);
 
     if (writePos.x < outputImageSize.x && writePos.y < outputImageSize.y) {
-        vec3 dir = octohedralUVToWorld(uv);
+        vec3 dir = octahedralUVToWorld(uv);
         vec3 skybox = sampleSkybox(dir);
         skybox = min(skybox, vec3(1000000,1000000,100000));
         imageStore(outputImage, writePos, vec4(length(skybox),0,0,0));

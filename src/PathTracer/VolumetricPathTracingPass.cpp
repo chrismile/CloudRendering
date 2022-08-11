@@ -69,7 +69,7 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY);
 
-    equalAreaPass = std::make_shared<OctohedralMappingPass>(renderer);
+    equalAreaPass = std::make_shared<OctahedralMappingPass>(renderer);
 
     if (sgl::AppSettings::get()->getSettings().getValueOpt(
             "vptEnvironmentMapImage", environmentMapFilenameGui)) {
@@ -391,7 +391,7 @@ void VolumetricPathTracingPass::setFeatureMapType(FeatureMapTypeVpt type) {
 }
 
 
-void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t mip_levels) {
+void VolumetricPathTracingPass::createEnvironmentMapOctahedralTexture(uint32_t mip_levels) {
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
 
     sgl::vk::ImageSettings imageSettings;
@@ -407,14 +407,13 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
 
     sgl::vk::ImageSamplerSettings samplerSettings;
 
-    environmentMapOctohedralTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    environmentMapOctahedralTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
     equalAreaPass->setInputImage(environmentMapTexture);
-    equalAreaPass->setOutputImage(environmentMapOctohedralTexture->getImageView());
+    equalAreaPass->setOutputImage(environmentMapOctahedralTexture->getImageView());
 
     VkCommandBuffer commandBuffer = renderer->getVkCommandBuffer();
     bool transientCommandBuffer = commandBuffer == VK_NULL_HANDLE;
-    transientCommandBuffer = true;
     if (transientCommandBuffer) {
         std::cout << "Using singletime command buffer" << std::endl;
 
@@ -427,17 +426,19 @@ void VolumetricPathTracingPass::createEnvironmentMapOctohedralTexture(uint32_t m
     }
 
     renderer->transitionImageLayout(environmentMapTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+    renderer->transitionImageLayout(environmentMapOctahedralTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
     equalAreaPass->render();
-    renderer->transitionImageLayout(environmentMapOctohedralTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    environmentMapOctohedralTexture->getImage()->generateMipmaps(commandBuffer);
+    renderer->transitionImageLayout(environmentMapOctahedralTexture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     if (transientCommandBuffer) {
-
         renderer->endCommandBuffer();
         renderer->resetCustomCommandBuffer();
         device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
+
+        // TODO: Fix so that this also works with normal commandbuffer
+        environmentMapOctahedralTexture->getImage()->generateMipmaps();
+    }else {
+        environmentMapOctahedralTexture->getImage()->generateMipmaps(renderer->getVkCommandBuffer());
     }
 
 }
@@ -527,7 +528,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     }
 #endif
 
-    createEnvironmentMapOctohedralTexture(10);
+    createEnvironmentMapOctahedralTexture(10);
 }
 
 void VolumetricPathTracingPass::loadShader() {
@@ -638,7 +639,7 @@ void VolumetricPathTracingPass::createComputeData(
 
     if (useEnvironmentMapImage) {
         computeData->setStaticTexture(environmentMapTexture, "environmentMapTexture");
-        computeData->setStaticTexture(environmentMapOctohedralTexture, "environmentMapOctohedralTexture");
+        computeData->setStaticTexture(environmentMapOctahedralTexture, "environmentMapOctahedralTexture");
     }
     if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
         computeData->setStaticImageView(
@@ -1128,33 +1129,33 @@ void BlitMomentTexturePass::_render() {
 }
 
 
-OctohedralMappingPass::OctohedralMappingPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+OctahedralMappingPass::OctahedralMappingPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
 }
 
-void OctohedralMappingPass::setInputImage(const sgl::vk::TexturePtr& _inputImage) {
+void OctahedralMappingPass::setInputImage(const sgl::vk::TexturePtr& _inputImage) {
     inputImage = _inputImage;
     setDataDirty();
 }
 
-void OctohedralMappingPass::setOutputImage(sgl::vk::ImageViewPtr& _outputImage) {
+void OctahedralMappingPass::setOutputImage(sgl::vk::ImageViewPtr& _outputImage) {
     outputImage = _outputImage;
     setDataDirty();
 }
 
-void OctohedralMappingPass::loadShader() {
+void OctahedralMappingPass::loadShader() {
     std::map<std::string, std::string> preprocessorDefines;
     preprocessorDefines.insert(std::make_pair("BLOCK_SIZE", std::to_string(BLOCK_SIZE)));
     shaderStages = sgl::vk::ShaderManager->getShaderStages(
-            { "OctohedralMapper.Compute" }, preprocessorDefines);
+            { "OctahedralMapper.Compute" }, preprocessorDefines);
 }
 
-void OctohedralMappingPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+void OctahedralMappingPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
     computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
     computeData->setStaticTexture(inputImage, "environmentMapTexture");
     computeData->setStaticImageView(outputImage, "outputImage");
 }
 
-void OctohedralMappingPass::_render() {
+void OctahedralMappingPass::_render() {
     auto width = int(outputImage->getImage()->getImageSettings().width);
     auto height = int(outputImage->getImage()->getImageSettings().height);
     renderer->dispatch(

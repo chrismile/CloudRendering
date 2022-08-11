@@ -43,7 +43,7 @@ typedef std::shared_ptr<CloudData> CloudDataPtr;
 class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
-class OctohedralMappingPass;
+class OctahedralMappingPass;
 
 namespace IGFD {
 class FileDialog;
@@ -121,7 +121,7 @@ public:
     sgl::vk::TexturePtr getFeatureMapTexture(FeatureMapTypeVpt type);
 
 private:
-    std::shared_ptr<OctohedralMappingPass> equalAreaPass;
+    std::shared_ptr<OctahedralMappingPass> equalAreaPass;
 
     void loadShader() override;
     void setComputePipelineInfo(sgl::vk::ComputePipelineInfo& pipelineInfo) override {}
@@ -187,9 +187,9 @@ private:
     bool envMapImageUsesLinearRgb = false;
     std::string environmentMapFilenameGui;
     std::string loadedEnvironmentMapFilename;
-    void createEnvironmentMapOctohedralTexture(uint32_t mip_levels);
+    void createEnvironmentMapOctahedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
-    sgl::vk::TexturePtr environmentMapOctohedralTexture;
+    sgl::vk::TexturePtr environmentMapOctahedralTexture;
     float environmentMapIntensityFactor = 1.5f;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
@@ -287,12 +287,11 @@ private:
     sgl::vk::TexturePtr momentTexture;
 };
 
-class OctohedralMappingPass : public sgl::vk::ComputePass {
+class OctahedralMappingPass : public sgl::vk::ComputePass {
 public:
-    explicit OctohedralMappingPass(sgl::vk::Renderer* renderer);
+    explicit OctahedralMappingPass(sgl::vk::Renderer* renderer);
     void setInputImage(const sgl::vk::TexturePtr& _inputImage);
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
-
 protected:
     void loadShader() override;
     void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
@@ -300,6 +299,7 @@ protected:
 
 private:
     const int BLOCK_SIZE = 16;
+    bool useEnvironmentMapImage;
     sgl::vk::TexturePtr inputImage;
     sgl::vk::ImageViewPtr outputImage;
 };

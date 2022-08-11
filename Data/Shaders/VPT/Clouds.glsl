@@ -201,19 +201,19 @@ void main() {
     density = mix(densityOld, density, 1.0 / float(frame + 1));
     imageStore(densityImage, imageCoord, vec4(density.x, sqrt(density.y - density.x * density.x),0,0));
 
-    //vec2 octoUV = worldToOctohedralUV(w);
-    //vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rrr;
-    //octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
-    //octoCol = octohedralUVToWorld(octoUV);
-    //octoCol -= parameters.sunIntensity * 1000;
+    //vec2 octaUV = worldToOctahedralUV(w);
+    //vec3 octaCol = textureLod(environmentMapOctahedralTexture, octaUV, parameters.phaseG * 8.).rrr;
+    //octaCol = octaCol * (1.-cloudOnly.a) + cloudOnly.rgb;
+    //octaCol = octahedralUVToWorld(octaUV);
+    //octaCol -= parameters.sunIntensity * 1000;
 
-    //if (isinf(octoCol.r)){
-    //    octoCol = vec3(100000,0,100000);
+    //if (isinf(octaCol.r)){
+    //    octaCol = vec3(100000,0,100000);
     //}
 
-    //octoCol.r = octoUV.x > .5?1.:0.;
-    //octoCol.g = octoUV.y > .5?1.:0.;
-    //imageStore(depthDensityImage, imageCoord, vec4(octoCol,1.));
+    //octaCol.r = octaUV.x > .5?1.:0.;
+    //octaCol.g = octaUV.y > .5?1.:0.;
+    //imageStore(depthDensityImage, imageCoord, vec4(octaCol,1.));
 
     //vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
     //result += resultOld;
