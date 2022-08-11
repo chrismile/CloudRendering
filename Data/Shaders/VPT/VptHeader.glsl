@@ -90,8 +90,8 @@ layout (binding = 11, r32f) uniform image2DArray scatterRayAbsorptionMomentsImag
 #endif
 
 layout (binding = 12, rgba32f) uniform image2D cloudOnlyImage;
-layout (binding = 13, rgba32f) uniform image2D depthDensityImage;
-layout (binding = 14, rgba32f) uniform image2D positionImage;
+layout (binding = 13, rg32f) uniform image2D depthImage;
+layout (binding = 14, rg32f) uniform image2D densityImage;
 
 layout (binding = 15) uniform sampler2D environmentMapOctohedralTexture;
 

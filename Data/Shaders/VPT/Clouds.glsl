@@ -184,20 +184,26 @@ void main() {
     imageStore(accImage, imageCoord, vec4(result, 1));
     imageStore(resultImage, imageCoord, vec4(result,1));
 
-    vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(positionImage, imageCoord);
+    vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(firstX, imageCoord);
     vec4 position = firstEvent.hasValue ? vec4(firstEvent.x, 1) : vec4(0);
     position = mix(positionOld, position, 1.0 / float(frame + 1));
-    imageStore(positionImage, imageCoord, position);
+    imageStore(firstX, imageCoord, position);
 
-    vec4 depthOld = frame == 0 ? vec4(0) : imageLoad(depthDensityImage, imageCoord);
-    vec4 depth = firstEvent.hasValue ? vec4(firstEvent.depth, firstEvent.depth * firstEvent.depth, firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec4(0);
+    vec2 depthOld = frame == 0 ? vec2(0) : imageLoad(depthImage, imageCoord).xy;
+    depthOld.y = depthOld.y * depthOld.y + depthOld.x * depthOld.x;
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
     depth = mix(depthOld, depth, 1.0 / float(frame + 1));
-    imageStore(depthDensityImage, imageCoord, depth);
+    imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(depth.y - depth.x * depth.x),0,0));
 
+    vec2 densityOld = frame == 0 ? vec2(0) : imageLoad(densityImage, imageCoord).xy;
+    densityOld.y = densityOld.y * densityOld.y + densityOld.x * densityOld.x;
+    vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
+    density = mix(densityOld, density, 1.0 / float(frame + 1));
+    imageStore(densityImage, imageCoord, vec4(density.x, sqrt(density.y - density.x * density.x),0,0));
 
-    vec2 octoUV = worldToOctohedralUV(w);
-    vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rrr;
-    octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
+    //vec2 octoUV = worldToOctohedralUV(w);
+    //vec3 octoCol = textureLod(environmentMapOctohedralTexture, octoUV, parameters.phaseG * 8.).rrr;
+    //octoCol = octoCol * (1.-cloudOnly.a) + cloudOnly.rgb;
     //octoCol = octohedralUVToWorld(octoUV);
     //octoCol -= parameters.sunIntensity * 1000;
 
@@ -207,7 +213,7 @@ void main() {
 
     //octoCol.r = octoUV.x > .5?1.:0.;
     //octoCol.g = octoUV.y > .5?1.:0.;
-    imageStore(depthDensityImage, imageCoord, vec4(octoCol,1.));
+    //imageStore(depthDensityImage, imageCoord, vec4(octoCol,1.));
 
     //vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
     //result += resultOld;
@@ -218,10 +224,10 @@ void main() {
 
     // Saving the first scatter position and direction
     if (firstEvent.hasValue) {
-        imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
+        //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
         imageStore(firstW, imageCoord, vec4(firstEvent.w, firstEvent.pdf_w));
     } else {
-        imageStore(firstX, imageCoord, vec4(0));
+        //imageStore(firstX, imageCoord, vec4(0));
         imageStore(firstW, imageCoord, vec4(0));
     }
 

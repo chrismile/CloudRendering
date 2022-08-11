@@ -273,6 +273,17 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             //transmittance *= 1.0 - Pa;
             if (xi < Pa) {
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
+                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
+                    firstEvent.pdf_x = sigma_s * pdf_x;
+                    firstEvent.w = w;
+                    firstEvent.pdf_w = 0;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
+                }
                 return color;
                 //return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
@@ -307,6 +318,8 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.w = w;
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
                 }
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {

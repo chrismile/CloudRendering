@@ -178,11 +178,10 @@ private:
     struct UniformData {
         uint32_t numChannelsOut = 0;
         uint32_t colorWriteStartOffset = 0;
-        uint32_t albedoWriteStartOffset = 0;
         uint32_t normalWriteStartOffset = 0;
         uint32_t depthWriteStartOffset = 0;
         uint32_t positionWriteStartOffset = 0;
-        uint32_t flowWriteStartOffset = 0;
+        uint32_t densityWriteStartOffset = 0;
         uint32_t cloudOnlyWriteStartOffset = 0;
     };
     UniformData uniformData{};

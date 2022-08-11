@@ -303,6 +303,7 @@ void PyTorchDenoiser::denoise() {
         outputTensor = outputTensor.permute({1, 2, 0}); // (c, h, w) -> (h, w, c)
     }
     if (outputTensorChannels != 4) {
+        std::cout << "got " << outputTensorChannels << " channels" << std::endl;
         sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor channels.");
     }
     if (outputTensorWidth != width || outputTensorHeight != height) {
@@ -695,11 +696,10 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     uniformData.numChannelsOut = numChannels;
     uniformData.colorWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::COLOR);
-    uniformData.albedoWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::ALBEDO);
     uniformData.normalWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::NORMAL);
     uniformData.depthWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::DEPTH);
     uniformData.positionWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::POSITION);
-    uniformData.flowWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::FLOW);
+    uniformData.densityWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::DENSITY);
     uniformData.cloudOnlyWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::CLOUDONLY);
     uniformBuffer->updateData(
             sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());

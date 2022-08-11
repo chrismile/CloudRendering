@@ -37,24 +37,20 @@ layout(local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
 layout(binding = 0, rgba32f) uniform readonly image2D colorMap;
 #endif
 
-#ifdef USE_ALBEDO
-layout(binding = 1, rgba32f) uniform readonly image2D albedoMap;
-#endif
-
 #ifdef USE_NORMAL
 layout(binding = 2, rgba32f) uniform readonly image2D normalMap;
 #endif
 
 #ifdef USE_DEPTH
-layout(binding = 3, r32f) uniform readonly image2D depthMap;
+layout(binding = 3, rg32f) uniform readonly image2D depthMap;
 #endif
 
 #ifdef USE_POSITION
 layout(binding = 4, rgba32f) uniform readonly image2D positionMap;
 #endif
 
-#ifdef USE_FLOW
-layout(binding = 5, rg32f) uniform readonly image2D flowMap;
+#ifdef USE_DENSITY
+layout(binding = 5, rg32f) uniform readonly image2D densityMap;
 #endif
 
 #ifdef USE_CLOUDONLY
@@ -68,11 +64,10 @@ layout(scalar, binding = 7) writeonly buffer OutputBuffer {
 layout(binding = 8) uniform UniformBuffer {
     uint numChannelsOut;
     uint colorWriteStartOffset;
-    uint albedoWriteStartOffset;
     uint normalWriteStartOffset;
     uint depthWriteStartOffset;
     uint positionWriteStartOffset;
-    uint flowWriteStartOffset;
+    uint densityWriteStartOffset;
     uint cloudOnlyWriteStartOffset;
 };
 
@@ -80,16 +75,14 @@ layout(binding = 8) uniform UniformBuffer {
 void main() {
 #if defined(USE_COLOR)
     ivec2 inputImageSize = imageSize(colorMap);
-#elif defined(USE_ALBEDO)
-    ivec2 inputImageSize = imageSize(albedoMap);
 #elif defined(USE_NORMAL)
     ivec2 inputImageSize = imageSize(normalMap);
 #elif defined(USE_DEPTH)
     ivec2 inputImageSize = imageSize(depthMap);
 #elif defined(USE_POSITION)
     ivec2 inputImageSize = imageSize(positionMap);
-#elif defined(USE_FLOW)
-    ivec2 inputImageSize = imageSize(flowMap);
+#elif defined(USE_DENSITY)
+    ivec2 inputImageSize = imageSize(densityMap);
 #elif defined(USE_CLOUDONLY)
     ivec2 inputImageSize = imageSize(cloudonlyMap);
 #endif
@@ -110,15 +103,6 @@ void main() {
     outputBuffer[writePosColor + 3] = colorInput.w;
 #endif
 
-#ifdef USE_ALBEDO
-    vec4 albedoInput = imageLoad(albedoMap, readPos);
-    uint writePosAlbedo = writePos + albedoWriteStartOffset;
-    outputBuffer[writePosAlbedo] = albedoInput.x;
-    outputBuffer[writePosAlbedo + 1] = albedoInput.y;
-    outputBuffer[writePosAlbedo + 2] = albedoInput.z;
-    outputBuffer[writePosAlbedo + 3] = albedoInput.w;
-#endif
-
 #ifdef USE_NORMAL
     vec3 normalInput = imageLoad(normalMap, readPos).xyz;
     uint writePosNormal = writePos + normalWriteStartOffset;
@@ -128,24 +112,25 @@ void main() {
 #endif
 
 #ifdef USE_DEPTH
-    float depthInput = imageLoad(depthMap, readPos).x;
+    vec2 depthInput = imageLoad(depthMap, readPos).xy;
     uint writePosDepth = writePos + depthWriteStartOffset;
-    outputBuffer[writePosDepth] = depthInput;
+    outputBuffer[writePosDepth + 0] = depthInput.x;
+    outputBuffer[writePosDepth + 1] = depthInput.y;
 #endif
 
 #ifdef USE_POSITION
     vec3 positionInput = imageLoad(positionMap, readPos).xyz;
     uint writePosPosition = writePos + positionWriteStartOffset;
-    outputBuffer[writePosPosition] = positionInput.x;
+    outputBuffer[writePosPosition + 0] = positionInput.x;
     outputBuffer[writePosPosition + 1] = positionInput.y;
     outputBuffer[writePosPosition + 2] = positionInput.z;
 #endif
 
-#ifdef USE_FLOW
-    vec2 flowInput = imageLoad(flowMap, readPos).xy;
-    uint writePosFlow = writePos + flowWriteStartOffset;
-    outputBuffer[writePosFlow] = flowInput.x;
-    outputBuffer[writePosFlow + 1] = flowInput.y;
+#ifdef USE_DENSITY
+    vec2 densityInput = imageLoad(densityMap, readPos).xy;
+    uint writePosDensity = writePos + densityWriteStartOffset;
+    outputBuffer[writePosDensity + 0] = densityInput.x;
+    outputBuffer[writePosDensity + 1] = densityInput.y;
 #endif
 
 #ifdef USE_CLOUDONLY

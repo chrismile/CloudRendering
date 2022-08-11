@@ -55,8 +55,7 @@ void EAWDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::Te
         eawBlitPass->setPositionTexture(featureTexture);
     } else if (featureMapType == FeatureMapType::NORMAL) {
         eawBlitPass->setNormalTexture(featureTexture);
-    } else if (featureMapType == FeatureMapType::ALBEDO || featureMapType == FeatureMapType::DEPTH
-            || featureMapType == FeatureMapType::FLOW) {
+    } else if (featureMapType == FeatureMapType::DEPTH) {
         // Ignore.
     } else {
         sgl::Logfile::get()->writeWarning("Warning in EAWDenoiser::setFeatureMap: Unknown feature map.");
