@@ -183,6 +183,8 @@ private:
         uint32_t positionWriteStartOffset = 0;
         uint32_t densityWriteStartOffset = 0;
         uint32_t cloudOnlyWriteStartOffset = 0;
+        uint32_t albedoWriteStartOffset = 0;
+        uint32_t flowWriteStartOffset = 0;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

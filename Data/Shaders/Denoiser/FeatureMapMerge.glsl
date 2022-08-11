@@ -57,6 +57,16 @@ layout(binding = 5, rg32f) uniform readonly image2D densityMap;
 layout(binding = 6, rgba32f) uniform readonly image2D cloudonlyMap;
 #endif
 
+#ifdef USE_ALBEDO
+layout(binding = 7, rgba32f) uniform readonly image2D albedoMap;
+#endif
+
+#ifdef USE_FLOW
+layout(binding = 5, rg32f) uniform readonly image2D flowMap;
+#endif
+
+
+
 layout(scalar, binding = 7) writeonly buffer OutputBuffer {
     float outputBuffer[];
 };
@@ -69,6 +79,8 @@ layout(binding = 8) uniform UniformBuffer {
     uint positionWriteStartOffset;
     uint densityWriteStartOffset;
     uint cloudOnlyWriteStartOffset;
+    uint albedoWriteStartOffset;
+    uint flowWriteStartOffset;
 };
 
 // Flattens the vec4 image to a vec3 buffer without padding for use, e.g., with OptiX.
@@ -85,6 +97,10 @@ void main() {
     ivec2 inputImageSize = imageSize(densityMap);
 #elif defined(USE_CLOUDONLY)
     ivec2 inputImageSize = imageSize(cloudonlyMap);
+#elif defined(USE_ALBEDO)
+    ivec2 inputImageSize = imageSize(albedoMap);
+#elif defined(USE_FLOW)
+    ivec2 inputImageSize = imageSize(flowMap);
 #endif
 
     uint channelsCounter = 0;
@@ -141,4 +157,21 @@ void main() {
     outputBuffer[writePosCloudOnly + 2] = cloudOnlyInput.z;
     outputBuffer[writePosCloudOnly + 3] = cloudOnlyInput.w;
 #endif
+
+#ifdef USE_ALBEDO
+    vec4 albedoInput = imageLoad(albedoMap, readPos);
+    uint writePosAlbedo = writePos + albedoWriteStartOffset;
+    outputBuffer[writePosAlbedo] = albedoInput.x;
+    outputBuffer[writePosAlbedo + 1] = albedoInput.y;
+    outputBuffer[writePosAlbedo + 2] = albedoInput.z;
+    outputBuffer[writePosAlbedo + 3] = albedoInput.w;
+#endif
+
+#ifdef USE_FLOW
+    vec2 flowInput = imageLoad(flowMap, readPos).xy;
+    uint writePosFlow = writePos + flowWriteStartOffset;
+    outputBuffer[writePosFlow] = flowInput.x;
+    outputBuffer[writePosFlow + 1] = flowInput.y;
+#endif
+
 }
