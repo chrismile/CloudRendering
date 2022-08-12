@@ -87,6 +87,9 @@ void main() {
 #elif defined(USE_NEXT_EVENT_TRACKING)
     ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
     vec3 result = nextEventTracking(x, w, firstEvent);
+#elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
+    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
+    vec3 result = nextEventTrackingSpectral(x, w, firstEvent);
 #endif
 
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS

@@ -543,6 +543,8 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_DECOMPOSITION_TRACKING", "" });
     }else if (vptMode == VptMode::NEXT_EVENT_TRACKING) {
         customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING", "" });
+    } else if (vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+        customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING_SPECTRAL", "" });
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });

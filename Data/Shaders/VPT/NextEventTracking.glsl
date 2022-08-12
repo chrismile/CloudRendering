@@ -23,7 +23,7 @@
  */
 
 // Pathtracing with Delta tracking and Spectral tracking.
-#ifdef USE_NEXT_EVENT_TRACKING
+#if defined(USE_NEXT_EVENT_TRACKING) || defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
 float calculateTransmittance(vec3 x, vec3 w) {
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
@@ -79,18 +79,18 @@ float calculateTransmittance(vec3 x, vec3 w) {
     }
     return transmittance / rr_prob;
 }
-
-
+#endif
 
 /**
  * For more details on spectral delta tracking, please refer to:
  * P. Kutz, R. Habel, Y. K. Li, and J. Novák. Spectral and decomposition tracking for rendering heterogeneous volumes.
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
+#ifdef USE_NEXT_EVENT_TRACKING_SPECTRAL
 vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-#ifdef USE_NANOVDB
+    #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
+    #endif
 
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
@@ -103,7 +103,8 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     float PA = maxComponent(absorptionAlbedo * parameters.extinction);
     float PS = maxComponent(scatteringAlbedo * parameters.extinction);
 
-    vec3 color = vec3(0,0,0);
+    vec3 color = vec3(0);
+    float bw_phase = 1.;
 
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -118,29 +119,29 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             x += w * t;
 
-#ifdef USE_NANOVDB
+            #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
-#else
+            #else
             float density = sampleCloud(x);
-#endif
+            #endif
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
             vec3 sigma_s = scatteringAlbedo * parameters.extinction * density;
             vec3 sigma_n = vec3(majorant) - parameters.extinction * density;
 
-#if defined(MAX_BASED_PROBABILITY)
+            #if defined(MAX_BASED_PROBABILITY)
             float Pa = maxComponent(sigma_a);
             float Ps = maxComponent(sigma_s);
             float Pn = maxComponent(sigma_n);
-#elif defined(AVG_BASED_PROBABILITY)
+            #elif defined(AVG_BASED_PROBABILITY)
             float Pa = avgComponent(sigma_a);
             float Ps = avgComponent(sigma_s);
             float Pn = avgComponent(sigma_n);
-#else // Path history average-based probability
+            #else // Path history average-based probability
             float Pa = avgComponent(sigma_a * weights);
             float Ps = avgComponent(sigma_s * weights);
             float Pn = avgComponent(sigma_n * weights);
-#endif
+            #endif
             float C = Pa + Ps + Pn;
             Pa /= C;
             Ps /= C;
@@ -150,7 +151,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             if (xi < Pa) {
                 if (!firstEvent.hasValue) {
-                    firstEvent.x =  0 * x;
+                    firstEvent.x = x;
                     firstEvent.pdf_x = 0; // TODO
                     firstEvent.w = vec3(0.);
                     firstEvent.pdf_w = 0;
@@ -158,39 +159,33 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.density = density * maxComponent(parameters.extinction);
                     firstEvent.depth = tMax - d + t;
                 }
-
+                return color;
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
 
             if (xi < 1 - Pn) { // scattering event
-                float pdf_w;
-                float pdf_skybox;
+                //float pdf_w;
+                //w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
-                vec3 old_w= w;
+                float pdf_w, pdf_nee;
+                vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                vec3 nee_w = importanceSampleSkybox(pdf_nee);
 
-                vec3 sky_sample = importanceSampleSkybox(pdf_skybox);
-                //sky_sample = importanceSamplePhase(parameters.phaseG, w, pdf_skybox);
-                float pdf_eval = evaluatePhase(parameters.phaseG, w, sky_sample);
-                color += weights * calculateTransmittance(x,sky_sample) * (sampleSkybox(sky_sample) + sampleLight(sky_sample)) * pdf_eval / pdf_skybox;
+                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
+                float pdf_phase_nee = evaluateSkyboxPDF(next_w);
+                w = next_w;
 
-                w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+                bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
+                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
-                /*if (random() > 1.1){
-                }else{
-                    // sample uniform
-                    //vec3 sky_sample = importanceSamplePhase(0, w, pdf_w);
-                    vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_w);
-                    float pdf_eval = evaluatePhase(parameters.phaseG, w, sky_sample);
-                    //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
-                    w = sky_sample;
-                    weights *= pdf_eval / pdf_w;
-                }*/
+                weights *= sigma_s / (majorant * Ps);
+                color += bw_nee * min(weights, vec3(100000, 100000, 100000)) * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+
 
                 if (!firstEvent.hasValue) {
-                    firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
-                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
-                    firstEvent.pdf_x = 1.; // TODO
-                    firstEvent.w = importanceSampleSkybox(pdf_w);
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = 0; // TODO
+                    firstEvent.w = w;
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
                     firstEvent.density = density * maxComponent(parameters.extinction);
@@ -201,26 +196,21 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     x += w*tMin;
                     d = tMax - tMin;
                 }
-                weights *= sigma_s / (majorant * Ps);
-
             } else {
                 d -= t;
                 weights *= sigma_n / (majorant * Pn);
             }
-#if !defined(MAX_BASED_PROBABILITY) && !defined(AVG_BASED_PROBABILITY)
+            #if !defined(MAX_BASED_PROBABILITY) && !defined(AVG_BASED_PROBABILITY)
             weights = min(weights, vec3(100.0, 100.0, 100.0));
-#endif
+            #endif
         }
     }
 
-    if (!firstEvent.hasValue){
-        color += sampleSkybox(w) + sampleLight(w);
-    }
-    //return min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
-    return color * .5 + .5 * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
+    return color + bw_phase * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
 }
+#endif
 
-
+#ifdef USE_NEXT_EVENT_TRACKING
 vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
