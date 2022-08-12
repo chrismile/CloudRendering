@@ -156,9 +156,12 @@ vec2 worldToOctahedralUV(vec3 dir) {
     return uv * .5 + .5;
 }
 
-vec3 importanceSampleSkybox(int maxMip, int minMip, out float pdf) {
+vec3 importanceSampleSkybox(out float pdf) {
     vec2 rnd = vec2(random(), random());
     ivec2 pos = ivec2(0,0);
+
+    int maxMip = textureQueryLevels(environmentMapOctahedralTexture);
+    int minMip = 0;
 
     pdf = 0.25 / PI;
 
@@ -203,11 +206,14 @@ vec3 importanceSampleSkybox(int maxMip, int minMip, out float pdf) {
     return octahedralUVToWorld(uv);
 }
 
-float evaluateSkyboxPDF(int maxMip, int minMip, vec3 sampledDir) {
+float evaluateSkyboxPDF(vec3 sampledDir) {
     vec2 uv = worldToOctahedralUV(sampledDir);
     ivec2 pos = ivec2(0,0);
 
     float pdf = 0.25 / PI;
+
+    int maxMip = textureQueryLevels(environmentMapOctahedralTexture);
+    int minMip = 0;
 
     for (int mip = maxMip - 1; mip >= minMip; mip--) {
         pos *= 2;

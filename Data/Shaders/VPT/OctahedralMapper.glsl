@@ -42,12 +42,19 @@ void main() {
     ivec2 writePos = ivec2(gl_GlobalInvocationID.xy);
     ivec2 outputImageSize = imageSize(outputImage);
 
-    vec2 uv = vec2(gl_GlobalInvocationID.xy) / vec2(outputImageSize);
 
     if (writePos.x < outputImageSize.x && writePos.y < outputImageSize.y) {
-        vec3 dir = octahedralUVToWorld(uv);
-        vec3 skybox = sampleSkybox(dir);
-        skybox = min(skybox, vec3(1000000,1000000,100000));
-        imageStore(outputImage, writePos, vec4(length(skybox),0,0,0));
+        float maxBrightness = -1.;
+        for (int i = 0; i < 100; i++) {
+            vec2 uv = (vec2(gl_GlobalInvocationID.xy) + vec2(random(), random())) / vec2(outputImageSize);
+
+            vec3 dir = octahedralUVToWorld(uv);
+            vec3 skybox = sampleSkybox(dir);
+            skybox = min(skybox, vec3(100000, 100000, 100000));
+            float brightness = length(skybox);
+            maxBrightness = max(maxBrightness, brightness);
+        }
+
+        imageStore(outputImage, writePos, vec4(maxBrightness,0,0,0));
     }
 }

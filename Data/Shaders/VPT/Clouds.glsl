@@ -104,7 +104,7 @@ void main() {
     cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
     imageStore(cloudOnlyImage, imageCoord, cloudOnly);
 
-    /*for (int i = 0; i < 10; i++) {
+    /*for (int i = 0; i < 2; i++) {
         float pdf_skybox;
 
         vec3 dir = importanceSampleSkybox(10, 0, pdf_skybox);

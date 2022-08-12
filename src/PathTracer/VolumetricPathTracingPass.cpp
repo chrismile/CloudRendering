@@ -515,7 +515,7 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     }
 #endif
 
-    createEnvironmentMapOctahedralTexture(10);
+    createEnvironmentMapOctahedralTexture(12);
 }
 
 void VolumetricPathTracingPass::loadShader() {

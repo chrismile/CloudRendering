@@ -168,7 +168,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
                 vec3 old_w= w;
 
-                vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_skybox);
+                vec3 sky_sample = importanceSampleSkybox(pdf_skybox);
                 //sky_sample = importanceSamplePhase(parameters.phaseG, w, pdf_skybox);
                 float pdf_eval = evaluatePhase(parameters.phaseG, w, sky_sample);
                 color += weights * calculateTransmittance(x,sky_sample) * (sampleSkybox(sky_sample) + sampleLight(sky_sample)) * pdf_eval / pdf_skybox;
@@ -190,7 +190,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
                     //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
                     firstEvent.pdf_x = 1.; // TODO
-                    firstEvent.w = importanceSampleSkybox(10, 0, pdf_w);
+                    firstEvent.w = importanceSampleSkybox(pdf_w);
                     firstEvent.pdf_w = pdf_w;
                     firstEvent.hasValue = true;
                     firstEvent.density = density * maxComponent(parameters.extinction);
@@ -237,7 +237,6 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     float transmittance = 1.0;
 
     float bw_phase = 1.;
-    float cum_wp = 1.;
     vec3 color = vec3(0.);
 
     float tMin, tMax;
@@ -292,12 +291,12 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             {
                 float pdf_w, pdf_nee;
                 vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
-                vec3 nee_w = importanceSampleSkybox(10, 0, pdf_nee);
+                vec3 nee_w = importanceSampleSkybox(pdf_nee);
 
                 //next_w = importanceSamplePhase(0.5, w, pdf_w);
-                //next_w = importanceSampleSkybox(10, 0, pdf_w);
+                //next_w = importanceSampleSkybox(pdf_w);
                 float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
-                float pdf_phase_nee = evaluateSkyboxPDF(10, 0, next_w);
+                float pdf_phase_nee = evaluateSkyboxPDF(next_w);
                 w = next_w;
                 //transmittance *= pdf_eval / pdf_w;
 
@@ -306,7 +305,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
                 color += bw_nee * transmittance * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
                 //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
-                cum_wp *= bw_phase;
+
                 //return color;
                 pdf_x *= exp(-majorant * t) * majorant * density;
 
