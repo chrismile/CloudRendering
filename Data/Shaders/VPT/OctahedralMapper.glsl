@@ -45,14 +45,16 @@ void main() {
 
     if (writePos.x < outputImageSize.x && writePos.y < outputImageSize.y) {
         float maxBrightness = -1.;
-        for (int i = 0; i < 100; i++) {
-            vec2 uv = (vec2(gl_GlobalInvocationID.xy) + vec2(random(), random())) / vec2(outputImageSize);
+        for (float x = .1; x < 1.; x += .2)  {
+            for (float y = .1; y < 1.; y += .2){
+                vec2 uv = (vec2(gl_GlobalInvocationID.xy) + vec2(x, y)) / vec2(outputImageSize);
 
-            vec3 dir = octahedralUVToWorld(uv);
-            vec3 skybox = sampleSkybox(dir);
-            skybox = min(skybox, vec3(100000, 100000, 100000));
-            float brightness = length(skybox);
-            maxBrightness = max(maxBrightness, brightness);
+                vec3 dir = octahedralUVToWorld(uv);
+                vec3 skybox = sampleSkybox(dir);
+                skybox = min(skybox, vec3(100000, 100000, 100000));
+                float brightness = length(skybox);
+                maxBrightness = max(maxBrightness, brightness);
+            }
         }
 
         imageStore(outputImage, writePos, vec4(maxBrightness,0,0,0));
