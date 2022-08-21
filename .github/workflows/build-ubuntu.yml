@@ -92,12 +92,23 @@ jobs:
       run: cmake --build ${{env.sgl_REPO_DIR}}/build --config ${{env.BUILD_TYPE}} --target install
 
     - name: Configure CMake (CloudRendering)
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -Dsgl_DIR=${{env.sgl_DIR}}/lib/cmake/sgl
+      run: |
+        if [ "${{env.PKG_CONFIG_PATH}}" != "" ]; then
+          VK_LAYER_PATH=""
+          source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+          export PKG_CONFIG_PATH="${{env.PKG_CONFIG_PATH}}"
+        else
+          export VULKAN_SDK="/usr"
+        fi
+        cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -Dsgl_DIR=${{env.sgl_DIR}}/lib/cmake/sgl
 
     - name: Build (CloudRendering)
       run: |
         if [ "${{env.PKG_CONFIG_PATH}}" != "" ]; then
           VK_LAYER_PATH=""
           source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+          export PKG_CONFIG_PATH="${{env.PKG_CONFIG_PATH}}"
+        else
+          export VULKAN_SDK="/usr"
         fi
         cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --parallel 4
