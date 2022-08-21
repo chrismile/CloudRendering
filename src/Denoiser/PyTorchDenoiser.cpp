@@ -373,12 +373,14 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     }
     renderImageStagingBuffers = {};
     denoisedImageStagingBuffer = {};
+#ifdef SUPPORT_CUDA_INTEROP
     outputImageBufferCu = {};
     outputImageBufferVk = {};
     postRenderCommandBuffers = {};
     renderFinishedSemaphores = {};
     denoiseFinishedSemaphores = {};
     timelineValue = 0;
+#endif
 
     if (pyTorchDevice == PyTorchDevice::CPU) {
         renderImageStagingBuffers.resize(inputFeatureMapsUsed.size());
