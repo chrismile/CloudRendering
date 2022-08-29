@@ -163,7 +163,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
             }
 
-            if (xi < 1 - Pn) { // scattering event
+            if (xi < Pa + Ps) { // scattering event
                 //float pdf_w;
                 //w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
