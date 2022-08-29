@@ -51,10 +51,10 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, CLOUD_ONLY, DEPTH, DENSITY
+    RESULT, FIRST_X, FIRST_W, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Cloud Only", "Depth", "Density"
+        "Result", "First X", "First W", "Cloud Only", "Depth", "Density", "Background"
 };
 
 enum class VptMode {
@@ -167,6 +167,7 @@ private:
     sgl::vk::TexturePtr cloudOnlyTexture;
     sgl::vk::TexturePtr depthTexture;
     sgl::vk::TexturePtr densityTexture;
+    sgl::vk::TexturePtr  backgroundTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;

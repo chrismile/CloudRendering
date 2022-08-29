@@ -107,6 +107,12 @@ void main() {
     cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
     imageStore(cloudOnlyImage, imageCoord, cloudOnly);
 
+    // Accumulate background
+    vec4 backgroundOld = frame == 0 ? vec4(0) : imageLoad(backgroundImage, imageCoord);
+    vec4 background = firstEvent.hasValue ? vec4(sampleSkybox(w), 1) : vec4(result, 1);
+    background = mix(backgroundOld, background, 1.0 / float(frame + 1));
+    imageStore(backgroundImage, imageCoord, background);
+
     /*for (int i = 0; i < 2; i++) {
         float pdf_skybox;
 
@@ -203,6 +209,8 @@ void main() {
     vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
     density = mix(densityOld, density, 1.0 / float(frame + 1));
     imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.,density.y - density.x * density.x)),0,0));
+
+
 
     //vec2 octaUV = worldToOctahedralUV(w);
     //vec3 octaCol = textureLod(environmentMapOctahedralTexture, octaUV, parameters.phaseG * 8.).rrr;

@@ -93,6 +93,7 @@ layout (binding = 12, r32f) uniform image2DArray scatterRayAbsorptionMomentsImag
 layout (binding = 13, rgba32f) uniform image2D cloudOnlyImage;
 layout (binding = 14, rg32f) uniform image2D depthImage;
 layout (binding = 15, rg32f) uniform image2D densityImage;
+layout (binding = 16, rg32f) uniform image2D backgroundImage;
 
 
 
@@ -104,7 +105,7 @@ layout (binding = 15, rg32f) uniform image2D densityImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 16) uniform MomentUniformData {
+layout(std140, binding = 17) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;

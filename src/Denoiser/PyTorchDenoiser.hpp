@@ -62,7 +62,7 @@ typedef std::shared_ptr<SemaphoreVkCudaDriverApiInterop> SemaphoreVkCudaDriverAp
 
 struct ModuleWrapper;
 class FeatureCombinePass;
-
+class BackgroundAddPass;
 /**
  * Loads a PyTorch denoiser model from a TorchScript intermediate representation file.
  *
@@ -132,6 +132,7 @@ private:
 
     // Image data.
     sgl::vk::ImageViewPtr inputImageVulkan, outputImageVulkan;
+    sgl::vk::ImageViewPtr backgroundImage;
 
     // Data for CPU rendering.
     std::vector<sgl::vk::BufferPtr> renderImageStagingBuffers;
@@ -140,6 +141,9 @@ private:
     sgl::vk::FencePtr denoiseFinishedFence;
     float* renderedImageData = nullptr;
     float* denoisedImageData = nullptr;
+
+    bool addBackground = false;
+    std::shared_ptr<BackgroundAddPass> backgroundAddPass;
 
 #ifdef SUPPORT_CUDA_INTEROP
     // Synchronization primitives.
@@ -197,5 +201,21 @@ private:
     sgl::vk::BufferPtr outputBuffer;
 };
 
+class BackgroundAddPass : public sgl::vk::ComputePass {
+public:
+    explicit BackgroundAddPass(sgl::vk::Renderer* renderer);
+    void setBackgroundImage(const sgl::vk::ImageViewPtr& _backgroundImage);
+    void setTargetImage(sgl::vk::ImageViewPtr& colorImage);
+protected:
+    void loadShader() override;
+    void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
+    void _render() override;
+
+private:
+    const int BLOCK_SIZE = 16;
+    bool useEnvironmentMapImage;
+    sgl::vk::ImageViewPtr backgroundImage;
+    sgl::vk::ImageViewPtr outputImage;
+};
 
 #endif //CLOUDRENDERING_PYTORCHDENOISER_HPP

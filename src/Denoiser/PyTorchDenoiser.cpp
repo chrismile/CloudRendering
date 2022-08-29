@@ -96,6 +96,7 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
     denoiseFinishedFence = std::make_shared<sgl::vk::Fence>(device);
     featureCombinePass = std::make_shared<FeatureCombinePass>(renderer);
+    backgroundAddPass = std::make_shared<BackgroundAddPass>(renderer);
 
     // When loading a model, the metadata in the TorchScript file is read to get the used feature map names.
     inputFeatureMapsUsed = { FeatureMapType::COLOR };
@@ -121,18 +122,27 @@ PyTorchDenoiser::~PyTorchDenoiser() {
 
 void PyTorchDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
     outputImageVulkan = outputImage;
+    backgroundAddPass->setTargetImage(outputImageVulkan);
 }
 
 void PyTorchDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
     }
-    inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
-    featureCombinePass->setFeatureMap(featureMapType, featureTexture);
+    if (featureMapType == FeatureMapType::BACKGROUND) {
+        backgroundImage = featureTexture->getImageView();
+        backgroundAddPass->setBackgroundImage(backgroundImage);
+    }
+    if (inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end())
+    {
+        inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
+        featureCombinePass->setFeatureMap(featureMapType, featureTexture);
+    }
 }
 
 bool PyTorchDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
-    return inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end();
+    return inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end()
+            || featureMapType == FeatureMapType::BACKGROUND; // TODO: Find nicer way to do this
 }
 
 void PyTorchDenoiser::computeNumChannels() {
@@ -358,6 +368,15 @@ void PyTorchDenoiser::denoise() {
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
         outputImageVulkan->getImage()->copyFromBuffer(
                 outputImageBufferVk, renderer->getVkCommandBuffer());
+
+        if (addBackground) {
+            backgroundImage->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            outputImageVulkan->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+
+            backgroundAddPass->render();
+        }
     }
 #endif
 }
@@ -654,6 +673,10 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
         reRender = true;
     }
 
+    if (propertyEditor.addCheckbox("Add Background", &addBackground)) {
+        reRender = true;
+    }
+
     return reRender;
 }
 
@@ -763,4 +786,45 @@ void FeatureCombinePass::_render() {
     renderer->dispatch(
             computeData, sgl::iceil(width, computeBlockSize),
             sgl::iceil(height, computeBlockSize), 1);
+}
+
+
+BackgroundAddPass::BackgroundAddPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+}
+
+void BackgroundAddPass::setBackgroundImage(const sgl::vk::ImageViewPtr& _backgroundImage) {
+    backgroundImage = _backgroundImage;
+    setDataDirty();
+}
+
+void BackgroundAddPass::setTargetImage(sgl::vk::ImageViewPtr& _outputImage) {
+    outputImage = _outputImage;
+    setDataDirty();
+}
+
+void BackgroundAddPass::loadShader() {
+    std::map<std::string, std::string> preprocessorDefines;
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE", std::to_string(BLOCK_SIZE)));
+    preprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
+
+    shaderStages = sgl::vk::ShaderManager->getShaderStages(
+            { "BackgroundPass.Compute" }, preprocessorDefines);
+}
+
+void BackgroundAddPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+    computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
+    //computeData->setStaticImageView(cloudOnlyImage, "cloudOnlyImage");
+    computeData->setStaticImageView(backgroundImage, "backgroundImage");
+    computeData->setStaticImageView(outputImage, "resultImage");
+}
+
+void BackgroundAddPass::_render() {
+    auto width = int(outputImage->getImage()->getImageSettings().width);
+    auto height = int(outputImage->getImage()->getImageSettings().height);
+    std::cout << width << std::endl;
+    std::cout << sgl::iceil(width, BLOCK_SIZE) << std::endl;
+
+    renderer->dispatch(
+            computeData,
+            sgl::iceil(width, BLOCK_SIZE), sgl::iceil(height, BLOCK_SIZE), 1);
 }
