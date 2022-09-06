@@ -30,8 +30,6 @@
 #include <boost/algorithm/string/case_conv.hpp>
 
 #include <json/json.h>
-#include <torch/script.h>
-#include <torch/cuda.h>
 #include <c10/core/MemoryFormat.h>
 #ifdef SUPPORT_CUDA_INTEROP
 #include <c10/cuda/CUDAStream.h>
@@ -282,7 +280,26 @@ void PyTorchDenoiser::denoise() {
 
     std::vector<torch::jit::IValue> inputs;
     inputs.emplace_back(inputTensor);
+    if (usePreviousFrame) {
+        std::cout << width << ", " << height << std::endl;
+        std::cout << previousTensor.sizes() << std::endl;
+
+        if (previousTensor.sizes()[0] == 0) {
+            std::cout <<"new tensor: "<< width << ", " << height << std::endl;
+
+            if (useBatchDimension) {
+                inputSizes = { 1, int64_t(4), int64_t(height), int64_t(width)};
+                previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
+            } else {
+                inputSizes = { int64_t(4), int64_t(height), int64_t(width)};
+                previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
+            }
+        }
+        inputs.emplace_back(previousTensor);
+    }
     at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
+    previousTensor = outputTensor.detach();
+    std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;
     uint32_t outputTensorChannels = 0;
@@ -676,6 +693,9 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
     if (propertyEditor.addCheckbox("Add Background", &addBackground)) {
         reRender = true;
     }
+    if (propertyEditor.addCheckbox("Use Previous Frame", &usePreviousFrame)) {
+        reRender = true;
+    }
 
     return reRender;
 }
@@ -821,8 +841,6 @@ void BackgroundAddPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::
 void BackgroundAddPass::_render() {
     auto width = int(outputImage->getImage()->getImageSettings().width);
     auto height = int(outputImage->getImage()->getImageSettings().height);
-    std::cout << width << std::endl;
-    std::cout << sgl::iceil(width, BLOCK_SIZE) << std::endl;
 
     renderer->dispatch(
             computeData,

@@ -33,6 +33,8 @@
 #include <unordered_map>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
+#include <torch/script.h>
+#include <torch/cuda.h>
 
 #include "Denoiser.hpp"
 
@@ -143,6 +145,8 @@ private:
     float* denoisedImageData = nullptr;
 
     bool addBackground = false;
+    bool usePreviousFrame = false;
+    torch::Tensor previousTensor;
     std::shared_ptr<BackgroundAddPass> backgroundAddPass;
 
 #ifdef SUPPORT_CUDA_INTEROP
@@ -213,7 +217,6 @@ protected:
 
 private:
     const int BLOCK_SIZE = 16;
-    bool useEnvironmentMapImage;
     sgl::vk::ImageViewPtr backgroundImage;
     sgl::vk::ImageViewPtr outputImage;
 };
