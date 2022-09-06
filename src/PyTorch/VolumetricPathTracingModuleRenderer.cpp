@@ -128,6 +128,9 @@ void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
     camera->setFOVy(FOVy);
 }
 
+void VolumetricPathTracingModuleRenderer::setViewProjectionMatrixAsPrevious() {
+    previousViewProjectionMatrix = camera->getProjectionMatrix() * camera->getViewMatrix();
+}
 
 bool VolumetricPathTracingModuleRenderer::settingsDiffer(
         uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype) const {
@@ -303,6 +306,7 @@ void VolumetricPathTracingModuleRenderer::setVptModeFromString(const std::string
 float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
     // TODO: Allow multiple frames in flight.
     for (uint32_t i = 0; i < numFrames; i++) {
+        vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
         renderer->beginCommandBuffer();
         vptPass->render();
         if (i == numFrames - 1) {
@@ -397,6 +401,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
 
         renderer->pushCommandBuffer(commandBuffer);
         renderer->beginCommandBuffer();
+
+        vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
 
         vptPass->render();
 

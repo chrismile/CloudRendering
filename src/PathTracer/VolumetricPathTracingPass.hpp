@@ -51,10 +51,10 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND
+    RESULT, FIRST_X, FIRST_W, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Cloud Only", "Depth", "Density", "Background"
+        "Result", "First X", "First W", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV"
 };
 
 enum class VptMode {
@@ -112,6 +112,7 @@ public:
     void setPhaseG(double phaseG);
     void setExtinctionBase(glm::vec3 extinctionBase);
     void setFeatureMapType(FeatureMapTypeVpt type);
+    void setPreviousViewProjMatrix(glm::mat4 previousViewProjMatrix);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -168,6 +169,7 @@ private:
     sgl::vk::TexturePtr depthTexture;
     sgl::vk::TexturePtr densityTexture;
     sgl::vk::TexturePtr  backgroundTexture;
+    sgl::vk::TexturePtr  reprojUVTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
@@ -209,9 +211,12 @@ private:
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
 
+    glm::mat4 previousViewProjMatrix;
+
     // Uniform buffer object storing the camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
+        glm::mat4 previousViewProjMatrix;
 
         // Cloud properties
         glm::vec3 boxMin; float pad0;

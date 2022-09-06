@@ -140,6 +140,7 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
     imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
     depthTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     densityTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    reprojUVTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
     blitResultRenderPass->setInputTexture(resultTexture);
     blitResultRenderPass->setOutputImage(imageView);
@@ -174,6 +175,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         }
         if (denoiser->getUseFeatureMap(FeatureMapType::BACKGROUND)) {
             denoiser->setFeatureMap(FeatureMapType::BACKGROUND, backgroundTexture);
+        }
+        if (denoiser->getUseFeatureMap(FeatureMapType::REPROJ_UV)) {
+            denoiser->setFeatureMap(FeatureMapType::REPROJ_UV, reprojUVTexture);
         }
 
         denoiser->setOutputImage(denoisedImageView);
@@ -334,6 +338,10 @@ void VolumetricPathTracingPass::setUseLinearRGB(bool useLinearRGB) {
     uniformData.useLinearRGB = useLinearRGB;
     frameInfo.frameCount = 0;
     setShaderDirty();
+}
+
+void VolumetricPathTracingPass::setPreviousViewProjMatrix(glm::mat4 previousViewProjectionMatrix) {
+    this->previousViewProjMatrix = previousViewProjectionMatrix;
 }
 
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
@@ -630,6 +638,7 @@ void VolumetricPathTracingPass::createComputeData(
     computeData->setStaticImageView(depthTexture->getImageView(), "depthImage");
     computeData->setStaticImageView(densityTexture->getImageView(), "densityImage");
     computeData->setStaticImageView(backgroundTexture->getImageView(), "backgroundImage");
+    computeData->setStaticImageView(reprojUVTexture->getImageView(), "reprojUVImage");
 
     if (useEnvironmentMapImage) {
         computeData->setStaticTexture(environmentMapTexture, "environmentMapTexture");
@@ -687,6 +696,7 @@ void VolumetricPathTracingPass::_render() {
     if (!changedDenoiserSettings && !timerStopped) {
         uniformData.inverseViewProjMatrix = glm::inverse(
                 (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
+        uniformData.previousViewProjMatrix = previousViewProjMatrix;
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
         uniformData.boxMax = cloudData->getWorldSpaceBoxMax();
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
@@ -728,6 +738,7 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(firstWTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(backgroundTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(reprojUVTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(depthTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(densityTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(
@@ -792,11 +803,16 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(backgroundTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         backgroundTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::REPROJ_UV) {
+        renderer->transitionImageLayout(reprojUVTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        reprojUVTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     }
 
     if (!reachedTarget) {
         accumulationTimer->endGPU(eventName);
     }
+    this->setPreviousViewProjMatrix((*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
 }
 
 sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTypeVpt type){
@@ -818,6 +834,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return densityTexture;
     }else if (type == FeatureMapTypeVpt::BACKGROUND) {
         return backgroundTexture;
+    }else if (type == FeatureMapTypeVpt::REPROJ_UV) {
+        return reprojUVTexture;
     }
     return nullptr;
 }

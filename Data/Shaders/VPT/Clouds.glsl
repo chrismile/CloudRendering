@@ -101,6 +101,12 @@ void main() {
     }
 #endif
 
+    vec4 prevClip = (parameters.previousViewProjMatrix * vec4(firstEvent.x, 1));
+    vec2 lastUV = prevClip.xy / prevClip.w;
+    lastUV = lastUV * .5 + .5;
+    lastUV = firstEvent.hasValue? lastUV : vec2(-1,-1);
+    imageStore(reprojUVImage, imageCoord, vec4(lastUV, 0, 0));
+
     // Accumulate cloudOnly
     vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
     vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);

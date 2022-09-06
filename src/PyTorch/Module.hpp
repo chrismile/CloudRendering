@@ -53,6 +53,8 @@ MODULE_OP_API void setFeatureMapType(int64_t type);
 
 MODULE_OP_API void setSeedOffset(int64_t offset);
 
+MODULE_OP_API void setViewProjectionMatrixAsPrevious();
+
 MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount);
 MODULE_OP_API torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t frameCount);
 

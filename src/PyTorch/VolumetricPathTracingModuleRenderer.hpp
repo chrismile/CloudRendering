@@ -69,6 +69,8 @@ public:
     void setCameraTarget(glm::vec3 cameraTarget);
     void setCameraFOVy(double FOVy);
 
+    void setViewProjectionMatrixAsPrevious();
+
     /// Called when the resolution of the application window has changed.
     void setRenderingResolution(
             uint32_t width, uint32_t height, uint32_t channels, c10::Device torchDevice, caffe2::TypeMeta dtype);
@@ -117,6 +119,8 @@ private:
     sgl::CameraPtr camera;
     glm::vec3 cameraPosition = glm::vec3(0,0,0);
     glm::vec3 cameraTarget = glm::vec3(0,0,0);
+
+    glm::mat4 previousViewProjectionMatrix;
 
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;

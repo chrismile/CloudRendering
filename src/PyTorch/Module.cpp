@@ -59,6 +59,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::get_feature_map", getFeatureMap);
     m.def("vpt::set_phase_g", setPhaseG);
+    m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious)
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -427,4 +428,8 @@ void setSeedOffset(int64_t offset){
 
 void setPhaseG(double phaseG){
     vptRenderer->setPhaseG(phaseG);
+}
+
+void setViewProjectionMatrixAsPrevious(){
+    vptRenderer->setViewProjectionMatrixAsPrevious();
 }

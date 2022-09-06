@@ -298,7 +298,7 @@ void PyTorchDenoiser::denoise() {
         inputs.emplace_back(previousTensor);
     }
     at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
-    previousTensor = outputTensor.detach();
+    previousTensor = outputTensor.clone().detach();
     std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;

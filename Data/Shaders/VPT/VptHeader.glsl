@@ -37,7 +37,7 @@ layout (binding = 1) uniform sampler3D gridImage;
 layout (binding = 2) uniform Parameters {
     // Transform from normalized device coordinates to world space.
     mat4 inverseViewProjMatrix;
-
+    mat4 previousViewProjMatrix;
     // Cloud properties.
     vec3 boxMin;
     vec3 boxMax;
@@ -94,6 +94,7 @@ layout (binding = 13, rgba32f) uniform image2D cloudOnlyImage;
 layout (binding = 14, rg32f) uniform image2D depthImage;
 layout (binding = 15, rg32f) uniform image2D densityImage;
 layout (binding = 16, rg32f) uniform image2D backgroundImage;
+layout (binding = 17, rg32f) uniform image2D reprojUVImage;
 
 
 
@@ -105,7 +106,7 @@ layout (binding = 16, rg32f) uniform image2D backgroundImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 17) uniform MomentUniformData {
+layout(std140, binding = 18) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;
