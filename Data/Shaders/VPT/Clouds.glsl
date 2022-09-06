@@ -101,12 +101,6 @@ void main() {
     }
 #endif
 
-    vec4 prevClip = (parameters.previousViewProjMatrix * vec4(firstEvent.x, 1));
-    vec2 lastUV = prevClip.xy / prevClip.w;
-    lastUV = lastUV * .5 + .5;
-    lastUV = firstEvent.hasValue? lastUV : vec2(-1,-1);
-    imageStore(reprojUVImage, imageCoord, vec4(lastUV, 0, 0));
-
     // Accumulate cloudOnly
     vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
     vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
@@ -216,7 +210,12 @@ void main() {
     density = mix(densityOld, density, 1.0 / float(frame + 1));
     imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.,density.y - density.x * density.x)),0,0));
 
-
+    vec2 oldReprojUV = frame == 0 ? vec2(-1,-1) : imageLoad(reprojUVImage, imageCoord).xy;
+    vec4 prevClip = (parameters.previousViewProjMatrix * vec4(firstEvent.x, 1));
+    vec2 reprojUV = prevClip.xy / prevClip.w;
+    reprojUV = reprojUV * .5 + .5;
+    reprojUV = firstEvent.hasValue? reprojUV : oldReprojUV;
+    imageStore(reprojUVImage, imageCoord, vec4(reprojUV, 0, 0));
 
     //vec2 octaUV = worldToOctahedralUV(w);
     //vec3 octaCol = textureLod(environmentMapOctahedralTexture, octaUV, parameters.phaseG * 8.).rrr;
