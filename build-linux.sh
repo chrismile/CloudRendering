@@ -105,6 +105,29 @@ elif command -v pacman &> /dev/null; then
         echo "------------------------"
         sudo pacman -S boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc jsoncpp openexr
     fi
+elif command -v yum &> /dev/null; then
+    if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
+            || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null \
+            || ! command -v patchelf &> /dev/null; then
+        echo "------------------------"
+        echo "installing build essentials"
+        echo "------------------------"
+        sudo yum install -y cmake git curl pkgconf gcc gcc-c++ patchelf
+    fi
+
+    # Dependencies of sgl and LineVis.
+    if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "libarchive-devel" \
+            || ! is_installed_rpm "glm-devel" || ! is_installed_rpm "tinyxml2-devel" \
+            || ! is_installed_rpm "SDL2-devel" || ! is_installed_rpm "SDL2_image-devel" \
+            || ! is_installed_rpm "libpng-devel" || ! is_installed_rpm "glew-devel" \
+            || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "libshaderc-devel" \
+            || ! is_installed_rpm "jsoncpp-devel" || ! is_installed_rpm "openexr-devel"; then
+        echo "------------------------"
+        echo "installing dependencies "
+        echo "------------------------"
+        sudo yum install -y boost-devel libarchive-devel glm-devel tinyxml2-devel SDL2-devel SDL2_image-devel \
+        libpng-devel glew-devel vulkan-headers libshaderc-devel jsoncpp-devel openexr-devel
+    fi
 else
     echo "Warning: Unsupported system package manager detected." >&2
 fi
