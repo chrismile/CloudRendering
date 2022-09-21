@@ -76,13 +76,14 @@ if command -v apt &> /dev/null; then
     if ! is_installed_apt "libglm-dev" || ! is_installed_apt "libsdl2-dev" || ! is_installed_apt "libsdl2-image-dev" \
             || ! is_installed_apt "libpng-dev" || ! is_installed_apt "libboost-filesystem-dev" \
             || ! is_installed_apt "libtinyxml2-dev" || ! is_installed_apt "libarchive-dev" \
-            || ! is_installed_apt "libglew-dev" || ! is_installed_apt "libjsoncpp-dev" \
-            || ! is_installed_apt "libopenexr-dev"; then
+            || ! is_installed_apt "libglew-dev" || ! is_installed_apt "opencl-c-headers" \
+            || ! is_installed_apt "ocl-icd-opencl-dev" \
+            || ! is_installed_apt "libjsoncpp-dev" || ! is_installed_apt "libopenexr-dev"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
         sudo apt install -y libglm-dev libsdl2-dev libsdl2-image-dev libpng-dev libboost-filesystem-dev libtinyxml2-dev \
-        libarchive-dev libglew-dev libjsoncpp-dev libopenexr-dev
+        libarchive-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev
     fi
 elif command -v pacman &> /dev/null; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
@@ -99,11 +100,13 @@ elif command -v pacman &> /dev/null; then
             || ! is_installed_pacman "tinyxml2" || ! is_installed_pacman "sdl2" \
             || ! is_installed_pacman "sdl2_image" || ! is_installed_pacman "glew" \
             || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
+            || ! is_installed_pacman "opencl-headers" || ! is_installed_pacman "ocl-icd" \
             || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
-        sudo pacman -S boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc jsoncpp openexr
+        sudo pacman -S boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc opencl-headers ocl-icd \
+        jsoncpp openexr
     fi
 elif command -v yum &> /dev/null; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
@@ -121,12 +124,13 @@ elif command -v yum &> /dev/null; then
             || ! is_installed_rpm "SDL2-devel" || ! is_installed_rpm "SDL2_image-devel" \
             || ! is_installed_rpm "libpng-devel" || ! is_installed_rpm "glew-devel" \
             || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "libshaderc-devel" \
+            || ! is_installed_rpm "opencl-headers" || ! is_installed_rpm "ocl-icd" \
             || ! is_installed_rpm "jsoncpp-devel" || ! is_installed_rpm "openexr-devel"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
         sudo yum install -y boost-devel libarchive-devel glm-devel tinyxml2-devel SDL2-devel SDL2_image-devel \
-        libpng-devel glew-devel vulkan-headers libshaderc-devel jsoncpp-devel openexr-devel
+        libpng-devel glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel openexr-devel
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2

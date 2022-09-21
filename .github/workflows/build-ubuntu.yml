@@ -49,7 +49,8 @@ jobs:
           sudo apt-get upgrade
         fi
         sudo apt-get install git cmake libglm-dev libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev libsdl2-ttf-dev \
-        libpng-dev libboost-filesystem-dev libtinyxml2-dev libarchive-dev libglew-dev libjsoncpp-dev libopenexr-dev
+        libpng-dev libboost-filesystem-dev libtinyxml2-dev libarchive-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev \
+        libjsoncpp-dev libopenexr-dev
 
     - name: Install Vulkan SDK
       shell: bash
