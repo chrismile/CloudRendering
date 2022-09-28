@@ -109,6 +109,7 @@ jobs:
       run: |
         params=()
         if [ "$RUNNER_OS" == "Linux" ]; then
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           os_arch="$(uname -m)"
           export VULKAN_SDK="/usr"
           export PKG_CONFIG_PATH="/usr/lib/${os_arch}-linux-gnu/pkgconfig"
@@ -129,6 +130,7 @@ jobs:
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
           if [ "${{env.PKG_CONFIG_PATH}}" != "" ]; then
             VK_LAYER_PATH=""
             source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
