@@ -32,17 +32,26 @@ SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 PROJECTPATH="$SCRIPTPATH"
 pushd $SCRIPTPATH > /dev/null
 
-debug=true
+debug=false
 build_dir_debug=".build_debug"
 build_dir_release=".build_release"
-destination_dir="Shipping"
-if command -v pacman &> /dev/null; then
-    is_embree_installed=true
-    is_ospray_installed=true
+if [ $debug = true ]; then
+    cmake_config="Debug"
+    build_dir=$build_dir_debug
 else
-    is_embree_installed=false
-    is_ospray_installed=false
+    cmake_config="Release"
+    build_dir=$build_dir_release
 fi
+destination_dir="Shipping"
+
+# Process command line arguments.
+custom_glslang=false
+for ((i=1;i<=$#;i++));
+do
+    if [ ${!i} = "--custom-glslang" ]; then
+        custom_glslang=true
+    fi
+done
 
 is_installed_apt() {
     local pkg_name="$1"
@@ -56,6 +65,33 @@ is_installed_apt() {
 is_installed_pacman() {
     local pkg_name="$1"
     if pacman -Qs $pkg_name > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_installed_yay() {
+    local pkg_name="$1"
+    if yay -Ss $pkg_name > /dev/null | grep -q 'instal'; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+is_installed_yum() {
+    local pkg_name="$1"
+    if yum list installed "$pkg_name" > /dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_installed_rpm() {
+    local pkg_name="$1"
+    if rpm -q "$pkg_name" > /dev/null 2>&1; then
         return 0
     else
         return 1
@@ -118,7 +154,7 @@ elif command -v yum &> /dev/null; then
         sudo yum install -y cmake git curl pkgconf gcc gcc-c++ patchelf
     fi
 
-    # Dependencies of sgl and LineVis.
+    # Dependencies of sgl and CloudRendering.
     if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "libarchive-devel" \
             || ! is_installed_rpm "glm-devel" || ! is_installed_rpm "tinyxml2-devel" \
             || ! is_installed_rpm "SDL2-devel" || ! is_installed_rpm "SDL2_image-devel" \
@@ -154,17 +190,10 @@ if ! command -v pkg-config &> /dev/null; then
     exit 1
 fi
 
-if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
-    echo "------------------------"
-    echo "initializing submodules "
-    echo "------------------------"
-    git submodule init
-    git submodule update
-fi
-
 [ -d "./third_party/" ] || mkdir "./third_party/"
 pushd third_party > /dev/null
 
+os_arch="$(uname -m)"
 if [[ ! -v VULKAN_SDK ]]; then
     echo "------------------------"
     echo "searching for Vulkan SDK"
@@ -175,7 +204,7 @@ if [[ ! -v VULKAN_SDK ]]; then
     if [ -d "VulkanSDK" ]; then
         VK_LAYER_PATH=""
         source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
-        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig")"
         found_vulkan=true
     fi
 
@@ -209,11 +238,11 @@ if [[ ! -v VULKAN_SDK ]]; then
         source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
 
         # Fix pkgconfig file.
-        shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig/shaderc.pc"
-        prefix_path=$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64")
+        shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig/shaderc.pc"
+        prefix_path=$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch")
         sed -i '3s;.*;prefix=\"'$prefix_path'\";' "$shaderc_pkgconfig_file"
         sed -i '5s;.*;libdir=${prefix}/lib;' "$shaderc_pkgconfig_file"
-        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig")"
         found_vulkan=true
     fi
 
@@ -224,11 +253,51 @@ if [[ ! -v VULKAN_SDK ]]; then
     fi
 fi
 
+params_sgl=()
+
+if $custom_glslang; then
+    if [ ! -d "./glslang" ]; then
+        echo "------------------------"
+        echo "  downloading glslang   "
+        echo "------------------------"
+        # Make sure we have no leftovers from a failed build attempt.
+        if [ -d "./glslang-src" ]; then
+            rm -rf "./glslang-src"
+        fi
+        git clone https://github.com/KhronosGroup/glslang.git glslang-src
+        pushd glslang-src >/dev/null
+        ./update_glslang_sources.py
+        mkdir build
+        pushd build >/dev/null
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${PROJECTPATH}/third_party/glslang" ..
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+        popd >/dev/null
+    fi
+    params_sgl+=(-Dglslang_DIR="${PROJECTPATH}/third_party/glslang" -DUSE_SHADERC=Off)
+fi
+
 if [ ! -d "./sgl" ]; then
     echo "------------------------"
     echo "     fetching sgl       "
     echo "------------------------"
     git clone --depth 1 https://github.com/chrismile/sgl.git
+fi
+
+if [ -f "./sgl/$build_dir/CMakeCache.txt" ]; then
+    if grep -q vcpkg_installed "./sgl/$build_dir/CMakeCache.txt"; then
+        echo "Removing old sgl build cache..."
+        if [ -d "./sgl/$build_dir_debug" ]; then
+            rm -rf "./sgl/$build_dir_debug"
+        fi
+        if [ -d "./sgl/$build_dir_release" ]; then
+            rm -rf "./sgl/$build_dir_release"
+        fi
+        if [ -d "./sgl/install" ]; then
+            rm -rf "./sgl/install"
+        fi
+    fi
 fi
 
 if [ ! -d "./sgl/install" ]; then
@@ -243,16 +312,18 @@ if [ ! -d "./sgl/install" ]; then
     pushd "$build_dir_debug" >/dev/null
     cmake .. \
          -DCMAKE_BUILD_TYPE=Debug \
-         -DCMAKE_INSTALL_PREFIX="../install"
-    make -j
+         -DCMAKE_INSTALL_PREFIX="../install" \
+         "${params_sgl[@]}"
+    make -j $(nproc)
     make install
     popd >/dev/null
 
     pushd $build_dir_release >/dev/null
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX="../install"
-    make -j
+        -DCMAKE_INSTALL_PREFIX="../install" \
+        "${params_sgl[@]}"
+    make -j $(nproc)
     make install
     popd >/dev/null
 
@@ -261,45 +332,34 @@ fi
 
 params=()
 
-embree_version="3.13.2"
-if ! $is_embree_installed && [ ! -d "./embree-${embree_version}.x86_64.linux" ]; then
-    echo "------------------------"
-    echo "   downloading Embree   "
-    echo "------------------------"
-    wget "https://github.com/embree/embree/releases/download/v${embree_version}/embree-${embree_version}.x86_64.linux.tar.gz"
-    tar -xvzf "embree-${embree_version}.x86_64.linux.tar.gz"
-    params+=(-Dembree_DIR=${PROJECTPATH}/third_party/embree-${embree_version}.x86_64.linux/lib/cmake/embree-${embree_version})
-fi
-
-ospray_version="2.8.0"
-if ! $is_ospray_installed && [ ! -d "./ospray-${ospray_version}.x86_64.linux" ]; then
-    echo "------------------------"
-    echo "   downloading OSPRay   "
-    echo "------------------------"
-    wget "https://github.com/ospray/OSPRay/releases/download/v${ospray_version}/ospray-${ospray_version}.x86_64.linux.tar.gz"
-    tar -xvzf "ospray-${ospray_version}.x86_64.linux.tar.gz"
-    params+=(-Dospray_DIR=${PROJECTPATH}/third_party/ospray-${ospray_version}.x86_64.linux/lib/cmake/ospray-${ospray_version})
-fi
-
 popd >/dev/null # back to project root
 
 if [ $debug = true ] ; then
     echo "------------------------"
     echo "  building in debug     "
     echo "------------------------"
-
-    cmake_config="Debug"
-    build_dir=$build_dir_debug
 else
     echo "------------------------"
     echo "  building in release   "
     echo "------------------------"
-
-    cmake_config="Release"
-    build_dir=$build_dir_release
 fi
+
+if [ -f "./$build_dir/CMakeCache.txt" ]; then
+    if grep -q vcpkg_installed "./$build_dir/CMakeCache.txt"; then
+        echo "Removing old application build cache..."
+        if [ -d "./$build_dir_debug" ]; then
+            rm -rf "./$build_dir_debug"
+        fi
+        if [ -d "./$build_dir_release" ]; then
+            rm -rf "./$build_dir_release"
+        fi
+        if [ -d "./$destination_dir" ]; then
+            rm -rf "./$destination_dir"
+        fi
+    fi
+fi
+
 mkdir -p $build_dir
-ls "$build_dir"
 
 echo "------------------------"
 echo "      generating        "
@@ -315,13 +375,64 @@ echo "------------------------"
 echo "      compiling         "
 echo "------------------------"
 pushd "$build_dir" >/dev/null
-make -j
+make -j $(nproc)
 popd >/dev/null
 
+echo "------------------------"
+echo "   copying new files    "
+echo "------------------------"
+mkdir -p $destination_dir/bin
+
+# Copy the application to the destination directory.
+rsync -a "$build_dir/CloudRendering" "$destination_dir/bin"
+
+# Copy all dependencies of the application to the destination directory.
+ldd_output="$(ldd $build_dir/CloudRendering)"
+library_blacklist=(
+    "libOpenGL" "libGLdispatch" "libGL.so" "libGLX.so"
+    "libwayland" "libffi." "libX" "libxcb" "libxkbcommon"
+    "ld-linux" "libdl." "libutil." "libm." "libc." "libpthread." "libbsd."
+)
+for library in $ldd_output
+do
+    if [[ $library != "/"* ]]; then
+        continue
+    fi
+    is_blacklisted=false
+    for blacklisted_library in ${library_blacklist[@]}; do
+        if [[ "$library" == *"$blacklisted_library"* ]]; then
+            is_blacklisted=true
+            break
+        fi
+    done
+    if [ $is_blacklisted = true ]; then
+        continue
+    fi
+    # TODO: Add blacklist entries for pulseaudio and dependencies.
+    #cp "$library" "$destination_dir/bin"
+    #patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/$(basename "$library")"
+done
+patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/CloudRendering"
+
+# Copy the docs to the destination directory.
+cp "README.md" "$destination_dir"
+if [ ! -d "$destination_dir/LICENSE" ]; then
+    mkdir -p "$destination_dir/LICENSE"
+    cp -r "docs/license-libraries/." "$destination_dir/LICENSE/"
+    cp -r "LICENSE" "$destination_dir/LICENSE/LICENSE-cloudrendering.txt"
+fi
+if [ ! -d "$destination_dir/docs" ]; then
+    cp -r "docs" "$destination_dir"
+fi
+
+# Create a run script.
+printf "#!/bin/bash\npushd \"\$(dirname \"\$0\")/bin\" >/dev/null\n./CloudRendering\npopd\n" > "$destination_dir/run.sh"
+chmod +x "$destination_dir/run.sh"
+
+
+# Run the program as the last step.
 echo ""
 echo "All done!"
-
-
 pushd $build_dir >/dev/null
 
 if [[ -z "${LD_LIBRARY_PATH+x}" ]]; then
@@ -330,4 +441,3 @@ elif [[ ! "${LD_LIBRARY_PATH}" == *"${PROJECTPATH}/third_party/sgl/install/lib"*
     export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${PROJECTPATH}/third_party/sgl/install/lib"
 fi
 ./CloudRendering
-

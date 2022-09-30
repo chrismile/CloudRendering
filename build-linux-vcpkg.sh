@@ -32,10 +32,37 @@ SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P )"
 PROJECTPATH="$SCRIPTPATH"
 pushd $SCRIPTPATH > /dev/null
 
-debug=true
+debug=false
+link_dynamic=false
+params_link=()
+if [ $link_dynamic = true ]; then
+    params_link+=(-DVCPKG_TARGET_TRIPLET=x64-linux-dynamic)
+fi
 build_dir_debug=".build_debug"
 build_dir_release=".build_release"
+if [ $debug = true ]; then
+    cmake_config="Debug"
+    build_dir=$build_dir_debug
+else
+    cmake_config="Release"
+    build_dir=$build_dir_release
+fi
 destination_dir="Shipping"
+
+# Process command line arguments.
+custom_glslang=false
+for ((i=1;i<=$#;i++));
+do
+    if [ ${!i} = "--custom-glslang" ]; then
+        custom_glslang=true
+    fi
+    if [ ${!i} = "--link-static" ]; then
+        link_dynamic=false
+    fi
+    if [ ${!i} = "--link-dynamic" ]; then
+        link_dynamic=true
+    fi
+done
 
 is_installed_apt() {
     local pkg_name="$1"
@@ -49,6 +76,15 @@ is_installed_apt() {
 is_installed_pacman() {
     local pkg_name="$1"
     if pacman -Qs $pkg_name > /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_installed_yum() {
+    local pkg_name="$1"
+    if yum list installed "$pkg_name" > /dev/null 2>&1; then
         return 0
     else
         return 1
@@ -126,6 +162,7 @@ fi
 [ -d "./third_party/" ] || mkdir "./third_party/"
 pushd third_party > /dev/null
 
+os_arch="$(uname -m)"
 if [[ ! -v VULKAN_SDK ]]; then
     echo "------------------------"
     echo "searching for Vulkan SDK"
@@ -136,7 +173,7 @@ if [[ ! -v VULKAN_SDK ]]; then
     if [ -d "VulkanSDK" ]; then
         VK_LAYER_PATH=""
         source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
-        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig")"
         found_vulkan=true
     fi
 
@@ -170,11 +207,11 @@ if [[ ! -v VULKAN_SDK ]]; then
         source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
 
         # Fix pkgconfig file.
-        shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig/shaderc.pc"
-        prefix_path=$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64")
+        shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig/shaderc.pc"
+        prefix_path=$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch")
         sed -i '3s;.*;prefix=\"'$prefix_path'\";' "$shaderc_pkgconfig_file"
         sed -i '5s;.*;libdir=${prefix}/lib;' "$shaderc_pkgconfig_file"
-        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/x86_64/lib/pkgconfig")"
+        export PKG_CONFIG_PATH="$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig")"
         found_vulkan=true
     fi
 
@@ -198,11 +235,55 @@ if [ ! -d "./vcpkg" ]; then
     vcpkg/vcpkg install
 fi
 
+params_sgl=()
+
+if [ $link_dynamic = false ]; then
+    params_sgl+=(-DBUILD_STATIC_LIBRARY=On)
+fi
+
+if $custom_glslang; then
+    if [ ! -d "./glslang" ]; then
+        echo "------------------------"
+        echo "  downloading glslang   "
+        echo "------------------------"
+        # Make sure we have no leftovers from a failed build attempt.
+        if [ -d "./glslang-src" ]; then
+            rm -rf "./glslang-src"
+        fi
+        git clone https://github.com/KhronosGroup/glslang.git glslang-src
+        pushd glslang-src >/dev/null
+        ./update_glslang_sources.py
+        mkdir build
+        pushd build >/dev/null
+        cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${PROJECTPATH}/third_party/glslang" ..
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+        popd >/dev/null
+    fi
+    params_sgl+=(-Dglslang_DIR="${PROJECTPATH}/third_party/glslang" -DUSE_SHADERC=Off)
+fi
+
 if [ ! -d "./sgl" ]; then
     echo "------------------------"
     echo "     fetching sgl       "
     echo "------------------------"
     git clone --depth 1 https://github.com/chrismile/sgl.git
+fi
+
+if [ -f "./sgl/$build_dir/CMakeCache.txt" ]; then
+    if ! grep -q vcpkg_installed "./sgl/$build_dir/CMakeCache.txt"; then
+        echo "Removing old sgl build cache..."
+        if [ -d "./sgl/$build_dir_debug" ]; then
+            rm -rf "./sgl/$build_dir_debug"
+        fi
+        if [ -d "./sgl/$build_dir_release" ]; then
+            rm -rf "./sgl/$build_dir_release"
+        fi
+        if [ -d "./sgl/install" ]; then
+            rm -rf "./sgl/install"
+        fi
+    fi
 fi
 
 if [ ! -d "./sgl/install" ]; then
@@ -218,24 +299,34 @@ if [ ! -d "./sgl/install" ]; then
     cmake .. \
          -DCMAKE_BUILD_TYPE=Debug \
          -DCMAKE_TOOLCHAIN_FILE="../../vcpkg/scripts/buildsystems/vcpkg.cmake" \
-         -DCMAKE_INSTALL_PREFIX="../install"
+         -DCMAKE_INSTALL_PREFIX="../install" \
+         -DUSE_STATIC_STD_LIBRARIES=On "${params_link[@]}" "${params_sgl[@]}"
     popd >/dev/null
 
     pushd $build_dir_release >/dev/null
     cmake .. \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="../../vcpkg/scripts/buildsystems/vcpkg.cmake" \
-        -DCMAKE_INSTALL_PREFIX="../install"
+        -DCMAKE_INSTALL_PREFIX="../install" \
+        -DUSE_STATIC_STD_LIBRARIES=On "${params_link[@]}" "${params_sgl[@]}"
     popd >/dev/null
 
-    cmake --build $build_dir_debug --parallel
+    cmake --build $build_dir_debug --parallel $(nproc)
     cmake --build $build_dir_debug --target install
+    if [ $link_dynamic = true ]; then
+        cp $build_dir_debug/libsgld.so install/lib/libsgld.so
+    fi
 
-    cmake --build $build_dir_release --parallel
+    cmake --build $build_dir_release --parallel $(nproc)
     cmake --build $build_dir_release --target install
+    if [ $link_dynamic = true ]; then
+        cp $build_dir_release/libsgl.so install/lib/libsgl.so
+    fi
 
     popd >/dev/null
 fi
+
+params=()
 
 popd >/dev/null # back to project root
 
@@ -243,44 +334,125 @@ if [ $debug = true ] ; then
     echo "------------------------"
     echo "  building in debug     "
     echo "------------------------"
-
-    cmake_config="Debug"
-    build_dir=$build_dir_debug
 else
     echo "------------------------"
     echo "  building in release   "
     echo "------------------------"
-
-    cmake_config="Release"
-    build_dir=$build_dir_release
 fi
+
+if [ -f "./$build_dir/CMakeCache.txt" ]; then
+    if ! grep -q vcpkg_installed "./$build_dir/CMakeCache.txt"; then
+        echo "Removing old application build cache..."
+        if [ -d "./$build_dir_debug" ]; then
+            rm -rf "./$build_dir_debug"
+        fi
+        if [ -d "./$build_dir_release" ]; then
+            rm -rf "./$build_dir_release"
+        fi
+        if [ -d "./$destination_dir" ]; then
+            rm -rf "./$destination_dir"
+        fi
+    fi
+fi
+
 mkdir -p $build_dir
 
 echo "------------------------"
 echo "      generating        "
 echo "------------------------"
 pushd $build_dir >/dev/null
-cmake -DCMAKE_TOOLCHAIN_FILE="$PROJECTPATH/third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-      -DCMAKE_BUILD_TYPE=$cmake_config -Dsgl_DIR="$PROJECTPATH/third_party/sgl/install/lib/cmake/sgl/" ..
+cmake .. \
+      -DCMAKE_TOOLCHAIN_FILE="$PROJECTPATH/third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+      -DCMAKE_BUILD_TYPE=$cmake_config -Dsgl_DIR="$PROJECTPATH/third_party/sgl/install/lib/cmake/sgl/"  \
+      -DUSE_STATIC_STD_LIBRARIES=On "${params_link[@]}" "${params[@]}"
 popd >/dev/null
 
 echo "------------------------"
 echo "      compiling         "
 echo "------------------------"
-cmake --build $build_dir --parallel
+cmake --build $build_dir --parallel $(nproc)
 
 echo "------------------------"
 echo "   copying new files    "
 echo "------------------------"
+mkdir -p $destination_dir/bin
 
-[ -d $destination_dir ]             || mkdir $destination_dir
+# Copy the application to the destination directory.
+rsync -a "$build_dir/CloudRendering" "$destination_dir/bin"
 
-rsync -a $build_dir/CloudRendering $destination_dir
+# Copy all dependencies of the application to the destination directory.
+ldd_output="$(ldd $build_dir/CloudRendering)"
+library_blacklist=(
+    "libOpenGL" "libGLdispatch" "libGL.so" "libGLX.so"
+    "libwayland" "libffi." "libX" "libxcb" "libxkbcommon"
+    "ld-linux" "libdl." "libutil." "libm." "libc." "libpthread." "libbsd."
+    # We build with libstdc++.so and libgcc_s.so statically. If we were to ship them, libraries opened with dlopen will
+    # use our, potentially older, versions. Then, we will get errors like "version `GLIBCXX_3.4.29' not found" when
+    # the Vulkan loader attempts to load a Vulkan driver that was built with a never version of libstdc++.so.
+    # I tried to solve this by using "patchelf --replace-needed" to directly link to the patch version of libstdc++.so,
+    # but that made no difference whatsoever for dlopen.
+    "libstdc++.so" "libgcc_s.so"
+)
+# Get name of libstdc++.so.* and path to it.
+#for library in $ldd_output
+#do
+#  if [[ $library != "/"* ]]; then
+#      continue
+#  fi
+#  if [[ "$(basename $library)" == "libstdc++.so"* ]]; then
+#      libstdcpp_so_path="$library"
+#      libstdcpp_so_filename_original="$(basename "$library")"
+#      libstdcpp_so_filename_resolved="$(basename "$(readlink -f "$library")")"
+#  fi
+#done
+for library in $ldd_output
+do
+    if [[ $library != "/"* ]]; then
+        continue
+    fi
+    is_blacklisted=false
+    for blacklisted_library in ${library_blacklist[@]}; do
+        if [[ "$library" == *"$blacklisted_library"* ]]; then
+            is_blacklisted=true
+            break
+        fi
+    done
+    if [ $is_blacklisted = true ]; then
+        continue
+    fi
+    #if [[ "$(basename $library)" == "libstdc++.so"* ]]; then
+    #    cp "$(readlink -f "$library")" "$destination_dir/bin"
+    #    patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/$(basename "$(readlink -f "$library")")"
+    #else
+    #    cp "$library" "$destination_dir/bin"
+    #    patchelf --replace-needed "$libstdcpp_so_filename_original" "$libstdcpp_so_filename_resolved" "$destination_dir/bin/$(basename "$library")"
+    #    patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/$(basename "$library")"
+    #fi
+    cp "$library" "$destination_dir/bin"
+    patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/$(basename "$library")"
+done
+#patchelf --replace-needed "$libstdcpp_so_filename_original" "$libstdcpp_so_filename_resolved" "$destination_dir/bin/CloudRendering"
+patchelf --set-rpath '$ORIGIN' "$destination_dir/bin/CloudRendering"
 
+# Copy the docs to the destination directory.
+cp "README.md" "$destination_dir"
+if [ ! -d "$destination_dir/LICENSE" ]; then
+    mkdir -p "$destination_dir/LICENSE"
+    cp -r "docs/license-libraries/." "$destination_dir/LICENSE/"
+    cp -r "LICENSE" "$destination_dir/LICENSE/LICENSE-cloudrendering.txt"
+fi
+if [ ! -d "$destination_dir/docs" ]; then
+    cp -r "docs" "$destination_dir"
+fi
+
+# Create a run script.
+printf "#!/bin/bash\npushd \"\$(dirname \"\$0\")/bin\" >/dev/null\n./CloudRendering\npopd >/dev/null\n" > "$destination_dir/run.sh"
+chmod +x "$destination_dir/run.sh"
+
+
+# Run the program as the last step.
 echo ""
 echo "All done!"
-
-
 pushd $build_dir >/dev/null
 
 if [[ -z "${LD_LIBRARY_PATH+x}" ]]; then
