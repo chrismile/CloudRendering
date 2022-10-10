@@ -62,9 +62,12 @@ layout(binding = 7, rgba32f) uniform readonly image2D albedoMap;
 #endif
 
 #ifdef USE_FLOW
-layout(binding = 5, rg32f) uniform readonly image2D flowMap;
+layout(binding = 8, rg32f) uniform readonly image2D flowMap;
 #endif
 
+#ifdef USE_REPROJ_UV
+layout(binding = 9, rg32f) uniform readonly image2D reproj_uvMap;
+#endif
 
 
 layout(scalar, binding = 7) writeonly buffer OutputBuffer {
@@ -81,6 +84,7 @@ layout(binding = 8) uniform UniformBuffer {
     uint cloudOnlyWriteStartOffset;
     uint albedoWriteStartOffset;
     uint flowWriteStartOffset;
+    uint reproj_uvWriteStartOffset;
 };
 
 // Flattens the vec4 image to a vec3 buffer without padding for use, e.g., with OptiX.
@@ -101,6 +105,8 @@ void main() {
     ivec2 inputImageSize = imageSize(albedoMap);
 #elif defined(USE_FLOW)
     ivec2 inputImageSize = imageSize(flowMap);
+#elif defined(USE_REPROJ_UV)
+    ivec2 inputImageSize = imageSize(reproj_uvMap);
 #endif
 
     uint channelsCounter = 0;
@@ -174,4 +180,10 @@ void main() {
     outputBuffer[writePosFlow + 1] = flowInput.y;
 #endif
 
+#ifdef USE_REPROJ_UV
+    vec2 reprojInput = imageLoad(reproj_uvMap, readPos).xy;
+    uint writePosReproj = writePos + reproj_uvWriteStartOffset;
+    outputBuffer[writePosReproj] = reprojInput.x;
+    outputBuffer[writePosReproj + 1] = reprojInput.y;
+#endif
 }

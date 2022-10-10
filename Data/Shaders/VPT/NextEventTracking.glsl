@@ -175,8 +175,10 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 float pdf_phase_nee = evaluateSkyboxPDF(next_w);
                 w = next_w;
 
-                bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
-                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
+                //bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
+                //float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
+                bw_phase = pdf_w  / (pdf_w + pdf_phase_nee);
+                float bw_nee = pdf_nee / (pdf_nee + pdf_nee_phase);
 
                 weights *= sigma_s / (majorant * Ps);
                 color += bw_nee * min(weights, vec3(100000, 100000, 100000)) * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;

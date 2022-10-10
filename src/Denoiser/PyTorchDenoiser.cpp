@@ -746,6 +746,7 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
     uniformData.cloudOnlyWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::CLOUDONLY);
     uniformData.albedoWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::ALBEDO);
     uniformData.flowWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::FLOW);
+    uniformData.reproj_uvWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::REPROJ_UV);
 
     uniformBuffer->updateData(
             sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
