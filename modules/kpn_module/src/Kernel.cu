@@ -1,6 +1,9 @@
 #include <c10/cuda/CUDAStream.h>
+#include "perPixelKernel.hpp"
 
-
+inline int iceil(int x, int y) {
+    return 1 + ((x - 1) / y);
+}
 __global__ void perPixelKernelForwardKernel(
         torch::PackedTensorAccessor32<float, 4> image,
         torch::PackedTensorAccessor32<float, 4> weights,
@@ -22,7 +25,7 @@ __global__ void perPixelKernelForwardKernel(
         for (int dy = -kernelSize/2; dy <= kernelSize/2; dy++){
             int ky = y + dy;
             if (kx >= 0 && kx < w && ky >= 0 && ky < h){
-                weight = weights[batch][weightIdx][y][x];
+                float weight = weights[batch][weightIdx][y][x];
                 for (int c = 0; c < numChannels; c++){
                     result[c] += weight * image[batch][c][ky][kx];
                 }
@@ -36,7 +39,7 @@ __global__ void perPixelKernelForwardKernel(
     }
 }
 
-torch::Tensor perPixelKernelCuda(torch::Tensor image, torch::Tensor weights, int kernelSize){
+torch::Tensor perPixelKernelCuda(torch::Tensor image, torch::Tensor weights, int64_t kernelSize){
     if (image.sizes().size() != 4) {
         throw std::runtime_error("Error in perPixelKernelCuda: image.sizes().size() != 4.");
     }
@@ -64,7 +67,7 @@ torch::Tensor perPixelKernelCuda(torch::Tensor image, torch::Tensor weights, int
     dim3 gridDim(iceil(W, blockDim.x), iceil(H, blockDim.y), 1);
 
     perPixelKernelForwardKernel<<<gridDim, blockDim, 0, stream>>> (
-        imageAccessor, weightsAccessor, resultAcessor,
+        imageAccessor, weightsAccessor, resultAccessor,
         kernelSize, H, W, 0
     );
 

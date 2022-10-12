@@ -4,7 +4,7 @@ TORCH_LIBRARY(per_pixel_kernel, m) {
     m.def("per_pixel_kernel::forward", perPixelKernelForward);
 }
 
-torch::Tensor perPixelKernelForward(torch::Tensor image, torch::Tensor weights, int kernelSize) {
+torch::Tensor perPixelKernelForward(torch::Tensor image, torch::Tensor weights, int64_t kernelSize) {
     if (image.device().is_cuda()) {
         return perPixelKernelCuda(image, weights, kernelSize);
     } else {

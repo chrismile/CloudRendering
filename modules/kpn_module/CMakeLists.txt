@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.11)
-project(.)
+project(kpn_module)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -20,31 +20,31 @@ if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
     # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
     find_package(CUDA QUIET)
     if(${CUDA_FOUND})
-        add_library(. SHARED ${SOURCES} ${CUDA_SOURCES})
+        add_library(kpn_module SHARED ${SOURCES} ${CUDA_SOURCES})
     else()
-        add_library(. SHARED ${SOURCES})
+        add_library(kpn_module SHARED ${SOURCES})
     endif()
 else()
     # https://cmake.org/cmake/help/git-stage/module/FindCUDAToolkit.html
     find_package(CUDAToolkit QUIET)
     if(${CUDAToolkit_FOUND})
-        add_library(. SHARED ${SOURCES} ${CUDA_SOURCES})
+        add_library(kpn_module SHARED ${SOURCES} ${CUDA_SOURCES})
     else()
-        add_library(. SHARED ${SOURCES})
+        add_library(kpn_module SHARED ${SOURCES})
     endif()
 endif()
 
 cmake_policy(SET CMP0012 NEW)
 find_package(Torch REQUIRED)
 
-target_link_libraries(. ${TORCH_LIBRARIES})
-target_include_directories(. PUBLIC ${TORCH_INCLUDE_DIR})
+target_link_libraries(kpn_module ${TORCH_LIBRARIES})
+target_include_directories(kpn_module PUBLIC ${TORCH_INCLUDE_DIR})
 
 if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
     # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
     if(${CUDA_FOUND})
         enable_language(CUDA)
-        set_target_properties(. PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+        set_target_properties(kpn_module PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
         add_compile_definitions(USE_CUDA)
     endif()
 else()
@@ -54,15 +54,15 @@ else()
         # https://en.wikipedia.org/wiki/CUDA
         # https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities
         #set_property(TARGET kpn_module PROPERTY CUDA_ARCHITECTURES 61 75 86)
-        set_property(TARGET . PROPERTY CUDA_ARCHITECTURES 61 75)
-        set_target_properties(. PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+        set_property(TARGET kpn_module PROPERTY CUDA_ARCHITECTURES 61 75)
+        set_target_properties(kpn_module PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
         add_compile_definitions(USE_CUDA)
     endif()
 endif()
 
 
 install(
-        TARGETS .
+        TARGETS kpn_module
         ARCHIVE DESTINATION modules
         LIBRARY DESTINATION modules
         RUNTIME DESTINATION bin

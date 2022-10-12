@@ -289,6 +289,11 @@ if(MSVC)
 endif()
 
 add_subdirectory(modules/kpn_module)
+if (UNIX AND NOT APPLE)
+    target_link_libraries(CloudRendering PRIVATE -Wl,--no-as-needed kpn_module)
+else()
+    target_link_libraries(CloudRendering PRIVATE kpn_module)
+endif()
 
 if (${SUPPORT_OPTIX})
     set(CMAKE_MODULE_PATH ${OptiX_INSTALL_DIR}/SDK/CMake ${CMAKE_MODULE_PATH})

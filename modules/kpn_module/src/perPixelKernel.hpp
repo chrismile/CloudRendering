@@ -5,6 +5,7 @@
 #include <torch/types.h>
 
 
-torch::Tensor perPixelKernelForward(torch::Tensor image, torch::Tensor weights, int kernelSize);
+torch::Tensor perPixelKernelForward(torch::Tensor image, torch::Tensor weights, int64_t kernelSize);
+torch::Tensor perPixelKernelCuda(torch::Tensor image, torch::Tensor weights, int64_t kernelSize);
 
 #endif //PER_PIXEL_KERNEL_HPP
