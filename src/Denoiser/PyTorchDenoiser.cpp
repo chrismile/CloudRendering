@@ -281,11 +281,11 @@ void PyTorchDenoiser::denoise() {
     std::vector<torch::jit::IValue> inputs;
     inputs.emplace_back(inputTensor);
     if (usePreviousFrame) {
-        std::cout << width << ", " << height << std::endl;
-        std::cout << previousTensor.sizes() << std::endl;
+        //std::cout << width << ", " << height << std::endl;
+        //std::cout << previousTensor.sizes() << std::endl;
 
         if (previousTensor.sizes()[0] == 0) {
-            std::cout <<"new tensor: "<< width << ", " << height << std::endl;
+            //std::cout <<"new tensor: "<< width << ", " << height << std::endl;
 
             if (useBatchDimension) {
                 inputSizes = { 1, int64_t(4), int64_t(height), int64_t(width)};
@@ -299,7 +299,7 @@ void PyTorchDenoiser::denoise() {
     }
     at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
     previousTensor = outputTensor.clone().detach();
-    std::cout << "got " << previousTensor.sizes() << std::endl;
+    //std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;
     uint32_t outputTensorChannels = 0;

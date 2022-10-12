@@ -288,6 +288,8 @@ if(MSVC)
     set_target_properties(CloudRendering PROPERTIES COMPILE_FLAGS "/wd4251")
 endif()
 
+add_subdirectory(modules/kpn_module)
+
 if (${SUPPORT_OPTIX})
     set(CMAKE_MODULE_PATH ${OptiX_INSTALL_DIR}/SDK/CMake ${CMAKE_MODULE_PATH})
     find_package(OptiX QUIET)
