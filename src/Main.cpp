@@ -39,6 +39,13 @@ int main(int argc, char *argv[]) {
     // Initialize the filesystem utilities.
     sgl::FileUtils::get()->initialize("Cloud Rendering", argc, argv);
 
+#ifdef DATA_PATH
+    if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
+        sgl::AppSettings::get()->setDataDirectory(DATA_PATH);
+    }
+#endif
+    sgl::AppSettings::get()->initializeDataDirectory();
+
     // Load the file containing the app settings
     std::string settingsFile = sgl::FileUtils::get()->getConfigDirectory() + "settings.txt";
     sgl::AppSettings::get()->loadSettings(settingsFile.c_str());
@@ -50,12 +57,6 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", false);
 #else
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
-#endif
-
-#ifdef DATA_PATH
-    if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
-        sgl::AppSettings::get()->setDataDirectory(DATA_PATH);
-    }
 #endif
 
     ImVector<ImWchar> fontRanges;

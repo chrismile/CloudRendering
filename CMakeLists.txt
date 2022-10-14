@@ -232,7 +232,6 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
         if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
             # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
             find_package(CUDA QUIET)
-            add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${PYTORCH_MODULE_SOURCES_CUDA} ${VPT_SOURCES} ${SHADER_FILES})
         else()
             # https://cmake.org/cmake/help/git-stage/module/FindCUDAToolkit.html
             find_package(CUDAToolkit QUIET)
