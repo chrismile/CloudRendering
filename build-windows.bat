@@ -48,7 +48,7 @@ pushd third_party
 
 if not exist .\vcpkg (
    echo ------------------------
-   echo    fetching vkpkg
+   echo    fetching vcpkg
    echo ------------------------
    git clone --depth 1 https://github.com/Microsoft/vcpkg.git || exit /b 1
    call vcpkg\bootstrap-vcpkg.bat -disableMetrics             || exit /b 1
