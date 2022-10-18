@@ -240,10 +240,17 @@ void main() {
 
     // Saving the first scatter position and direction
     if (firstEvent.hasValue) {
+        vec3 diff = getCloudFiniteDifference(firstEvent.x);
+
+        vec3 diffOld = frame == 0 ? vec3(0) : imageLoad(normalImage, imageCoord).xyz;
+        diff = mix(diffOld, diff, 1.0 / float(frame + 1));
+        imageStore(normalImage, imageCoord, vec4(diff,1));
+
         //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
         imageStore(firstW, imageCoord, vec4(firstEvent.w, firstEvent.pdf_w));
     } else {
         //imageStore(firstX, imageCoord, vec4(0));
+        imageStore(normalImage, imageCoord, vec4(0));
         imageStore(firstW, imageCoord, vec4(0));
     }
 

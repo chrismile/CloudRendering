@@ -134,6 +134,7 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
     accImageTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     firstXTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     firstWTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    normalTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     cloudOnlyTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     backgroundTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
@@ -162,7 +163,7 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
             denoiser->setFeatureMap(FeatureMapType::POSITION, firstXTexture);
         }
         if (denoiser->getUseFeatureMap(FeatureMapType::NORMAL)) {
-            denoiser->setFeatureMap(FeatureMapType::NORMAL, firstWTexture);
+            denoiser->setFeatureMap(FeatureMapType::NORMAL, normalTexture);
         }
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH, depthTexture);
@@ -634,6 +635,7 @@ void VolumetricPathTracingPass::createComputeData(
     computeData->setStaticImageView(accImageTexture->getImageView(), "accImage");
     computeData->setStaticImageView(firstXTexture->getImageView(), "firstX");
     computeData->setStaticImageView(firstWTexture->getImageView(), "firstW");
+    computeData->setStaticImageView(normalTexture->getImageView(), "normalImage");
     computeData->setStaticImageView(cloudOnlyTexture->getImageView(), "cloudOnlyImage");
     computeData->setStaticImageView(depthTexture->getImageView(), "depthImage");
     computeData->setStaticImageView(densityTexture->getImageView(), "densityImage");
@@ -736,6 +738,7 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(accImageTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstXTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(firstWTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(normalTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(backgroundTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         renderer->transitionImageLayout(reprojUVTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
@@ -787,6 +790,10 @@ void VolumetricPathTracingPass::_render() {
     //    blitPrimaryRayMomentTexturePass->render();
     //} else if (featureMapType == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
     //    blitScatterRayMomentTexturePass->render();
+    } else if (featureMapType == FeatureMapTypeVpt::NORMAL) {
+        renderer->transitionImageLayout(normalTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        normalTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY) {
         renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -822,6 +829,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return firstXTexture;
     } else if (type == FeatureMapTypeVpt::FIRST_W) {
         return firstWTexture;
+    } else if (type == FeatureMapTypeVpt::NORMAL) {
+        return normalTexture;
     //} else if (type == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
     //    return nullptr;
     //} else if (type == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {

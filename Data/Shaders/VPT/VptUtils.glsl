@@ -445,6 +445,22 @@ float sampleCloud(
 #define sampleCloud sampleCloudRaw
 #endif
 
+
+vec3 getCloudFiniteDifference(in vec3 pos) {
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    ivec3 dim = textureSize(gridImage, 0);
+    #if defined(GRID_INTERPOLATION_STOCHASTIC)
+    coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
+    #endif
+    float density = texture(gridImage, coord).x;
+    vec3 dFdpos = vec3(
+        texture(gridImage, coord - vec3(1, 0, 0) / dim).x - texture(gridImage, coord + vec3(1, 0, 0) / dim).x,
+        texture(gridImage, coord - vec3(0, 1, 0) / dim).x - texture(gridImage, coord + vec3(0, 1, 0) / dim).x,
+        texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
+    ) / dim * 100;
+    return dFdpos;
+}
+
 void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {
     vec4 ndcP = vec4(coord, 0, 1);
     vec4 ndcT = ndcP + vec4(0, 0, 1, 0);
