@@ -32,13 +32,15 @@ float calculateTransmittance(vec3 x, vec3 w) {
     float PS = scatteringAlbedo * parameters.extinction.x;
 
     float transmittance = 1.0;
-    float rr_prob = 1.;
+    float rr_factor = 1.;
 
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
         float d = tMax - tMin;
         float pdf_x = 1;
+
+        float targetThroughput = .1;
 
         while (true) {
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
@@ -47,10 +49,13 @@ float calculateTransmittance(vec3 x, vec3 w) {
                 break;
             }
 
-            if (random() > min(1., transmittance * 3.)) {
-                return 0;
-            }else {
-                rr_prob *= min(1., transmittance * 3.);
+            if (transmittance * rr_factor < targetThroughput) {
+                float rr_survive_prob = (transmittance * rr_factor) / targetThroughput;
+                if (random() > rr_survive_prob) {
+                    return 0;
+                }else {
+                    rr_factor /= rr_survive_prob;
+                }
             }
 
             x += w * t;
@@ -70,14 +75,15 @@ float calculateTransmittance(vec3 x, vec3 w) {
             float Pn = sigma_n / majorant;
 
             if (random() > Pn) {
+                // switches between ratio and delta tracking
                 return 0;
             }
-            //transmittance *= 1.0 - Pa - Ps;
+            transmittance *= 1.0 - Pa - Ps;
 
             d -= t;
         }
     }
-    return transmittance / rr_prob;
+    return transmittance * rr_factor;
 }
 #endif
 
