@@ -458,6 +458,12 @@ void CloudData::computeSparseGridMetadata() {
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
+    // NORMALIZE BOX
+    // TODO: Add option to toggle this (probably matters in animations)
+    uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
+    boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
+    boxMin = -boxMax;
+
     printSparseGridMetadata();
 }
 
