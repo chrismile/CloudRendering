@@ -324,7 +324,7 @@ void MainApp::renderGui() {
                 sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
             }
             customDataSetFileName = filename;
-            loadCloudDataSet(getSelectedDataSetFilename());
+            loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetFilename());
         }
         IGFD_CloseDialog(fileDialogInstance);
     }
@@ -491,6 +491,14 @@ const std::string& MainApp::getSelectedDataSetFilename() {
     return dataSetInformationList.at(selectedDataSetIndex - NUM_MANUAL_LOADERS)->filename;
 }
 
+const std::string& MainApp::getSelectedDataSetEmissionFilename() {
+    if (selectedDataSetIndex == 0) {
+        return customDataSetFileName;
+    }
+    std::cout << "emission: " << dataSetInformationList.at(selectedDataSetIndex - NUM_MANUAL_LOADERS)->emission << std::endl;
+    return dataSetInformationList.at(selectedDataSetIndex - NUM_MANUAL_LOADERS)->emission;
+}
+
 void MainApp::renderGuiGeneralSettingsPropertyEditor() {
     if (propertyEditor.addColorEdit3("Clear Color", (float*)&clearColorSelection, 0)) {
         clearColor = sgl::colorFromFloat(
@@ -570,7 +578,7 @@ void MainApp::renderGuiMenuBar() {
                             } else {
                                 if (ImGui::MenuItem(dataSetInformationChild->name.c_str())) {
                                     selectedDataSetIndex = int(dataSetInformationChild->sequentialIndex);
-                                    loadCloudDataSet(getSelectedDataSetFilename());
+                                    loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetEmissionFilename());
                                 }
                             }
                             idx++;
@@ -628,7 +636,7 @@ void MainApp::renderGuiPropertyEditorBegin() {
                 "Data Set", &selectedDataSetIndex, dataSetNames.data(),
                 int(dataSetNames.size()))) {
             if (selectedDataSetIndex >= NUM_MANUAL_LOADERS) {
-                loadCloudDataSet(getSelectedDataSetFilename());
+                loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetEmissionFilename());
             }
         }
 
@@ -644,7 +652,7 @@ void MainApp::renderGuiPropertyEditorBegin() {
             ImGui::InputText("##datasetfilenamelabel", &customDataSetFileName);
             ImGui::SameLine();
             if (ImGui::Button("Load File")) {
-                loadCloudDataSet(getSelectedDataSetFilename());
+                loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetEmissionFilename());
             }
         }
 
@@ -700,7 +708,7 @@ void MainApp::onCameraReset() {
 
 // --- Visualization pipeline ---
 
-void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoading) {
+void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& emissionFileName, bool blockingDataLoading) {
     if (fileName.empty()) {
         cloudData = CloudDataPtr();
         return;
@@ -762,6 +770,23 @@ void MainApp::loadCloudDataSet(const std::string& fileName, bool blockingDataLoa
     } else {
         //dataRequester.queueRequest(cloudData, fileName, selectedDataSetInformation, transformationMatrixPtr);
     }
+
+    if (!emissionFileName.empty()) {
+        std::cout << "loading emission file " << emissionFileName << std::endl;
+
+        CloudDataPtr emissionData(new CloudData);
+
+        bool dataLoaded = emissionData->loadFromFile(emissionFileName);
+
+        if (dataLoaded) {
+            emissionData->setClearColor(clearColor);
+            volumetricPathTracingPass->setEmissionData(emissionData);
+        }
+    }else{
+        std::cout << "no emission Data " << std::endl;
+        CloudDataPtr emissionData = CloudDataPtr();
+        volumetricPathTracingPass->setEmissionData(emissionData);
+    }
 }
 
 void MainApp::checkLoadingRequestFinished() {
@@ -799,5 +824,5 @@ void MainApp::checkLoadingRequestFinished() {
 }
 
 void MainApp::reloadDataSet() {
-    loadCloudDataSet(getSelectedDataSetFilename());
+    loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetEmissionFilename());
 }

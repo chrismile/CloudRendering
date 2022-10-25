@@ -96,6 +96,7 @@ public:
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
     void setCloudData(const CloudDataPtr& data);
+    void setEmissionData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
     void setUseSparseGrid(bool useSparse);
     void setSparseGridInterpolationType(GridInterpolationType type);
@@ -138,7 +139,9 @@ private:
     const glm::ivec2 blockSize2D = glm::ivec2(16, 16);
     sgl::vk::ImageViewPtr sceneImageView;
     CloudDataPtr cloudData;
+    CloudDataPtr emissionData;
     FeatureMapTypeVpt featureMapType = FeatureMapTypeVpt::RESULT;
+    std::string emissionGridFilenameGui;
 
     void updateVptMode();
     VptMode vptMode = VptMode::DELTA_TRACKING;
@@ -152,9 +155,15 @@ private:
     void setGridData();
     void updateGridSampler();
     bool useSparseGrid = false; ///< Use NanoVDB or a dense grid texture?
+
     GridInterpolationType gridInterpolationType = GridInterpolationType::STOCHASTIC;
     sgl::vk::TexturePtr densityFieldTexture; /// < Dense grid texture.
     sgl::vk::BufferPtr nanoVdbBuffer; /// < Sparse grid buffer.
+
+    sgl::vk::TexturePtr emissionFieldTexture; /// < Dense grid texture.
+    sgl::vk::BufferPtr emissionNanoVdbBuffer; /// < Sparse grid buffer.
+
+    bool flipYZCoordinates = false;
 
     uint32_t lastViewportWidth = 0, lastViewportHeight = 0;
 
@@ -187,6 +196,10 @@ private:
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 0.9, 0.9);
 
+    bool useEmission = false; ///< Use an emission texture
+    float emissionCap = 1;
+    float emissionStrength = 1;
+
     // Environment map data.
     bool isEnvironmentMapLoaded = false;
     bool useEnvironmentMapImage = false;
@@ -196,7 +209,7 @@ private:
     void createEnvironmentMapOctahedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
-    float environmentMapIntensityFactor = 1.5f;
+    float environmentMapIntensityFactor = 1;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
@@ -222,15 +235,22 @@ private:
         // Cloud properties
         glm::vec3 boxMin; float pad0;
         glm::vec3 boxMax; float pad1;
-        glm::vec3 extinction; float pad2;
+
+        glm::vec3 emissionBoxMin; float pad2;
+        glm::vec3 emissionBoxMax; float pad3;
+
+        glm::vec3 extinction; float pad4;
         glm::vec3 scatteringAlbedo;
         float G = 0.875f;
-        glm::vec3 sunDirection; float pad3;
+        glm::vec3 sunDirection; float pad5;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
 
+        float emissionCap;
+        float emissionStrength;
+
         // For decomposition and residual ratio tracking.
-        glm::ivec3 superVoxelSize; int pad5;
+        glm::ivec3 superVoxelSize; int pad6;
         glm::ivec3 superVoxelGridSize;
 
         // Whether to use linear RGB or sRGB.

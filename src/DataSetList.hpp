@@ -46,6 +46,7 @@ struct DataSetInformation {
     DataSetType type = DATA_SET_TYPE_VOLUME;
     std::string name;
     std::string filename;
+    std::string emission;
 
     // For type DATA_SET_TYPE_NODE.
     std::vector<DataSetInformationPtr> children;

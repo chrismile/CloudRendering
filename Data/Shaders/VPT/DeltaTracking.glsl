@@ -237,7 +237,12 @@ vec3 deltaTracking(
                     firstEvent.density = density * parameters.extinction.x;
                     firstEvent.depth = tMax - d + t;
                 }
+                #ifdef USE_EMISSION
+                vec3 emission = sampleEmission(x);
+                return emission;
+                #else
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+                #endif
             }
 
             if (xi < 1 - Pn) // scattering event

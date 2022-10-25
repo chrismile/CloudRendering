@@ -100,6 +100,7 @@ private:
     // Data set GUI information.
     void loadAvailableDataSetInformation();
     const std::string& getSelectedDataSetFilename();
+    const std::string& getSelectedDataSetEmissionFilename();
     void openFileDialog();
     DataSetInformationPtr dataSetInformationRoot;
     std::vector<DataSetInformationPtr> dataSetInformationList; //< List of all leaves.
@@ -124,7 +125,7 @@ private:
     /// --- Visualization pipeline ---
 
     /// Loads line data from a file.
-    void loadCloudDataSet(const std::string& fileName, bool blockingDataLoading = true);
+    void loadCloudDataSet(const std::string& fileName, const std::string& emissionFileName, bool blockingDataLoading = true);
     /// Checks if an asynchronous loading request was finished.
     void checkLoadingRequestFinished();
     /// Reload the currently loaded data set.

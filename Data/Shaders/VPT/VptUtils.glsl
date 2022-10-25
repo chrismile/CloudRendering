@@ -349,6 +349,15 @@ pnanovdb_readaccessor_t createAccessor() {
     pnanovdb_readaccessor_init(accessor, root);
     return accessor;
 }
+pnanovdb_readaccessor_t createEmissionAccessor() {
+    pnanovdb_buf_t buf = pnanovdb_buf_t(0);
+    pnanovdb_readaccessor_t accessor;
+    pnanovdb_grid_handle_t gridHandle;
+    gridHandle.address = pnanovdb_address_null();
+    pnanovdb_root_handle_t root = pnanovdb_tree_get_root(buf, pnanovdb_grid_get_tree(buf, gridHandle));
+    pnanovdb_readaccessor_init(accessor, root);
+    return accessor;
+}
 #if defined(GRID_INTERPOLATION_NEAREST)
 float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
@@ -419,11 +428,38 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 #else
 float sampleCloudRaw(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-#if defined(GRID_INTERPOLATION_STOCHASTIC)
+    #if defined(FLIP_YZ)
+    coord = coord.xzy;
+    #endif
+
+    #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
-#endif
+    #endif
     return texture(gridImage, coord).x;
+}
+#endif
+
+#ifdef USE_EMISSION
+float sampleEmissionRaw(in vec3 pos) {
+    vec3 coord = (pos - parameters.emissionBoxMin) / (parameters.emissionBoxMax - parameters.emissionBoxMin);
+    #if defined(FLIP_YZ)
+    coord = coord.xzy;
+    #endif
+
+    #if defined(GRID_INTERPOLATION_STOCHASTIC)
+    ivec3 dim = textureSize(emissionImage, 0);
+    coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
+    #endif
+    return texture(emissionImage, coord).x;
+}
+vec3 sampleEmission(in vec3 pos){
+    float t = sampleEmissionRaw(pos);
+    t = clamp(t * parameters.emissionCap,0,1);
+    vec3 col = vec3(t*t);
+    col.g = col.r * col.r;
+    col.b = col.g * col.g;
+    return col * parameters.emissionStrength;
 }
 #endif
 
@@ -447,6 +483,10 @@ float sampleCloud(
 
 
 vec3 getCloudFiniteDifference(in vec3 pos) {
+    #ifdef USE_NANOVDB
+    return vec3(0);
+    #else
+
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     ivec3 dim = textureSize(gridImage, 0);
     #if defined(GRID_INTERPOLATION_STOCHASTIC)
@@ -459,6 +499,7 @@ vec3 getCloudFiniteDifference(in vec3 pos) {
         texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
     ) / dim * 100;
     return dFdpos;
+    #endif
 }
 
 void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {

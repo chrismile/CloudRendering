@@ -24,7 +24,12 @@
 
 // Pathtracing with Delta tracking and Spectral tracking.
 #if defined(USE_NEXT_EVENT_TRACKING) || defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
-float calculateTransmittance(vec3 x, vec3 w) {
+float calculateTransmittance(vec3 x, vec3 w
+#ifdef USE_NANOVDB
+        , pnanovdb_readaccessor_t accessor
+#endif
+) {
+
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
@@ -165,8 +170,13 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.density = density * maxComponent(parameters.extinction);
                     firstEvent.depth = tMax - d + t;
                 }
-                return color;
-                return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+                //return color;
+                #ifdef USE_EMISSION
+                vec3 emission = sampleEmission(x);
+                return color + emission;
+                #else
+                return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+                #endif
             }
 
             if (xi < Pa + Ps) { // scattering event
@@ -187,7 +197,13 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 float bw_nee = pdf_nee / (pdf_nee + pdf_nee_phase);
 
                 weights *= sigma_s / (majorant * Ps);
-                color += bw_nee * min(weights, vec3(100000, 100000, 100000)) * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+                color += bw_nee * min(weights, vec3(100000, 100000, 100000)) *
+                #ifdef USE_NANOVDB
+                    calculateTransmittance(x,nee_w, accessor) *
+                #else
+                    calculateTransmittance(x,nee_w) *
+                #endif
+                    (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
 
 
                 if (!firstEvent.hasValue) {
@@ -281,8 +297,12 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.density = density * maxComponent(parameters.extinction);
                     firstEvent.depth = tMax - d + t;
                 }
+                #ifdef USE_EMISSION
+                vec3 emission = sampleEmission(x);
+                return color + emission;
+                #else
                 return color;
-                //return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+                #endif
             }
 
             if (xi < 1 - Pn)// scattering event
@@ -301,7 +321,13 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
                 float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
-                color += bw_nee * transmittance * calculateTransmittance(x,nee_w) * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+                color += bw_nee * transmittance *
+                #ifdef USE_NANOVDB
+                    calculateTransmittance(x,nee_w, accessor) *
+                #else
+                    calculateTransmittance(x,nee_w) *
+                #endif
+                    (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
                 //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
 
                 //return color;
