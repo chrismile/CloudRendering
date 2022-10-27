@@ -279,12 +279,15 @@ void PyTorchDenoiser::denoise() {
 #endif
 
     std::vector<torch::jit::IValue> inputs;
+    if (useFP16){
+        inputTensor = inputTensor.toType(torch::kFloat16);
+    }
     inputs.emplace_back(inputTensor);
     if (usePreviousFrame) {
         //std::cout << width << ", " << height << std::endl;
         //std::cout << previousTensor.sizes() << std::endl;
 
-        if (previousTensor.sizes()[0] == 0) {
+        if (previousTensor.sizes()[0] == 0 || zeroOutPreviousFrame) {
             //std::cout <<"new tensor: "<< width << ", " << height << std::endl;
 
             if (useBatchDimension) {
@@ -295,10 +298,14 @@ void PyTorchDenoiser::denoise() {
                 previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
             }
         }
+        if (useFP16){
+            previousTensor = previousTensor.toType(torch::kFloat16);
+        }
         inputs.emplace_back(previousTensor);
     }
     at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
     previousTensor = outputTensor.clone().detach();
+
     //std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;
@@ -693,7 +700,13 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
     if (propertyEditor.addCheckbox("Add Background", &addBackground)) {
         reRender = true;
     }
-    if (propertyEditor.addCheckbox("Use Previous Frame", &usePreviousFrame)) {
+    if (propertyEditor.addCheckbox("Requires Previous Frame", &usePreviousFrame)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Zero Out Previous Frame", &zeroOutPreviousFrame)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Use FP16", &useFP16)) {
         reRender = true;
     }
 

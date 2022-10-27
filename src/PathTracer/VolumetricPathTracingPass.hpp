@@ -144,7 +144,7 @@ private:
     std::string emissionGridFilenameGui;
 
     void updateVptMode();
-    VptMode vptMode = VptMode::DELTA_TRACKING;
+    VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
     std::shared_ptr<SuperVoxelGridResidualRatioTracking> superVoxelGridResidualRatioTracking;
@@ -241,7 +241,7 @@ private:
 
         glm::vec3 extinction; float pad4;
         glm::vec3 scatteringAlbedo;
-        float G = 0.875f;
+        float G = 0.5f;
         glm::vec3 sunDirection; float pad5;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;

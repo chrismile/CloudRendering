@@ -146,6 +146,8 @@ private:
 
     bool addBackground = false;
     bool usePreviousFrame = false;
+    bool zeroOutPreviousFrame = false;
+    bool useFP16 = false;
     torch::Tensor previousTensor;
     std::shared_ptr<BackgroundAddPass> backgroundAddPass;
 
