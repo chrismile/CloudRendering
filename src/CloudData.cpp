@@ -56,6 +56,9 @@ void CloudData::computeGridBounds() {
     uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
     boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
     boxMin = -boxMax;
+
+    gridMin = glm::vec3 (0,0,0);
+    gridMax = glm::vec3 (1,1,1);
 }
 
 void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
@@ -86,6 +89,29 @@ bool CloudData::loadFromFile(const std::string& filename) {
         sgl::Logfile::get()->writeError(
                 "Error in CloudData::loadFromFile: The file \"" + filename + "\" does not exist!");
         return false;
+    }
+
+    if (sgl::FileUtils::get()->isDirectory(filename)){
+        std::cout << "Loading Directory" << std::endl;
+        std::shared_ptr<CloudData> prev = nullptr;
+
+        std::list<std::string> files = sgl::FileUtils::get()->getFilesInDirectoryList(filename);
+        files.sort();
+        for (std::string file: files) {
+            std::shared_ptr<CloudData> current(new CloudData);
+            current->loadFromFile(file);
+
+            if (prev == nullptr){
+                this->loadFromFile(file);
+                this->setNextCloudDataFrame(current);
+            }else{
+                prev->setNextCloudDataFrame(current);
+            }
+            prev = current;
+
+        }
+        prev->setNextCloudDataFrame(this->getNextCloudDataFrame());
+        return true;
     }
 
     gridFilename = filename;
@@ -432,6 +458,53 @@ void CloudData::printSparseGridMetadata() {
     }
 }
 
+void CloudData::getSeqBounds(){
+    if (!gotSeqBounds){
+        const auto* grid = sparseGridHandle.grid<float>();
+        auto nanoVdbBoundingBox = grid->worldBBox();
+        gridMin = glm::vec3(
+                float(nanoVdbBoundingBox.min()[0]),
+                float(nanoVdbBoundingBox.min()[1]),
+                float(nanoVdbBoundingBox.min()[2]));
+        gridMax = glm::vec3(
+                float(nanoVdbBoundingBox.max()[0]),
+                float(nanoVdbBoundingBox.max()[1]),
+                float(nanoVdbBoundingBox.max()[2]));
+
+        if (this->getNextCloudDataFrame()){
+            this->getNextCloudDataFrame()->getSeqBounds(this, gridMin, gridMax);
+        }else{
+            seqMin = gridMin;
+            seqMax = gridMax;
+        }
+    }
+}
+void CloudData::getSeqBounds(CloudData *searcher, glm::vec3 currMin, glm::vec3 currMax){
+    if (searcher == this){
+        seqMin = currMin;
+        seqMax = currMax;
+        return;
+    }
+    if (sparseGridHandle){
+        const auto* grid = sparseGridHandle.grid<float>();
+        auto nanoVdbBoundingBox = grid->worldBBox();
+        currMin = glm::vec3(
+                std::min(currMin.x, float(nanoVdbBoundingBox.min()[0])),
+                std::min(currMin.y, float(nanoVdbBoundingBox.min()[1])),
+                std::min(currMin.z, float(nanoVdbBoundingBox.min()[2])));
+        currMax = glm::vec3(
+                std::max(currMax.x, float(nanoVdbBoundingBox.max()[0])),
+                std::max(currMax.y, float(nanoVdbBoundingBox.max()[1])),
+                std::max(currMax.z, float(nanoVdbBoundingBox.max()[2])));
+    }
+
+    if (this->getNextCloudDataFrame()){
+        this->getNextCloudDataFrame()->getSeqBounds(searcher, currMin, currMax);
+        seqMin = this->getNextCloudDataFrame()->seqMin;
+        seqMax = this->getNextCloudDataFrame()->seqMax;
+    }
+}
+
 void CloudData::computeSparseGridMetadata() {
     const auto* grid = sparseGridHandle.grid<float>();
 
@@ -449,20 +522,23 @@ void CloudData::computeSparseGridMetadata() {
     voxelSizeZ = float(grid->voxelSize()[2]);
 
     auto nanoVdbBoundingBox = grid->worldBBox();
-    boxMin = glm::vec3(
+    gridMin = glm::vec3(
             float(nanoVdbBoundingBox.min()[0]),
             float(nanoVdbBoundingBox.min()[1]),
             float(nanoVdbBoundingBox.min()[2]));
-    boxMax = glm::vec3(
+    gridMax = glm::vec3(
             float(nanoVdbBoundingBox.max()[0]),
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
+    getSeqBounds();
     // NORMALIZE BOX
-    // TODO: Add option to toggle this (probably matters in animations)
-    uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
-    boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
-    boxMin = -boxMax;
+    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y-seqMin.y, seqMax.z-seqMin.z));
+    boxMin = (gridMin - seqMin) / (maxDim) * 2.0f - glm::vec3 (1,1,1);
+    boxMax = boxMin + (gridMax - gridMin) / (maxDim) * 2.0f;
+
+    std::cout << boxMin.x<<", " << boxMin.y<< ", " << boxMin.z << std::endl;
+    std::cout << boxMax.x<<", " << boxMax.y<< ", " << boxMax.z << std::endl;
 
     printSparseGridMetadata();
 }
@@ -531,6 +607,7 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
             }
         }
     }
+    computeSparseGridMetadata();
 
     auto& buffer = sparseGridHandle.buffer();
     data = buffer.data();

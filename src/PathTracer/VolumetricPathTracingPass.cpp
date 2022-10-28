@@ -245,7 +245,7 @@ void VolumetricPathTracingPass::setGridData() {
                 VMA_MEMORY_USAGE_GPU_ONLY);
         delete[] sparseDensityFieldCopy;
 
-        if (emissionData && useEmission) {
+        /*if (emissionData && useEmission) {
             emissionData->getSparseDensityField(sparseDensityField, sparseDensityFieldSize);
 
             bufferSize = sizeof(uint32_t) * sgl::iceil(int(sparseDensityFieldSize), sizeof(uint32_t));
@@ -258,7 +258,7 @@ void VolumetricPathTracingPass::setGridData() {
                     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                     VMA_MEMORY_USAGE_GPU_ONLY);
             delete[] sparseDensityFieldCopy;
-        }
+        }*/
     } else {
         sgl::vk::ImageSettings imageSettings;
         imageSettings.width = cloudData->getGridSizeX();
@@ -770,6 +770,13 @@ void VolumetricPathTracingPass::_render() {
                 uniformData.emissionBoxMax.z = emissionData->getWorldSpaceBoxMax().y;
             }
         }
+        uniformData.gridMin = cloudData->getWorldSpaceGridMin();
+        uniformData.gridMax = cloudData->getWorldSpaceGridMax();
+        if (!useSparseGrid){
+            uniformData.gridMin = glm::vec3 (0,0,0);
+            uniformData.gridMax = glm::vec3 (1,1,1);
+        }
+
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
@@ -891,6 +898,14 @@ void VolumetricPathTracingPass::_render() {
         accumulationTimer->endGPU(eventName);
     }
     this->setPreviousViewProjMatrix((*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
+
+    if (cloudData->getNextCloudDataFrame() != nullptr){
+        this->setCloudData(cloudData->getNextCloudDataFrame());
+        std::cout<< "Setting Next Frame" << std::endl;
+    }
+    if (emissionData && emissionData->getNextCloudDataFrame() != nullptr){
+        this->setEmissionData(emissionData->getNextCloudDataFrame());
+    }
 }
 
 sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTypeVpt type){

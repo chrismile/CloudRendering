@@ -236,13 +236,16 @@ private:
         glm::vec3 boxMin; float pad0;
         glm::vec3 boxMax; float pad1;
 
-        glm::vec3 emissionBoxMin; float pad2;
-        glm::vec3 emissionBoxMax; float pad3;
+        glm::vec3 gridMin; float pad2;
+        glm::vec3 gridMax; float pad3;
 
-        glm::vec3 extinction; float pad4;
+        glm::vec3 emissionBoxMin; float pad4;
+        glm::vec3 emissionBoxMax; float pad5;
+
+        glm::vec3 extinction; float pad6;
         glm::vec3 scatteringAlbedo;
         float G = 0.5f;
-        glm::vec3 sunDirection; float pad5;
+        glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
 
@@ -250,7 +253,7 @@ private:
         float emissionStrength;
 
         // For decomposition and residual ratio tracking.
-        glm::ivec3 superVoxelSize; int pad6;
+        glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize;
 
         // Whether to use linear RGB or sRGB.

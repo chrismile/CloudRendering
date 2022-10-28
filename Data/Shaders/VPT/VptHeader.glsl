@@ -49,6 +49,8 @@ layout (binding = 3) uniform Parameters {
     // Cloud properties.
     vec3 boxMin;
     vec3 boxMax;
+    vec3 gridMin;
+    vec3 gridMax;
 
     vec3 emissionBoxMin;
     vec3 emissionBoxMax;

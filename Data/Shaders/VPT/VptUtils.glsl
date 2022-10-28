@@ -360,6 +360,7 @@ pnanovdb_readaccessor_t createEmissionAccessor() {
 }
 #if defined(GRID_INTERPOLATION_NEAREST)
 float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -370,6 +371,7 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 }
 #elif defined(GRID_INTERPOLATION_STOCHASTIC)
 float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -380,6 +382,7 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 }
 #elif defined(GRID_INTERPOLATION_TRILINEAR)
 float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos) - vec3(0.5);
@@ -426,11 +429,7 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 }
 #endif
 #else
-float sampleCloudRaw(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    #if defined(FLIP_YZ)
-    coord = coord.xzy;
-    #endif
+float sampleCloudRaw(in vec3 coord) {
 
     #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
@@ -441,11 +440,7 @@ float sampleCloudRaw(in vec3 pos) {
 #endif
 
 #ifdef USE_EMISSION
-float sampleEmissionRaw(in vec3 pos) {
-    vec3 coord = (pos - parameters.emissionBoxMin) / (parameters.emissionBoxMax - parameters.emissionBoxMin);
-    #if defined(FLIP_YZ)
-    coord = coord.xzy;
-    #endif
+float sampleEmissionRaw(in vec3 coord) {
 
     #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(emissionImage, 0);
@@ -478,7 +473,24 @@ float sampleCloud(
     return texture(densityTransferFunction, density).x;
 }
 #else
-#define sampleCloud sampleCloudRaw
+float sampleCloud(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
+#endif
+        in vec3 pos) {
+    // transform world pos to density grid pos
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    #if defined(FLIP_YZ)
+    coord = coord.xzy;
+    #endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+
+    return sampleCloudRaw(
+    #ifdef USE_NANOVDB
+    accessor,
+    #endif
+    coord);
+}
 #endif
 
 
