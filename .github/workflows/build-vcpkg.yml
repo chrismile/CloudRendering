@@ -114,7 +114,13 @@ jobs:
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
-          export VULKAN_SDK="/usr"
+          if [ "${{env.PKG_CONFIG_PATH}}" != "" ]; then
+            VK_LAYER_PATH=""
+            source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+            export PKG_CONFIG_PATH="${{env.PKG_CONFIG_PATH}}"
+          else
+            export VULKAN_SDK="/usr"
+          fi
         elif [ "$RUNNER_OS" == "Windows" ]; then
           export VULKAN_SDK="C:/VulkanSDK/$(ls C:/VulkanSDK)"
         elif [ "$RUNNER_OS" == "macOS" ]; then
@@ -132,6 +138,9 @@ jobs:
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
+          if [ "${{matrix.linking}}" == "dynamic" ]; then
+            cp "${{env.sgl_REPO_DIR}}/build/libsgl.so" "${{env.sgl_DIR}}/lib/libsgl.so"
+          fi
           if [ "${{env.PKG_CONFIG_PATH}}" != "" ]; then
             VK_LAYER_PATH=""
             source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
