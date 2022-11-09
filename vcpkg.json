@@ -29,10 +29,17 @@
         },
         "shaderc",
         "glm",
+        "tbb",
         "jsoncpp",
         "openexr"
     ],
     "features": {
+        "tbb": {
+            "description": "Use TBB instead of OpenMP for multi-threading",
+            "dependencies": [
+                "tbb"
+            ]
+        },
         "tests": {
             "description": "Unit test cases for the volumetric path tracing algorithms.",
             "dependencies": [ "gtest" ]

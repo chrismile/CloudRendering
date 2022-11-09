@@ -122,7 +122,7 @@ If necessary, PyTorch can be built manually using the commands below (assuming t
 
 ```shell
 sudo apt install g++ git libgflags-dev libgoogle-glog-dev libopenmpi-dev protobuf-compiler python3 python3-pip \
-python3-setuptools python3-yaml wget intel-mkl
+python3-setuptools python3-yaml wget intel-mkl libcudnn8-dev
 
 . "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda create --name cloud_rendering python=3.8

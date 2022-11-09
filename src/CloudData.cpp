@@ -30,6 +30,11 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/trim.hpp>
 
+#ifdef USE_TBB
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#endif
+
 #include <Utils/AppSettings.hpp>
 #include <Utils/Convert.hpp>
 #include <Utils/StringUtils.hpp>
@@ -37,6 +42,7 @@
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/File/FileLoader.hpp>
 #include <Utils/Events/Stream/Stream.hpp>
+#include <Utils/Parallel/Reduction.hpp>
 
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/GridBuilder.h"
@@ -72,7 +78,7 @@ void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32
     computeGridBounds();
 
     densityField = _densityField;
-    gridFilename = sgl::AppSettings::get()->getDataDirectory() + "LineDataSets/clouds/tmp.xyz";
+    gridFilename = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/clouds/tmp.xyz";
     gridName = "tmp";
 }
 
@@ -143,11 +149,16 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     binaryReadStream.read(densityFieldTransposed, gridSizeX * gridSizeY * gridSizeZ * sizeof(float));
 
     // Transpose.
+#ifdef USE_TBB
+    tbb::parallel_for(tbb::blocked_range<uint32_t>(0, gridSizeZ), [&](auto const& r) {
+        for (auto z = r.begin(); z != r.end(); z++) {
+#else
 #if _OPENMP >= 201107
     #pragma omp parallel for shared(densityField, densityFieldTransposed, gridSizeX, gridSizeY, gridSizeZ) \
     default(none)
 #endif
     for (uint32_t z = 0; z < gridSizeZ; z++) {
+#endif
         for (uint32_t y = 0; y < gridSizeY; y++) {
             for (uint32_t x = 0; x < gridSizeX; x++) {
                 densityField[x + (y + z * gridSizeY) * gridSizeX] =
@@ -155,27 +166,29 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
             }
         }
     }
+#ifdef USE_TBB
+    });
+#endif
     delete[] densityFieldTransposed;
 
-    float minVal = 0.0f;//std::numeric_limits<float>::max();
-    float maxVal = std::numeric_limits<float>::lowest();
-
     size_t totalSize = gridSizeX * gridSizeY * gridSizeZ;
-#if _OPENMP >= 201107
-    #pragma omp parallel for default(none) shared(densityField, totalSize) reduction(min: minVal) reduction(max: maxVal)
-#endif
-    for (size_t i = 0; i < totalSize; i++) {
-        float val = densityField[i];
-        minVal = std::min(minVal, val);
-        maxVal = std::max(maxVal, val);
-    }
+    auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
+            densityField, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
 
+#ifdef USE_TBB
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+        for (auto i = r.begin(); i != r.end(); i++) {
+#else
 #if _OPENMP >= 201107
     #pragma omp parallel for default(none) shared(densityField, totalSize, minVal, maxVal)
 #endif
     for (size_t i = 0; i < totalSize; i++) {
+#endif
         densityField[i] = (densityField[i] - minVal) / (maxVal - minVal);
     }
+#ifdef USE_TBB
+    });
+#endif
 
     return true;
 }
@@ -342,40 +355,55 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
         memcpy(densityField, bufferRaw, sizeof(float) * totalSize);
     } else if (formatString == "uchar") {
         auto* dataField = bufferRaw;
+#ifdef USE_TBB
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+            for (auto i = r.begin(); i != r.end(); i++) {
+#else
 #if _OPENMP >= 201107
         #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
 #endif
         for (size_t i = 0; i < totalSize; i++) {
+#endif
             densityField[i] = float(dataField[i]) / 255.0f;
         }
+#ifdef USE_TBB
+        });
+#endif
     } else if (formatString == "ushort") {
         auto* dataField = reinterpret_cast<uint16_t*>(bufferRaw);
+#ifdef USE_TBB
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+            for (auto i = r.begin(); i != r.end(); i++) {
+#else
 #if _OPENMP >= 201107
         #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
 #endif
         for (size_t i = 0; i < totalSize; i++) {
+#endif
             densityField[i] = float(dataField[i]) / 65535.0f;
         }
-    }
-
-    float minVal = 0.0f;//std::numeric_limits<float>::max();
-    float maxVal = std::numeric_limits<float>::lowest();
-
-#if _OPENMP >= 201107
-    #pragma omp parallel for default(none) shared(densityField, totalSize) reduction(min: minVal) reduction(max: maxVal)
+#ifdef USE_TBB
+        });
 #endif
-    for (size_t i = 0; i < totalSize; i++) {
-        float val = densityField[i];
-        minVal = std::min(minVal, val);
-        maxVal = std::max(maxVal, val);
     }
 
+    auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
+            densityField, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
+
+#ifdef USE_TBB
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+        for (auto i = r.begin(); i != r.end(); i++) {
+#else
 #if _OPENMP >= 201107
     #pragma omp parallel for default(none) shared(densityField, totalSize, minVal, maxVal)
 #endif
     for (size_t i = 0; i < totalSize; i++) {
+#endif
         densityField[i] = (densityField[i] - minVal) / (maxVal - minVal);
     }
+#ifdef USE_TBB
+    });
+#endif
 
     return true;
 }
