@@ -43,6 +43,7 @@ layout (binding = 2) uniform Parameters {
     vec3 boxMax;
 
     vec3 extinction;
+    float emissionStrength;
     vec3 scatteringAlbedo;
     float phaseG;
 
@@ -103,6 +104,10 @@ layout(std140, binding = 12) uniform MomentUniformData {
     //float moment_bias;
 };
 const float ABSORBANCE_MAX_VALUE = 10.0;
+
+#ifdef USE_TRANSFER_FUNCTION
+layout(binding = 13) uniform sampler1D transferFunctionTexture;
+#endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);

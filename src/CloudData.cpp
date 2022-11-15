@@ -50,6 +50,10 @@
 
 #include "CloudData.hpp"
 
+CloudData::CloudData(sgl::TransferFunctionWindow* transferFunctionWindow)
+        : transferFunctionWindow(transferFunctionWindow) {
+}
+
 CloudData::~CloudData() {
     if (densityField) {
         delete[] densityField;

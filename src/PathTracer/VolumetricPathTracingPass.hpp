@@ -162,6 +162,7 @@ private:
     float cloudExtinctionScale = 1024.0f;
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 1.0, 1.0);
+    float emissionStrength = 1.0f;
 
     // Environment map data.
     void loadEnvironmentMapImage();
@@ -194,7 +195,8 @@ private:
         // Cloud properties
         glm::vec3 boxMin; float pad0;
         glm::vec3 boxMax; float pad1;
-        glm::vec3 extinction; float pad2;
+        glm::vec3 extinction;
+        float emissionStrength = 1.0f;
         glm::vec3 scatteringAlbedo;
         float G = 0.875f;
         glm::vec3 sunDirection; float pad3;

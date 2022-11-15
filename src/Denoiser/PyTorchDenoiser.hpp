@@ -196,5 +196,4 @@ private:
     sgl::vk::BufferPtr outputBuffer;
 };
 
-
 #endif //CLOUDRENDERING_PYTORCHDENOISER_HPP

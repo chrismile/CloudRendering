@@ -35,8 +35,13 @@
 
 #include "nanovdb/util/GridHandle.h"
 
+namespace sgl {
+class TransferFunctionWindow;
+}
+
 class CloudData {
 public:
+    explicit CloudData(sgl::TransferFunctionWindow* transferFunctionWindow = nullptr);
     ~CloudData();
 
     /**
@@ -86,7 +91,12 @@ public:
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
 
+    /// Called when the transfer function texture was updated.
+    void onTransferFunctionMapRebuilt() {}
+    inline sgl::TransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+
 private:
+    sgl::TransferFunctionWindow* transferFunctionWindow = nullptr;
     std::string gridFilename, gridName;
     uint32_t gridSizeX = 0, gridSizeY = 0, gridSizeZ = 0;
     float voxelSizeX = 0.0f, voxelSizeY = 0.0f, voxelSizeZ = 0.0f;
