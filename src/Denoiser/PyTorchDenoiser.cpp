@@ -48,6 +48,7 @@
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 
 #include "PyTorchDenoiser.hpp"
+#include "../../modules/kpn_module/src/perPixelKernel.hpp"
 
 #if CUDA_VERSION >= 11020
 #define USE_TIMELINE_SEMAPHORES
@@ -158,6 +159,13 @@ void PyTorchDenoiser::computeNumChannels() {
 
 void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) {
     // Ignore, as we can't easily turn on or off individual feature maps of the loaded model.
+}
+
+torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights) {
+    //torch::Tensor base = x;
+    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, fused_weights, 5);
+    torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1);
+    return perPixelKernelCuda(base, weights, 5);
 }
 
 void PyTorchDenoiser::denoise() {
@@ -282,6 +290,10 @@ void PyTorchDenoiser::denoise() {
     if (useFP16){
         inputTensor = inputTensor.toType(torch::kFloat16);
     }
+    if (!inputTensor.is_contiguous()){
+        std::cout << "input not contiguous" << std::endl;
+        inputTensor = inputTensor.contiguous();
+    }
     inputs.emplace_back(inputTensor);
     if (usePreviousFrame) {
         //std::cout << width << ", " << height << std::endl;
@@ -303,9 +315,35 @@ void PyTorchDenoiser::denoise() {
         }
         inputs.emplace_back(previousTensor);
     }
-    at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
-    previousTensor = outputTensor.clone().detach();
+    at::Tensor outputTensor;
+    if (blend_inv_iter){
+        c10::IValue layer_outputs = wrapper->module.forward(inputs);
+        at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor();
+        at::Tensor l2 = layer_outputs.toTuple()->elements()[1].toTensor();
+        at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor();
+        at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor();
 
+
+        std::cout << "got " << l0.sizes() << std::endl;
+        std::cout << "got " << l1.sizes() << std::endl;
+        std::cout << "got " << l2.sizes() << std::endl;
+        std::cout << "got " << lprev.sizes() << std::endl;
+
+        at::Tensor x0 = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(0,4)});
+        std::cout << "res " << x0.sizes() << std::endl;
+
+        at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
+        at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
+
+        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1), 5);
+        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, x1, l1);
+        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, x0, l0);
+
+        outputTensor = kp0;
+    }else{
+        outputTensor = wrapper->module.forward(inputs).toTensor();
+    }
+    previousTensor = outputTensor.clone().detach();
     //std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;
@@ -539,6 +577,25 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
         sgl::Logfile::get()->writeError("Error in PyTorchDenoiser::loadModelFromFile: " + errorString);
         wrapper = {};
         return false;
+    }
+
+    /**
+     * set the blend type, if none provided, assume color output
+     */
+    if (root.isMember("blend")) {
+        Json::Value& blendType = root["blend"];
+        if (!blendType.isString()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: Array 'blendtype' should be string. "
+                    "module loaded from \"" + modelPath + "\"!");
+            wrapper = {};
+            return false;
+        }
+        std::string bt = boost::to_lower_copy(blendType.asString());
+        if (bt == "inv_iter"){
+            blend_inv_iter = true;
+            std::cout << "blending inv_iter" << std::endl;
+        }
     }
 
     /*

@@ -70,7 +70,7 @@ const char* const FEATURE_MAP_NAMES[] = {
         "CloudOnly", "Depth", "Density", "Background", "Reproj_UV"
 };
 const uint32_t FEATURE_MAP_NUM_CHANNELS[] = {
-        4, 4, 2, 3, 4, 4, 2, 2, 4, 2
+        4, 4, 2, 3, 3, 4, 2, 2, 4, 2
 };
 const uint32_t FEATURE_MAP_NUM_CHANNELS_PADDED[] = {
         4, 4, 2, 4, 4, 4, 2, 2, 4, 2

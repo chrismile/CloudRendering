@@ -151,6 +151,8 @@ private:
     torch::Tensor previousTensor;
     std::shared_ptr<BackgroundAddPass> backgroundAddPass;
 
+    bool blend_inv_iter = false;
+
 #ifdef SUPPORT_CUDA_INTEROP
     // Synchronization primitives.
     sgl::vk::BufferPtr inputImageBufferVk, outputImageBufferVk;
