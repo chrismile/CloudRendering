@@ -497,7 +497,7 @@ float sampleCloud(
     #ifdef USE_NANOVDB
     accessor,
     #endif
-    coord);
+    coord);// + parameters.extinction.g / parameters.extinction.r * .01;
 }
 #endif
 
