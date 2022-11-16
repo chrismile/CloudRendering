@@ -477,6 +477,8 @@ void CloudData::getSeqBounds(){
             seqMin = gridMin;
             seqMax = gridMax;
         }
+        seqMin = gridMin;
+        seqMax = gridMax;
     }
 }
 void CloudData::getSeqBounds(CloudData *searcher, glm::vec3 currMin, glm::vec3 currMax){

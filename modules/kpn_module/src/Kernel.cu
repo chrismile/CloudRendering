@@ -112,6 +112,7 @@ __global__ void getInvIterBaseKernel(
         float* hi_res_x,
         float* low_res_pred,
         float* low_res_x,
+        float* prev_pred,
         float* weights,
         float* output,
         const int kernelSize,
@@ -144,9 +145,9 @@ __global__ void getInvIterBaseKernel(
         float x_hi = hi_res_x[batch * img_w * img_h * numChannels + c * img_w * img_h + y * img_w + x];
         float x_lo = low_res_x[batch * lo_res_w * lo_res_h * numChannels + c * lo_res_w * lo_res_h + ly * lo_res_w + lx];
         float pred_lo = low_res_pred[batch * lo_res_w * lo_res_h * numChannels + c * lo_res_w * lo_res_h + ly * lo_res_w + lx];
+        float prev = prev_pred[batch * img_w * img_h * numChannels + c * img_w * img_h + y * img_w + x];
 
         float lf = lf_weight * pred_lo + (1.0f - lf_weight) * x_lo;
-        float prev = lf;
         lf = lf * (1.0 - prev_weight) + prev * prev_weight;
         float base = hf_weight * (x_hi - x_lo + lf) + (1.0f - hf_weight) * lf;
 
@@ -154,7 +155,7 @@ __global__ void getInvIterBaseKernel(
     }
 }
 
-torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor fused_weights, int kernelSize){
+torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, int kernelSize){
     if (x.sizes().size() != 4) {
         throw std::runtime_error("Error in perPixelKernelCuda: image.sizes().size() != 4.");
     }
@@ -190,6 +191,10 @@ torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, to
     const int64_t imgH = x.size(2);
     const int64_t imgW = x.size(3);
 
+    if (prev.size(2) != imgH || prev.size(3) != imgW){
+        std::cerr << "previous size mismatched" << std::endl;
+    }
+
     const int64_t weightH = fused_weights.size(2);
     const int64_t weightW = fused_weights.size(3);
 
@@ -213,6 +218,7 @@ torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, to
             (float*)x.data_ptr(),
             (float*)low_res_pred.data_ptr(),
             (float*)low_res_x.data_ptr(),
+            (float*)prev.data_ptr(),
             (float*)fused_weights.data_ptr(),
             (float*)result.data_ptr(),
             kernelSize,

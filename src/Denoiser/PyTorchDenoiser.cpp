@@ -163,7 +163,7 @@ void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFe
 
 torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights) {
     //torch::Tensor base = x;
-    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, fused_weights, 5);
+    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, 5);
     torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1);
     return perPixelKernelCuda(base, weights, 5);
 }
@@ -323,21 +323,24 @@ void PyTorchDenoiser::denoise() {
         at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor();
         at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor();
 
-
         std::cout << "got " << l0.sizes() << std::endl;
         std::cout << "got " << l1.sizes() << std::endl;
         std::cout << "got " << l2.sizes() << std::endl;
         std::cout << "got " << lprev.sizes() << std::endl;
 
         at::Tensor x0 = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(0,4)});
-        std::cout << "res " << x0.sizes() << std::endl;
-
         at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
 
-        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1), 5);
-        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, x1, l1);
-        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, x0, l0);
+        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
+        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor, reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
+
+        reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), 5);
+        torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
+
+        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2, 1), 5);
+        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1);
+        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0);
 
         outputTensor = kp0;
     }else{
@@ -582,6 +585,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     /**
      * set the blend type, if none provided, assume color output
      */
+     blend_inv_iter = false;
     if (root.isMember("blend")) {
         Json::Value& blendType = root["blend"];
         if (!blendType.isString()) {

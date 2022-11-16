@@ -449,7 +449,15 @@ float sampleEmissionRaw(in vec3 coord) {
     return texture(emissionImage, coord).x;
 }
 vec3 sampleEmission(in vec3 pos){
-    float t = sampleEmissionRaw(pos);
+
+    // transform world pos to density grid pos
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    #if defined(FLIP_YZ)
+    coord = coord.xzy;
+    #endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+
+    float t = sampleEmissionRaw(coord);
     t = clamp(t * parameters.emissionCap,0,1);
     vec3 col = vec3(t*t);
     col.g = col.r * col.r;

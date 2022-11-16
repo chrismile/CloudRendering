@@ -43,7 +43,7 @@ if(CUDAToolkit_FOUND)
     else()
         set_property(TARGET kpn_module PROPERTY CUDA_ARCHITECTURES 61)
     endif()
-    set_target_properties(vpt PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+    set_target_properties(kpn_module PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 endif()
 
 
