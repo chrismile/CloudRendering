@@ -318,23 +318,30 @@ void PyTorchDenoiser::denoise() {
         }
         if (useFP16){
             previousTensor = previousTensor.toType(torch::kFloat16);
+        }else{
+            previousTensor = previousTensor.toType(torch::kFloat32);
         }
         inputs.emplace_back(previousTensor);
+    }
+    if (useFP16) {
+        wrapper->module.to(torch::kFloat16);
+    }else{
+        wrapper->module.to(torch::kFloat32);
     }
     at::Tensor outputTensor;
     if (blend_inv_iter){
         c10::IValue layer_outputs = wrapper->module.forward(inputs);
-        at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor();
-        at::Tensor l2 = layer_outputs.toTuple()->elements()[1].toTensor();
-        at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor();
-        at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor();
-
+        at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor().to(torch::kFloat32);
+        at::Tensor l2 = layer_outputs.toTuple()->elements()[1].toTensor().to(torch::kFloat32);
+        at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor().to(torch::kFloat32);
+        at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor().to(torch::kFloat32);
+        inputTensor = inputTensor.to(torch::kFloat32);
         at::Tensor x0 = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(0,4)});
         at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
 
         torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
-        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor, reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
+        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor.to(torch::kFloat32), reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
 
         reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), 5);
         torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
@@ -345,7 +352,7 @@ void PyTorchDenoiser::denoise() {
 
         outputTensor = kp0;
     }else{
-        outputTensor = wrapper->module.forward(inputs).toTensor();
+        outputTensor = wrapper->module.forward(inputs).toTensor().to(torch::kFloat32);
     }
     previousTensor = outputTensor.clone().detach();
     //std::cout << "got " << previousTensor.sizes() << std::endl;
