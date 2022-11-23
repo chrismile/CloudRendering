@@ -41,16 +41,16 @@
 #include "DecompositionTracking.glsl"
 #include "NextEventTracking.glsl"
 
-void main() {
-    uint frame = frameInfo.frameCount;
+void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
+    uint frame = frameInfo.frameCount + i;
 
     ivec2 dim = imageSize(resultImage);
     ivec2 imageCoord = ivec2(gl_GlobalInvocationID.xy);
 
     uint seed = frame * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
-#ifdef CUSTOM_SEED_OFFSET
+    #ifdef CUSTOM_SEED_OFFSET
     seed += CUSTOM_SEED_OFFSET;
-#endif
+    #endif
     initializeRandom(seed);
 
     vec2 screenCoord = 2.0 * (gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
@@ -60,138 +60,52 @@ void main() {
     createCameraRay(screenCoord, x, w);
 
     // Perform a single path and get radiance
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
+    #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
     float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1];
-#endif
+    #endif
 
-#if defined(USE_DELTA_TRACKING)
+    #if defined(USE_DELTA_TRACKING)
     ScatterEvent firstEvent;
     vec3 result = deltaTracking(
-            x, w, firstEvent
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-            , scatterRayAbsorptionMoments
-#endif
+    x, w, firstEvent
+    #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
+    , scatterRayAbsorptionMoments
+    #endif
     );
-#elif defined(USE_SPECTRAL_DELTA_TRACKING)
-    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
+    #elif defined(USE_SPECTRAL_DELTA_TRACKING)
     vec3 result = deltaTrackingSpectral(x, w, firstEvent);
-#elif defined(USE_RATIO_TRACKING)
-    ScatterEvent firstEvent;
+    #elif defined(USE_RATIO_TRACKING)
     vec3 result = ratioTracking(x, w, firstEvent);
-#elif defined(USE_RESIDUAL_RATIO_TRACKING)
-    ScatterEvent firstEvent;
+    #elif defined(USE_RESIDUAL_RATIO_TRACKING)
     vec3 result = residualRatioTracking(x, w, firstEvent);
-#elif defined(USE_DECOMPOSITION_TRACKING)
-    ScatterEvent firstEvent;
+    #elif defined(USE_DECOMPOSITION_TRACKING)
     vec3 result = analogDecompositionTracking(x, w, firstEvent);
-#elif defined(USE_NEXT_EVENT_TRACKING)
-    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-    vec3 result = nextEventTracking(x, w, firstEvent);
-#elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
-    ScatterEvent firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-    vec3 result = nextEventTrackingSpectral(x, w, firstEvent);
-#endif
+    #elif defined(USE_NEXT_EVENT_TRACKING)
+    vec3 result = nextEventTracking(x, w, firstEvent, onlyFirstEvent);
+    #elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
+    vec3 result = nextEventTrackingSpectral(x, w, firstEvent, onlyFirstEvent);
+    #endif
 
-#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-    for (int i = 0; i <= NUM_SCATTER_RAY_ABSORPTION_MOMENTS; i++) {
-        float moment = scatterRayAbsorptionMoments[i];
-        float momentOld = frame == 0 ? 0.0 : imageLoad(scatterRayAbsorptionMomentsImage, ivec3(imageCoord, i)).x;
-        moment = mix(momentOld, moment, 1.0 / float(frame + 1));
-        imageStore(scatterRayAbsorptionMomentsImage, ivec3(imageCoord, i), vec4(moment));
+    if (!onlyFirstEvent) {
+        // Accumulate cloudOnly
+        vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
+        vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+        cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
+        imageStore(cloudOnlyImage, imageCoord, cloudOnly);
+
+        // Accumulate background
+        vec4 backgroundOld = frame == 0 ? vec4(0) : imageLoad(backgroundImage, imageCoord);
+        vec4 background = firstEvent.hasValue ? vec4(sampleSkybox(w), 1) : vec4(result, 1);
+        background = mix(backgroundOld, background, 1.0 / float(frame + 1));
+        imageStore(backgroundImage, imageCoord, background);
+
+
+        // Accumulate result
+        vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
+        result = mix(resultOld, result, 1.0 / float(frame + 1));
+        imageStore(accImage, imageCoord, vec4(result, 1));
+        imageStore(resultImage, imageCoord, vec4(result, 1));
     }
-#endif
-
-    // Accumulate cloudOnly
-    vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
-    vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
-    cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
-    imageStore(cloudOnlyImage, imageCoord, cloudOnly);
-
-    // Accumulate background
-    vec4 backgroundOld = frame == 0 ? vec4(0) : imageLoad(backgroundImage, imageCoord);
-    vec4 background = firstEvent.hasValue ? vec4(sampleSkybox(w), 1) : vec4(result, 1);
-    background = mix(backgroundOld, background, 1.0 / float(frame + 1));
-    imageStore(backgroundImage, imageCoord, background);
-
-    /*for (int i = 0; i < 2; i++) {
-        float pdf_skybox;
-
-        vec3 dir = importanceSampleSkybox(10, 0, pdf_skybox);
-        if (length(dir- w) < .01) {
-            result = vec3(100000,0,100000);
-        }
-    }*/
-
-    /*if (firstEvent.hasValue){
-        float pdf_skybox;
-        w = importanceSampleSkybox(10, 0, pdf_skybox);
-        result = sampleSkybox(w);
-    }*/
-
-    //result.x = evaluateSkyboxPDF(10,0,w);
-    //result.yz = vec2(0);
-
-    /*float l = length(imageCoord - ivec2(70,70));
-    if (l >= 20 && l < 40){
-        vec3 expected = vec3(0.);
-        for (int i = 0; i < 1000; i++){
-            float pdf_w;
-            vec3 sim_w = w;
-            for (int j = 0; j < 3; j++){
-                vec3 phase_sample = importanceSamplePhase(parameters.phaseG, sim_w, pdf_w);
-                sim_w = phase_sample;
-            }
-            expected += sampleSkybox(sim_w);
-        }
-        result = expected / 1000;
-    }
-    if (l < 20){
-        vec3 expected = vec3(0.);
-        for (int i = 0; i < 1000; i++){
-            float pdf_w;
-            vec3 sim_w = w;
-            float weight = 1.;
-            for (int j = 0; j < 3; j++){
-                vec3 uni_sample = importanceSamplePhase(0, sim_w, pdf_w);
-                float pdf_eval = evaluatePhase(parameters.phaseG, sim_w, uni_sample);
-                //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
-                sim_w = uni_sample;
-                weight *= pdf_eval / pdf_w;
-            }
-            expected += sampleSkybox(sim_w) * weight;
-        }
-        result = expected / 1000;
-    }
-
-    if (l >= 40 && l < 60){
-        vec3 expected = vec3(0.);
-        for (int i = 0; i < 1000; i++){
-            float pdf_w;
-            vec3 sim_w = w;
-            float weight = 1.;
-            for (int j = 0; j < 3; j++){
-                vec3 sky_sample = importanceSampleSkybox(10, 0, pdf_w);
-                float pdf_eval = evaluatePhase(parameters.phaseG, sim_w, sky_sample);
-                //pdf_w = evaluateSkyboxPDF(10, 0, sky_sample);
-                sim_w = sky_sample;
-                weight *= pdf_eval / pdf_w;
-            }
-            expected += sampleSkybox(sim_w) * weight;
-        }
-        result = expected / 1000;
-    }*/
-    //result -= parameters.sunIntensity * 1000;
-
-    //if (isinf(result.x)) {
-    //    result = vec3(result.x, 0, result.x);
-    //}
-
-
-    // Accumulate result
-    vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
-    result = mix(resultOld, result, 1.0 / float(frame + 1));
-    imageStore(accImage, imageCoord, vec4(result, 1));
-    imageStore(resultImage, imageCoord, vec4(result,1));
 
     vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(firstX, imageCoord);
     vec4 position = firstEvent.hasValue ? vec4(firstEvent.x, 1) : vec4(0);
@@ -217,27 +131,6 @@ void main() {
     reprojUV = firstEvent.hasValue? reprojUV : oldReprojUV;
     imageStore(reprojUVImage, imageCoord, vec4(reprojUV, 0, 0));
 
-    //vec2 octaUV = worldToOctahedralUV(w);
-    //vec3 octaCol = textureLod(environmentMapOctahedralTexture, octaUV, parameters.phaseG * 8.).rrr;
-    //octaCol = octaCol * (1.-cloudOnly.a) + cloudOnly.rgb;
-    //octaCol = octahedralUVToWorld(octaUV);
-    //octaCol -= parameters.sunIntensity * 1000;
-
-    //if (isinf(octaCol.r)){
-    //    octaCol = vec3(100000,0,100000);
-    //}
-
-    //octaCol.r = octaUV.x > .5?1.:0.;
-    //octaCol.g = octaUV.y > .5?1.:0.;
-    //imageStore(depthDensityImage, imageCoord, vec4(octaCol,1.));
-
-    //vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
-    //result += resultOld;
-    //imageStore(accImage, imageCoord, vec4(result, 1));
-    //imageStore(resultImage, imageCoord, vec4(result/(frame + 1),1));
-
-    // return; Uncomment this if want to execute faster a while(true) loop PT
-
     // Saving the first scatter position and direction
     if (firstEvent.hasValue) {
         vec3 diff = getCloudFiniteDifference(firstEvent.x);
@@ -254,7 +147,7 @@ void main() {
         imageStore(firstW, imageCoord, vec4(0));
     }
 
-#ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
+    #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
     float primaryRayAbsorptionMoments[NUM_PRIMARY_RAY_ABSORPTION_MOMENTS + 1];
     computePrimaryRayAbsorptionMoments(x, w, primaryRayAbsorptionMoments);
     for (int i = 0; i <= NUM_PRIMARY_RAY_ABSORPTION_MOMENTS; i++) {
@@ -263,5 +156,12 @@ void main() {
         moment = mix(momentOld, moment, 1.0 / float(frame + 1));
         imageStore(primaryRayAbsorptionMomentsImage, ivec3(imageCoord, i), vec4(moment));
     }
-#endif
+    #endif
+}
+
+void main() {
+    for (int i = 0; i < parameters.samplesPerFrame; i++){
+        ScatterEvent firstEvent;
+        pathTraceSample(i, i > 0, firstEvent);
+    }
 }

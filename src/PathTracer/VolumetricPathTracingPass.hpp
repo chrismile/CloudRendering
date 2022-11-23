@@ -183,6 +183,7 @@ private:
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
+    int samplesPerFrame = 1;
     bool reachedTarget = true;
     bool changedDenoiserSettings = false;
     bool timerStopped = false;
@@ -244,6 +245,7 @@ private:
 
         glm::vec3 extinction; float pad6;
         glm::vec3 scatteringAlbedo;
+
         float G = 0.5f;
         glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
@@ -252,12 +254,15 @@ private:
         float emissionCap;
         float emissionStrength;
 
+        int samplesPerFrame;
+
         // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize;
 
         // Whether to use linear RGB or sRGB.
         int useLinearRGB;
+
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

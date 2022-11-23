@@ -161,14 +161,19 @@ void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFe
     // Ignore, as we can't easily turn on or off individual feature maps of the loaded model.
 }
 
-torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights) {
+torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, bool usePrevious) {
     //torch::Tensor base = x;
-    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, 5);
+    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, usePrevious, 5);
     torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1);
     return perPixelKernelCuda(base, weights, 5);
 }
 
 void PyTorchDenoiser::denoise() {
+    //totalTimer = std::make_shared<sgl::vk::Timer>(renderer);
+    //std::string eventName = "denoising";
+    //totalTimer->startGPU(eventName);
+
+    
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
     uint32_t frameIndex = swapchain ? swapchain->getImageIndex() : 0;
 
@@ -295,13 +300,14 @@ void PyTorchDenoiser::denoise() {
         inputTensor = inputTensor.contiguous();
     }
     inputs.emplace_back(inputTensor);
+    bool hasPreviousFrame = true;
     if (usePreviousFrame) {
         //std::cout << width << ", " << height << std::endl;
         //std::cout << previousTensor.sizes() << std::endl;
 
         if (previousTensor.sizes()[0] == 0 || zeroOutPreviousFrame) {
             //std::cout <<"new tensor: "<< width << ", " << height << std::endl;
-
+            hasPreviousFrame = false;
             if (useBatchDimension) {
                 inputSizes = { 1, int64_t(4), int64_t(height), int64_t(width)};
                 previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
@@ -323,11 +329,6 @@ void PyTorchDenoiser::denoise() {
         at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor();
         at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor();
 
-        std::cout << "got " << l0.sizes() << std::endl;
-        std::cout << "got " << l1.sizes() << std::endl;
-        std::cout << "got " << l2.sizes() << std::endl;
-        std::cout << "got " << lprev.sizes() << std::endl;
-
         at::Tensor x0 = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(0,4)});
         at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
@@ -339,8 +340,8 @@ void PyTorchDenoiser::denoise() {
         torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
 
         at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2, 1), 5);
-        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1);
-        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0);
+        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1, hasPreviousFrame);
+        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0, hasPreviousFrame);
 
         outputTensor = kp0;
     }else{
@@ -443,6 +444,9 @@ void PyTorchDenoiser::denoise() {
             backgroundAddPass->render();
         }
     }
+    //totalTimer->endGPU(eventName);
+    //totalTimer->finishGPU();
+    //totalTimer->printTimeMS(eventName);
 #endif
 }
 

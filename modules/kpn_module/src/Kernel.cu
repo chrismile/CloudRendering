@@ -115,6 +115,7 @@ __global__ void getInvIterBaseKernel(
         float* prev_pred,
         float* weights,
         float* output,
+        bool usePrevious,
         const int kernelSize,
         const int h, const int w, // Size of output (min of image and kernel size)
         const int img_h, const int img_w,   // size of img
@@ -145,27 +146,29 @@ __global__ void getInvIterBaseKernel(
         float x_hi = hi_res_x[batch * img_w * img_h * numChannels + c * img_w * img_h + y * img_w + x];
         float x_lo = low_res_x[batch * lo_res_w * lo_res_h * numChannels + c * lo_res_w * lo_res_h + ly * lo_res_w + lx];
         float pred_lo = low_res_pred[batch * lo_res_w * lo_res_h * numChannels + c * lo_res_w * lo_res_h + ly * lo_res_w + lx];
-        float prev = prev_pred[batch * img_w * img_h * numChannels + c * img_w * img_h + y * img_w + x];
 
         float lf = lf_weight * pred_lo + (1.0f - lf_weight) * x_lo;
-        lf = lf * (1.0 - prev_weight) + prev * prev_weight;
+        if (usePrevious){
+            float prev = prev_pred[batch * img_w * img_h * numChannels + c * img_w * img_h + y * img_w + x];
+            lf = lf * (1.0 - prev_weight) + prev * prev_weight;
+        }
         float base = hf_weight * (x_hi - x_lo + lf) + (1.0f - hf_weight) * lf;
 
         output[batch * w * h * numChannels+ c * w * h + y * w + x] = base;
     }
 }
 
-torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, int kernelSize){
+torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, bool usePrevious, int kernelSize){
     if (x.sizes().size() != 4) {
         throw std::runtime_error("Error in perPixelKernelCuda: image.sizes().size() != 4.");
     }
     if (fused_weights.sizes().size() != 4) {
         throw std::runtime_error("Error in perPixelKernelCuda: weights.sizes().size() != 4.");
     }
-    std::cout << "getting base" << std::endl;
+    /*std::cout << "getting base" << std::endl;
     std::cout << "x: " << x.sizes() << std::endl;
     std::cout << "pred: " << low_res_pred.sizes() << std::endl;
-    std::cout << "x_lo: " << low_res_x.sizes() << std::endl;
+    std::cout << "x_lo: " << low_res_x.sizes() << std::endl;*/
 
     if (!x.is_contiguous()) {
         std::cout << "x not contiguous" << std::endl;
@@ -221,6 +224,7 @@ torch::Tensor getInvIterBaseCuda(torch::Tensor x, torch::Tensor low_res_pred, to
             (float*)prev.data_ptr(),
             (float*)fused_weights.data_ptr(),
             (float*)result.data_ptr(),
+            usePrevious,
             kernelSize,
             h, w, imgH, imgW, lowH, lowW, weightH, weightW,
             imgC, imgN

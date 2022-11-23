@@ -784,6 +784,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
         uniformData.environmentMapIntensityFactor = environmentMapIntensityFactor;
+        uniformData.samplesPerFrame = samplesPerFrame;
         if (useSparseGrid) {
             if (cloudData->getGridSizeX() >= 8 && cloudData->getGridSizeY() >= 8 && cloudData->getGridSizeZ() >= 8) {
                 uniformData.superVoxelSize = glm::ivec3(8);
@@ -990,6 +991,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         ImGui::SameLine();
         ImGui::SetNextItemWidth(sgl::ImGuiWrapper::get()->getScaleDependentSize(220.0f));
         ImGui::InputInt("##targetNumSamples", &targetNumSamples);
+        ImGui::InputInt("##samplesPerFrame", &samplesPerFrame);
 
         if (propertyEditor.addSliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
             optionChanged = true;

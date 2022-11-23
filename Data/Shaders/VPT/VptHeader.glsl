@@ -57,6 +57,7 @@ layout (binding = 3) uniform Parameters {
 
     vec3 extinction;
     vec3 scatteringAlbedo;
+
     float phaseG;
 
     // Sky properties.
@@ -66,6 +67,7 @@ layout (binding = 3) uniform Parameters {
 
     float emissionCap;
     float emissionStrength;
+    int samplesPerFrame;
 
     // For residual ratio tracking and decomposition tracking.
     ivec3 superVoxelSize;
@@ -75,6 +77,8 @@ layout (binding = 3) uniform Parameters {
 
     // Whether to use linear RGB or sRGB.
     int useLinearRGB;
+
+
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {

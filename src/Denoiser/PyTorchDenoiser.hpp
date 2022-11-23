@@ -35,6 +35,7 @@
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
 #include <torch/script.h>
 #include <torch/cuda.h>
+#include <Graphics/Vulkan/Utils/Timer.hpp>
 
 #include "Denoiser.hpp"
 
@@ -152,6 +153,9 @@ private:
     std::shared_ptr<BackgroundAddPass> backgroundAddPass;
 
     bool blend_inv_iter = false;
+
+    sgl::vk::TimerPtr totalTimer;
+    sgl::vk::TimerPtr networkTimer;
 
 #ifdef SUPPORT_CUDA_INTEROP
     // Synchronization primitives.

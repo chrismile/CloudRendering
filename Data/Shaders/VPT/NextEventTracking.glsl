@@ -98,7 +98,7 @@ float calculateTransmittance(vec3 x, vec3 w
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
 #ifdef USE_NEXT_EVENT_TRACKING_SPECTRAL
-vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
     #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
     #endif
@@ -185,6 +185,20 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
                 float pdf_w, pdf_nee;
                 vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    firstEvent.pdf_x = 0; // TODO
+                    firstEvent.w = next_w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
+                }
+                if (onlyFirstEvent){
+                    return vec3(0);
+                }
+
                 vec3 nee_w = importanceSampleSkybox(pdf_nee);
 
                 float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
@@ -205,17 +219,6 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 #endif
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
 
-
-                if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
-                    firstEvent.pdf_x = 0; // TODO
-                    firstEvent.w = w;
-                    firstEvent.pdf_w = pdf_w;
-                    firstEvent.hasValue = true;
-                    firstEvent.density = density * maxComponent(parameters.extinction);
-                    firstEvent.depth = tMax - d + t;
-                }
-
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
                     d = tMax - tMin;
@@ -235,7 +238,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 #endif
 
 #ifdef USE_NEXT_EVENT_TRACKING
-vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
+vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     #ifdef USE_NANOVDB
@@ -309,6 +312,22 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             {
                 float pdf_w, pdf_nee;
                 vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
+
+                if (!firstEvent.hasValue) {
+                    firstEvent.x = x;
+                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
+                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
+                    firstEvent.pdf_x = sigma_s * pdf_x;
+                    firstEvent.w = next_w;
+                    firstEvent.pdf_w = pdf_w;
+                    firstEvent.hasValue = true;
+                    firstEvent.density = density * maxComponent(parameters.extinction);
+                    firstEvent.depth = tMax - d + t;
+                }
+                if (onlyFirstEvent){
+                    return vec3(0);
+                }
+
                 vec3 nee_w = importanceSampleSkybox(pdf_nee);
 
                 //next_w = importanceSamplePhase(0.5, w, pdf_w);
@@ -332,18 +351,6 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
                 //return color;
                 pdf_x *= exp(-majorant * t) * majorant * density;
-
-                if (!firstEvent.hasValue) {
-                    firstEvent.x = x;
-                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
-                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
-                    firstEvent.pdf_x = sigma_s * pdf_x;
-                    firstEvent.w = w;
-                    firstEvent.pdf_w = pdf_w;
-                    firstEvent.hasValue = true;
-                    firstEvent.density = density * maxComponent(parameters.extinction);
-                    firstEvent.depth = tMax - d + t;
-                }
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
