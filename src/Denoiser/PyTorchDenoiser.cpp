@@ -169,11 +169,6 @@ torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch
 }
 
 void PyTorchDenoiser::denoise() {
-    //totalTimer = std::make_shared<sgl::vk::Timer>(renderer);
-    //std::string eventName = "denoising";
-    //totalTimer->startGPU(eventName);
-
-    
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
     uint32_t frameIndex = swapchain ? swapchain->getImageIndex() : 0;
 
@@ -296,7 +291,7 @@ void PyTorchDenoiser::denoise() {
         inputTensor = inputTensor.toType(torch::kFloat16);
     }
     if (!inputTensor.is_contiguous()){
-        std::cout << "input not contiguous" << std::endl;
+        //std::cout << "input not contiguous" << std::endl;
         inputTensor = inputTensor.contiguous();
     }
     inputs.emplace_back(inputTensor);
@@ -451,9 +446,6 @@ void PyTorchDenoiser::denoise() {
             backgroundAddPass->render();
         }
     }
-    //totalTimer->endGPU(eventName);
-    //totalTimer->finishGPU();
-    //totalTimer->printTimeMS(eventName);
 #endif
 }
 

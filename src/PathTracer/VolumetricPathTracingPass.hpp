@@ -189,6 +189,7 @@ private:
     bool timerStopped = false;
     bool createNewAccumulationTimer = false;
     sgl::vk::TimerPtr accumulationTimer;
+    sgl::vk::TimerPtr denoiseTimer;
 
     glm::vec3 sunlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float sunlightIntensity = 2.6f;

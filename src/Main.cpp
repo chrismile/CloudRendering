@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
     std::string settingsFile = sgl::FileUtils::get()->getConfigDirectory() + "settings.txt";
     sgl::AppSettings::get()->loadSettings(settingsFile.c_str());
     sgl::AppSettings::get()->getSettings().addKeyValue("window-multisamples", 0);
-    sgl::AppSettings::get()->getSettings().addKeyValue("window-vSync", true);
+    sgl::AppSettings::get()->getSettings().addKeyValue("window-vSync", false);
     sgl::AppSettings::get()->getSettings().addKeyValue("window-resizable", true);
     sgl::AppSettings::get()->getSettings().addKeyValue("window-savePosition", true);
 #ifdef NDEBUG

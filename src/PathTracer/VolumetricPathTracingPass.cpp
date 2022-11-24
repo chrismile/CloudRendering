@@ -726,6 +726,7 @@ void VolumetricPathTracingPass::_render() {
     if (createNewAccumulationTimer) {
         accumulationTimer = {};
         accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
+        denoiseTimer= std::make_shared<sgl::vk::Timer>(renderer);
         createNewAccumulationTimer = false;
     }
 
@@ -740,6 +741,8 @@ void VolumetricPathTracingPass::_render() {
             reachedTarget = true;
             accumulationTimer->finishGPU();
             accumulationTimer->printTimeMS(eventName);
+            denoiseTimer->finishGPU();
+            denoiseTimer->printTimeMS("denoise");
             timerStopped = true;
         }
     }
@@ -839,7 +842,11 @@ void VolumetricPathTracingPass::_render() {
 
     if (featureMapType == FeatureMapTypeVpt::RESULT) {
         if (useDenoiser && denoiser && denoiser->getIsEnabled()) {
+            if (!reachedTarget)
+                denoiseTimer->startGPU("denoise");
             denoiser->denoise();
+            if (!reachedTarget)
+                denoiseTimer->endGPU("denoise");
             renderer->transitionImageLayout(
                     denoisedImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             renderer->transitionImageLayout(
