@@ -94,8 +94,8 @@ private:
 
     // This setting lets all data views use the same viewport resolution.
     bool useFixedSizeViewport = false;
-    glm::ivec2 fixedViewportSizeEdit{ 2186, 1358 };
-    glm::ivec2 fixedViewportSize{ 2186, 1358 };
+    glm::ivec2 fixedViewportSizeEdit{ 1920, 1080 };
+    glm::ivec2 fixedViewportSize{ 1920, 1080 };
 
     // Data set GUI information.
     void loadAvailableDataSetInformation();
