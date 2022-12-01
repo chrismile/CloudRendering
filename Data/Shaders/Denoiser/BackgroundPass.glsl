@@ -20,7 +20,7 @@ void main() {
 
         // Accumulate result
         vec3 result = background.xyz * clamp(1. - cloudOnly.a, 0., 1.) + cloudOnly.xyz;
-        //result = vec3(1,0,0);
+        //result = cloudOnly.xyz;
         imageStore(resultImage, writePos, vec4(result,1));
     //}
 

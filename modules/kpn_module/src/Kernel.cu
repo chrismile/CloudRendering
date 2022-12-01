@@ -135,10 +135,10 @@ __global__ void getInvIterBaseKernel(
         return;
     }
     for (int c = 0; c < numChannels; c++){
-
-        float lf_weight = weights[batch * weight_w * weight_h * kernelSize * kernelSize + 25 * weight_w * weight_h + y * weight_w + x];
-        float hf_weight = weights[batch * weight_w * weight_h * kernelSize * kernelSize + 26 * weight_w * weight_h + y * weight_w + x];
-        float prev_weight = weights[batch * weight_w * weight_h * kernelSize * kernelSize + 27 * weight_w * weight_h + y * weight_w + x];
+        int kernelDim = kernelSize * kernelSize;
+        float lf_weight = weights[batch * weight_w * weight_h * kernelDim + kernelDim * weight_w * weight_h + y * weight_w + x];
+        float hf_weight = weights[batch * weight_w * weight_h * kernelDim + (kernelDim+1) * weight_w * weight_h + y * weight_w + x];
+        float prev_weight = weights[batch * weight_w * weight_h * kernelDim + (kernelDim+2) * weight_w * weight_h + y * weight_w + x];
         lf_weight = 1.0f / (1.0f + expf(-lf_weight));
         hf_weight = 1.0f / (1.0f + expf(-hf_weight));
         prev_weight = 1.0f / (1.0f + expf(-prev_weight));

@@ -115,6 +115,11 @@ public:
     void setFeatureMapType(FeatureMapTypeVpt type);
     void setPreviousViewProjMatrix(glm::mat4 previousViewProjMatrix);
 
+    void setUseEmission(bool emission);
+    void setEmissionStrength(float emissionStrength);
+    void setEmissionCap(float emissionCap);
+    void flipYZ(bool flip);
+
     // Called when the camera has moved.
     void onHasMoved();
     /// Returns if the data needs to be re-rendered, but the visualization mapping is valid.

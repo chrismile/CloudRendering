@@ -55,6 +55,7 @@ public:
 
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     void setCloudData(const CloudDataPtr& cloudData);
+    void setEmissionData(const CloudDataPtr& cloudData);
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
@@ -65,9 +66,17 @@ public:
     void setPhaseG(double phaseG);
     void setFeatureMapType(FeatureMapTypeVpt type);
 
+    void setEmissionCap(double emissionCap);
+    void setEmissionStrength(double emissionStrength);
+    void setUseEmission(bool useEmission);
+    void flipYZ(bool flip);
+
     void setCameraPosition(glm::vec3 cameraPosition);
     void setCameraTarget(glm::vec3 cameraTarget);
     void setCameraFOVy(double FOVy);
+
+    void rememberNextBounds();
+    void forgetCurrentBounds();
 
     void setViewProjectionMatrixAsPrevious();
 
@@ -119,6 +128,11 @@ private:
     sgl::CameraPtr camera;
     glm::vec3 cameraPosition = glm::vec3(0,0,0);
     glm::vec3 cameraTarget = glm::vec3(0,0,0);
+
+    glm::vec3 seq_bounds_min = glm::vec3(0,0,0);
+    glm::vec3 seq_bounds_max = glm::vec3(0,0,0);
+    bool hasStoredBounds = false;
+    bool storeNextBounds = false;
 
     glm::mat4 previousViewProjectionMatrix;
 

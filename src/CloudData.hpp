@@ -79,6 +79,8 @@ public:
 
     void setClearColor(const sgl::Color& clearColor) {}
 
+    void setSeqBounds(glm::vec3 min, glm::vec3 max);
+
     /**
      * @return An array of size gridSizeX * gridSizeY * gridSizeZ containing the dense data field.
      * If the object was loaded using a .nvdb file, the dense field is created when calling this function.
@@ -94,6 +96,7 @@ public:
     void getSparseDensityField(uint8_t*& data, uint64_t& size);
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
+
 
 private:
     std::shared_ptr<CloudData> nextCloudDataFrame;
@@ -154,8 +157,6 @@ private:
     nanovdb::GridHandle<nanovdb::HostBuffer> sparseGridHandle;
     bool cacheSparseGrid = false;
 
-    void getSeqBounds();
-    void getSeqBounds(CloudData *searcher, glm::vec3 currMin, glm::vec3 currMax);
 };
 
 typedef std::shared_ptr<CloudData> CloudDataPtr;

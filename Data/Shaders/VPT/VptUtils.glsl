@@ -451,7 +451,7 @@ float sampleEmissionRaw(in vec3 coord) {
 vec3 sampleEmission(in vec3 pos){
 
     // transform world pos to density grid pos
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    vec3 coord = (pos - parameters.emissionBoxMin) / (parameters.emissionBoxMax - parameters.emissionBoxMin);
     #if defined(FLIP_YZ)
     coord = coord.xzy;
     #endif

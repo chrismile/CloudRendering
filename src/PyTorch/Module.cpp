@@ -46,6 +46,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::cleanup", cleanup);
     m.def("vpt::render_frame", renderFrame);
     m.def("vpt::load_cloud_file", loadCloudFile);
+    m.def("vpt::load_emission_file", loadEmissionFile);
     m.def("vpt::load_environment_map", loadEnvironmentMap);
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
     m.def("vpt::set_scattering_albedo", setScatteringAlbedo);
@@ -60,6 +61,13 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::get_feature_map", getFeatureMap);
     m.def("vpt::set_phase_g", setPhaseG);
     m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
+    m.def("vpt::set_use_emission", setUseEmission);
+    m.def("vpt::set_emission_strength", setEmissionStrength);
+    m.def("vpt::set_emission_cap", setEmissionCap);
+    m.def("vpt::remember_next_bounds", rememberNextBounds);
+    m.def("vpt::forget_current_bounds", forgetCurrentBounds);
+    m.def("vpt::flip_yz_coordinates", flipYZ);
+
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -346,6 +354,14 @@ void loadCloudFile(const std::string& filename) {
     vptRenderer->setCloudData(cloudData);
 }
 
+void loadEmissionFile(const std::string& filename) {
+    //std::cout << "loading emission from " << filename << std::endl;
+    CloudDataPtr emissionData = std::make_shared<CloudData>();
+    emissionData->loadFromFile(filename);
+    vptRenderer->setEmissionData(emissionData);
+}
+
+
 void loadEnvironmentMap(const std::string& filename) {
     //std::cout << "loadEnvironmentMap from " << filename << std::endl;
     vptRenderer->loadEnvironmentMapImage(filename);
@@ -432,4 +448,25 @@ void setPhaseG(double phaseG){
 
 void setViewProjectionMatrixAsPrevious(){
     vptRenderer->setViewProjectionMatrixAsPrevious();
+}
+
+void setEmissionCap(double emissionCap){
+    vptRenderer->setEmissionCap(emissionCap);
+}
+void setEmissionStrength(double emissionStrength){
+    vptRenderer->setEmissionStrength(emissionStrength);
+}
+void setUseEmission(bool useEmission){
+    vptRenderer->setUseEmission(useEmission);
+}
+void flipYZ(bool flip){
+    vptRenderer->flipYZ(flip);
+}
+
+void rememberNextBounds(){
+    vptRenderer->rememberNextBounds();
+}
+
+void forgetCurrentBounds(){
+    vptRenderer->forgetCurrentBounds();
 }

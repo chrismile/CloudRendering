@@ -36,6 +36,8 @@ MODULE_OP_API void initialize();
 MODULE_OP_API void cleanup();
 
 MODULE_OP_API void loadCloudFile(const std::string& filename);
+MODULE_OP_API void loadEmissionFile(const std::string& filename);
+
 MODULE_OP_API void loadEnvironmentMap(const std::string& filename);
 MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 
@@ -54,6 +56,14 @@ MODULE_OP_API void setFeatureMapType(int64_t type);
 MODULE_OP_API void setSeedOffset(int64_t offset);
 
 MODULE_OP_API void setViewProjectionMatrixAsPrevious();
+
+MODULE_OP_API void setEmissionCap(double emissionCap);
+MODULE_OP_API void setEmissionStrength(double emissionStrength);
+MODULE_OP_API void setUseEmission(bool useEmission);
+MODULE_OP_API void flipYZ(bool flip);
+
+MODULE_OP_API void rememberNextBounds();
+MODULE_OP_API void forgetCurrentBounds();
 
 MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount);
 MODULE_OP_API torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t frameCount);

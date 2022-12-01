@@ -385,6 +385,20 @@ void VolumetricPathTracingPass::setPreviousViewProjMatrix(glm::mat4 previousView
     this->previousViewProjMatrix = previousViewProjectionMatrix;
 }
 
+void VolumetricPathTracingPass::setUseEmission(bool emission){
+    useEmission = emission;
+}
+void VolumetricPathTracingPass::setEmissionStrength(float emissionStrength){
+    this->emissionStrength = emissionStrength;
+}
+void VolumetricPathTracingPass::setEmissionCap(float emissionCap){
+    this->emissionCap = emissionCap;
+}
+
+void VolumetricPathTracingPass::flipYZ(bool flip) {
+    this->flipYZCoordinates = flip;
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -743,6 +757,8 @@ void VolumetricPathTracingPass::_render() {
             accumulationTimer->printTimeMS(eventName);
             denoiseTimer->finishGPU();
             denoiseTimer->printTimeMS("denoise");
+            accumulationTimer->printTimeMS("denoise");
+
             timerStopped = true;
         }
     }
@@ -842,11 +858,17 @@ void VolumetricPathTracingPass::_render() {
 
     if (featureMapType == FeatureMapTypeVpt::RESULT) {
         if (useDenoiser && denoiser && denoiser->getIsEnabled()) {
-            if (!reachedTarget)
+            if (!reachedTarget){
                 denoiseTimer->startGPU("denoise");
+                accumulationTimer->startGPU("denoise");
+
+            }
             denoiser->denoise();
-            if (!reachedTarget)
+            if (!reachedTarget){
+                accumulationTimer->endGPU("denoise");
+
                 denoiseTimer->endGPU("denoise");
+            }
             renderer->transitionImageLayout(
                     denoisedImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             renderer->transitionImageLayout(

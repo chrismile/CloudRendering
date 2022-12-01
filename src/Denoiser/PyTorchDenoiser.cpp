@@ -161,11 +161,11 @@ void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFe
     // Ignore, as we can't easily turn on or off individual feature maps of the loaded model.
 }
 
-torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, bool usePrevious) {
+torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, int kernelSize, bool usePrevious) {
     //torch::Tensor base = x;
-    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, usePrevious, 5);
-    torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,25)}), 1);
-    return perPixelKernelCuda(base, weights, 5);
+    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, usePrevious, kernelSize);
+    torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,kernelSize*kernelSize)}), 1);
+    return perPixelKernelCuda(base, weights, kernelSize);
 }
 
 void PyTorchDenoiser::denoise() {
@@ -335,15 +335,20 @@ void PyTorchDenoiser::denoise() {
         at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
 
+        int kernelSize = 5;
+        if (l0.size(1) < 25){
+            kernelSize = 3;
+        }
+
         torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
         torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor.to(torch::kFloat32), reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
 
-        reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), 5);
+        reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), kernelSize);
         torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
 
-        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2, 1), 5);
-        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1, hasPreviousFrame);
-        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0, hasPreviousFrame);
+        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2, 1), kernelSize);
+        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1, kernelSize, hasPreviousFrame);
+        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0, kernelSize, hasPreviousFrame);
 
         outputTensor = kp0;
     }else{

@@ -29,6 +29,7 @@
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/imgui.h>
+#include "CloudData.hpp"
 
 #include "PathTracer/VolumetricPathTracingPass.hpp"
 
@@ -76,7 +77,24 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
 }
 
 void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloudData) {
+    if (storeNextBounds){
+        storeNextBounds = false;
+        seq_bounds_min = cloudData->getWorldSpaceGridMin();
+        seq_bounds_max = cloudData->getWorldSpaceGridMax();
+        hasStoredBounds = true;
+    }
+    if (hasStoredBounds){
+        cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
+    }
+
     vptPass->setCloudData(cloudData);
+}
+
+void VolumetricPathTracingModuleRenderer::setEmissionData(const CloudDataPtr& cloudData) {
+    if (hasStoredBounds){
+        cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
+    }
+    vptPass->setEmissionData(cloudData);
 }
 
 void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::string& filename) {
@@ -112,6 +130,18 @@ void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt ty
     vptPass->setFeatureMapType(type);
 }
 
+void VolumetricPathTracingModuleRenderer::setEmissionCap(double emissionCap){
+    vptPass->setEmissionCap(emissionCap);
+}
+void VolumetricPathTracingModuleRenderer::setEmissionStrength(double emissionStrength){
+    vptPass->setEmissionStrength(emissionStrength);
+}
+void VolumetricPathTracingModuleRenderer::setUseEmission(bool useEmission){
+    vptPass->setUseEmission(useEmission);
+}
+void VolumetricPathTracingModuleRenderer::flipYZ(bool flip){
+    vptPass->flipYZ(flip);
+}
 
 void VolumetricPathTracingModuleRenderer::setCameraPosition(glm::vec3 cameraPosition){
     this->cameraPosition = cameraPosition;
@@ -126,6 +156,14 @@ void VolumetricPathTracingModuleRenderer::setCameraTarget(glm::vec3 cameraTarget
 
 void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
     camera->setFOVy(FOVy);
+}
+
+void VolumetricPathTracingModuleRenderer::rememberNextBounds() {
+    storeNextBounds = true;
+}
+
+void VolumetricPathTracingModuleRenderer::forgetCurrentBounds() {
+    hasStoredBounds = false;
 }
 
 void VolumetricPathTracingModuleRenderer::setViewProjectionMatrixAsPrevious() {
