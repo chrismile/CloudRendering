@@ -54,14 +54,14 @@ float calculateTransmittance(vec3 x, vec3 w
                 break;
             }
 
-            if (transmittance * rr_factor < targetThroughput) {
+            /*if (transmittance * rr_factor < targetThroughput) {
                 float rr_survive_prob = (transmittance * rr_factor) / targetThroughput;
                 if (random() > rr_survive_prob) {
                     return 0;
                 }else {
                     rr_factor /= rr_survive_prob;
                 }
-            }
+            }*/
 
             x += w * t;
 
@@ -83,7 +83,7 @@ float calculateTransmittance(vec3 x, vec3 w
                 // switches between ratio and delta tracking
                 return 0;
             }
-            transmittance *= 1.0 - Pa - Ps;
+            //transmittance *= 1.0 - Pa - Ps;
 
             d -= t;
         }
