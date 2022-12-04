@@ -770,7 +770,12 @@ void VolumetricPathTracingPass::_render() {
     if (!changedDenoiserSettings && !timerStopped) {
         uniformData.inverseViewProjMatrix = glm::inverse(
                 (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
+
         uniformData.previousViewProjMatrix = previousViewProjMatrix;
+        if (previousViewProjMatrix[3][3] == 0){
+            std::cout << "NO previous view projection matrix"<<std::endl;
+            uniformData.previousViewProjMatrix=(*camera)->getProjectionMatrix() * (*camera)->getViewMatrix();
+        }
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
         uniformData.boxMax = cloudData->getWorldSpaceBoxMax();
         if (emissionData){
