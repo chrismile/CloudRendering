@@ -111,6 +111,9 @@ private:
     ImGuiFileDialog* fileDialogInstance = nullptr;
     std::string fileDialogDirectory;
 
+    // For mapping volume density to display density and emission.
+    sgl::TransferFunctionWindow transferFunctionWindow;
+
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;
 

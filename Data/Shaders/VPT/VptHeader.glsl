@@ -134,6 +134,10 @@ layout(std140, binding = 20) uniform MomentUniformData {
 };
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
+#ifdef USE_TRANSFER_FUNCTION
+layout(binding = 21) uniform sampler1D transferFunctionTexture;
+#endif
+
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }

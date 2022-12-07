@@ -466,19 +466,26 @@ vec3 sampleEmission(in vec3 pos){
 }
 #endif
 
-#ifdef USE_DENSITY_TRANSFER_FUNCTION
-float sampleCloud(
+#ifdef USE_TRANSFER_FUNCTION
+vec4 sampleCloud(
 #ifdef USE_NANOVDB
         pnanovdb_readaccessor_t accessor,
 #endif
         in vec3 pos) {
     // Idea: Returns (color.rgb, density).
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    #if defined(FLIP_YZ)
+    coord = coord.xzy;
+    #endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    coord = 1-coord.xyz;
     float densityRaw = sampleCloudRaw(
 #ifdef USE_NANOVDB
             accessor,
 #endif
-            pos);
-    return texture(densityTransferFunction, density).x;
+            coord);
+    //return densityRaw;
+    return texture(transferFunctionTexture, densityRaw);
 }
 #else
 float sampleCloud(

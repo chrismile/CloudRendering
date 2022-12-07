@@ -36,6 +36,7 @@
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#include <ImGui/Widgets/TransferFunctionWindow.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_stdlib.h>
 
@@ -662,6 +663,10 @@ void VolumetricPathTracingPass::loadShader() {
     } else {
         customPreprocessorDefines.insert({ "LOCAL_SIZE", "16" });
     }
+    sgl::TransferFunctionWindow* tfWindow = cloudData->getTransferFunctionWindow();
+    if (tfWindow && tfWindow->getShowWindow()) {
+        customPreprocessorDefines.insert({ "USE_TRANSFER_FUNCTION", "" });
+    }
 
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
@@ -724,6 +729,12 @@ void VolumetricPathTracingPass::createComputeData(
                 "scatterRayAbsorptionMomentsImage");
     }
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
+
+
+    sgl::TransferFunctionWindow* tfWindow = cloudData->getTransferFunctionWindow();
+    if (tfWindow && tfWindow->getShowWindow()) {
+        computeData->setStaticTexture(tfWindow->getTransferFunctionMapTextureVulkan(), "transferFunctionTexture");
+    }
 }
 
 std::string VolumetricPathTracingPass::getCurrentEventName() {

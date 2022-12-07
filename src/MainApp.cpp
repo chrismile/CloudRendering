@@ -138,6 +138,9 @@ MainApp::MainApp()
     sgl::AppSettings::get()->getSettings().getValueOpt("showCoordinateAxesOverlay", showCoordinateAxesOverlay);
 
     useLinearRGB = true;
+    transferFunctionWindow.setClearColor(clearColor);
+    transferFunctionWindow.setUseLinearRGB(useLinearRGB);
+    transferFunctionWindow.setShowWindow(false);
     coordinateAxesOverlayWidget.setClearColor(clearColor);
 
     if (usePerformanceMeasurementMode) {
@@ -236,6 +239,7 @@ void MainApp::resolutionChanged(sgl::EventPtr event) {
 
 void MainApp::updateColorSpaceMode() {
     SciVisApp::updateColorSpaceMode();
+    transferFunctionWindow.setUseLinearRGB(useLinearRGB);
     volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
     if (dataView) {
         dataView->useLinearRGB = useLinearRGB;
@@ -346,6 +350,7 @@ void MainApp::renderGui() {
                     &dockLeftUpId, &dockLeftDownId);
             ImGui::DockBuilderDockWindow("Property Editor", dockLeftUpId);
 
+            ImGui::DockBuilderDockWindow("Transfer Function", dockLeftDownId);
             ImGui::DockBuilderDockWindow("Camera Checkpoints", dockLeftDownId);
 
             ImGui::DockBuilderFinish(dockLeftId);
@@ -439,6 +444,18 @@ void MainApp::renderGui() {
         reRender = false;
     }
 
+    if (transferFunctionWindow.renderGui()) {
+        reRender = true;
+        if (transferFunctionWindow.getTransferFunctionMapRebuilt()) {
+            if (cloudData) {
+                cloudData->onTransferFunctionMapRebuilt();
+                hasMoved();
+            }
+            //sgl::EventManager::get()->triggerEvent(std::make_shared<sgl::Event>(
+            //        ON_TRANSFER_FUNCTION_MAP_REBUILT_EVENT));
+        }
+    }
+
     if (checkpointWindow.renderGui()) {
         fovDegree = camera->getFOVy() / sgl::PI * 180.0f;
         reRender = true;
@@ -503,6 +520,7 @@ void MainApp::renderGuiGeneralSettingsPropertyEditor() {
     if (propertyEditor.addColorEdit3("Clear Color", (float*)&clearColorSelection, 0)) {
         clearColor = sgl::colorFromFloat(
                 clearColorSelection.x, clearColorSelection.y, clearColorSelection.z, clearColorSelection.w);
+        transferFunctionWindow.setClearColor(clearColor);
         coordinateAxesOverlayWidget.setClearColor(clearColor);
         if (cloudData) {
             cloudData->setClearColor(clearColor);
@@ -611,6 +629,12 @@ void MainApp::renderGuiMenuBar() {
             if (ImGui::MenuItem("Property Editor", nullptr, showPropertyEditor)) {
                 showPropertyEditor = !showPropertyEditor;
             }
+            if (ImGui::MenuItem(
+                    "Transfer Function Window", nullptr, transferFunctionWindow.getShowWindow())) {
+                transferFunctionWindow.setShowWindow(!transferFunctionWindow.getShowWindow());
+                volumetricPathTracingPass->setShaderDirty();
+                reRender = true;
+            }
             if (ImGui::MenuItem("Checkpoint Window", nullptr, checkpointWindow.getShowWindow())) {
                 checkpointWindow.setShowWindow(!checkpointWindow.getShowWindow());
             }
@@ -687,6 +711,8 @@ void MainApp::update(float dt) {
 
     checkLoadingRequestFinished();
 
+    transferFunctionWindow.update(dt);
+
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard || recording || focusedWindowIndex != -1) {
         moveCameraKeyboard(dt);
@@ -733,7 +759,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
         //transformationMatrixPtr = &transformationMatrix;
     }
 
-    CloudDataPtr cloudData(new CloudData);
+    CloudDataPtr cloudData(new CloudData(&transferFunctionWindow));
 
     if (blockingDataLoading) {
         //bool dataLoaded = cloudData->loadFromFile(fileName, selectedDataSetInformation, transformationMatrixPtr);
