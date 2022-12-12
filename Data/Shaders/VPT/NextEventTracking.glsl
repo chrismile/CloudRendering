@@ -65,15 +65,15 @@ float calculateTransmittance(vec3 x, vec3 w
 
             x += w * t;
 
-            #ifdef USE_TRANSFER_FUNCTION
+#ifdef USE_TRANSFER_FUNCTION
             float density = sampleCloud(x).a;
-            #else
-            #ifdef USE_NANOVDB
+#else
+#ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
-            #else
+#else
             float density = sampleCloud(x);
-            #endif
-            #endif
+#endif
+#endif
 
             float sigma_a = PA * density;
             float sigma_s = PS * density;
@@ -103,9 +103,9 @@ float calculateTransmittance(vec3 x, vec3 w
  */
 #ifdef USE_NEXT_EVENT_TRACKING_SPECTRAL
 vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
-    #ifdef USE_NANOVDB
+#ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
-    #endif
+#endif
 
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
@@ -134,38 +134,38 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 
             x += w * t;
 
-            #ifdef USE_TRANSFER_FUNCTION
-            vec4 scatter_density = sampleCloud(x);
+#ifdef USE_TRANSFER_FUNCTION
+            vec4 scatter_density = sampleCloudColorAndDensity(x);
             float density = scatter_density.a;
             scatteringAlbedo = scatter_density.rgb;
             absorptionAlbedo = vec3(1) - scatteringAlbedo;
             float PA = maxComponent(absorptionAlbedo * parameters.extinction);
             float PS = maxComponent(scatteringAlbedo * parameters.extinction);
-            #else
-            #ifdef USE_NANOVDB
+#else
+#ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
-            #else
+#else
             float density = sampleCloud(x);
-            #endif
-            #endif
+#endif
+#endif
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
             vec3 sigma_s = scatteringAlbedo * parameters.extinction * density;
             vec3 sigma_n = vec3(majorant) - parameters.extinction * density;
 
-            #if defined(MAX_BASED_PROBABILITY)
+#if defined(MAX_BASED_PROBABILITY)
             float Pa = maxComponent(sigma_a);
             float Ps = maxComponent(sigma_s);
             float Pn = maxComponent(sigma_n);
-            #elif defined(AVG_BASED_PROBABILITY)
+#elif defined(AVG_BASED_PROBABILITY)
             float Pa = avgComponent(sigma_a);
             float Ps = avgComponent(sigma_s);
             float Pn = avgComponent(sigma_n);
-            #else // Path history average-based probability
+#else // Path history average-based probability
             float Pa = avgComponent(sigma_a * weights);
             float Ps = avgComponent(sigma_s * weights);
             float Pn = avgComponent(sigma_n * weights);
-            #endif
+#endif
             float C = Pa + Ps + Pn;
             Pa /= C;
             Ps /= C;
@@ -184,16 +184,16 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
                     firstEvent.depth = tMax - d + t;
                 }
                 //return color;
-                #ifdef USE_EMISSION
+#ifdef USE_EMISSION
                 vec3 emission = sampleEmission(x);
                 return color + emission;
-                #else
-                #ifdef USE_TRANSFER_FUNCTION
+#else
+#ifdef USE_TRANSFER_FUNCTION
                 vec4 emission_density = sampleCloud(x);
                 return emission_density.rgb * parameters.emissionStrength;
-                #endif
+#endif
                 return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
-                #endif
+#endif
             }
 
             if (xi < Pa + Ps) { // scattering event
@@ -229,11 +229,11 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 
                 weights *= sigma_s / (majorant * Ps);
                 color += bw_nee * min(weights, vec3(100000, 100000, 100000)) *
-                #ifdef USE_NANOVDB
+#ifdef USE_NANOVDB
                     calculateTransmittance(x,nee_w, accessor) *
-                #else
+#else
                     calculateTransmittance(x,nee_w) *
-                #endif
+#endif
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -244,9 +244,9 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
                 d -= t;
                 weights *= sigma_n / (majorant * Pn);
             }
-            #if !defined(MAX_BASED_PROBABILITY) && !defined(AVG_BASED_PROBABILITY)
+#if !defined(MAX_BASED_PROBABILITY) && !defined(AVG_BASED_PROBABILITY)
             weights = min(weights, vec3(100.0, 100.0, 100.0));
-            #endif
+#endif
         }
     }
 
@@ -258,9 +258,9 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
-    #ifdef USE_NANOVDB
+#ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
-    #endif
+#endif
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
@@ -288,15 +288,15 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 
             x += w * t;
 
-            #ifdef USE_TRANSFER_FUNCTION
+#ifdef USE_TRANSFER_FUNCTION
             float density = sampleCloud(x).a;
-            #else
-            #ifdef USE_NANOVDB
+#else
+#ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
-            #else
+#else
             float density = sampleCloud(x);
-            #endif
-            #endif
+#endif
+#endif
 
             float sigma_a = PA * density;
             float sigma_s = PS * density;
@@ -321,15 +321,16 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                     firstEvent.density = density * maxComponent(parameters.extinction);
                     firstEvent.depth = tMax - d + t;
                 }
-                #ifdef USE_EMISSION
+#ifdef USE_EMISSION
                 vec3 emission = sampleEmission(x);
                 return color + emission;
-                #else
-                #ifdef USE_TRANSFER_FUNCTION
+#else
+#ifdef USE_TRANSFER_FUNCTION
                 vec4 emission_density = sampleCloud(x);
                 return emission_density.rgb * parameters.emissionStrength;
-                #endif
-                #endif
+#endif
+                return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+#endif
             }
 
             if (xi < 1 - Pn)// scattering event
@@ -365,11 +366,11 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
                 color += bw_nee * transmittance *
-                #ifdef USE_NANOVDB
+#ifdef USE_NANOVDB
                     calculateTransmittance(x,nee_w, accessor) *
-                #else
+#else
                     calculateTransmittance(x,nee_w) *
-                #endif
+#endif
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
                 //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
 

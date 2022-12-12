@@ -188,7 +188,7 @@ private:
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
-    int samplesPerFrame = 1;
+    int numFeatureMapSamplesPerFrame = 1;
     bool reachedTarget = true;
     bool changedDenoiserSettings = false;
     bool timerStopped = false;
@@ -217,6 +217,7 @@ private:
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
     float environmentMapIntensityFactor = 1;
+    bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
@@ -260,7 +261,7 @@ private:
         float emissionCap;
         float emissionStrength;
 
-        int samplesPerFrame;
+        int numFeatureMapSamplesPerFrame;
 
         // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad8;

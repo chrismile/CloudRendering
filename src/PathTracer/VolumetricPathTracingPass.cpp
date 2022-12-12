@@ -664,8 +664,13 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "LOCAL_SIZE", "16" });
     }
     sgl::TransferFunctionWindow* tfWindow = cloudData->getTransferFunctionWindow();
-    if (tfWindow && tfWindow->getShowWindow()) {
+    bool useTransferFunction = tfWindow && tfWindow->getShowWindow();
+    if (useTransferFunction) {
         customPreprocessorDefines.insert({ "USE_TRANSFER_FUNCTION", "" });
+    }
+    if (useTransferFunctionCached != useTransferFunction) {
+        useTransferFunctionCached = useTransferFunction;
+        frameInfo.frameCount = 0;
     }
 
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
@@ -819,7 +824,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
         uniformData.environmentMapIntensityFactor = environmentMapIntensityFactor;
-        uniformData.samplesPerFrame = samplesPerFrame;
+        uniformData.numFeatureMapSamplesPerFrame = numFeatureMapSamplesPerFrame;
         if (useSparseGrid) {
             if (cloudData->getGridSizeX() >= 8 && cloudData->getGridSizeY() >= 8 && cloudData->getGridSizeZ() >= 8) {
                 uniformData.superVoxelSize = glm::ivec3(8);
@@ -1036,7 +1041,9 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         ImGui::SameLine();
         ImGui::SetNextItemWidth(sgl::ImGuiWrapper::get()->getScaleDependentSize(220.0f));
         ImGui::InputInt("##targetNumSamples", &targetNumSamples);
-        ImGui::InputInt("##samplesPerFrame", &samplesPerFrame);
+
+        propertyEditor.addCustomWidgets("#Feature Samples");
+        ImGui::InputInt("##samplesPerFrame", &numFeatureMapSamplesPerFrame);
 
         if (propertyEditor.addSliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
             optionChanged = true;

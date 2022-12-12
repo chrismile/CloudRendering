@@ -67,7 +67,7 @@ layout (binding = 3) uniform Parameters {
 
     float emissionCap;
     float emissionStrength;
-    int samplesPerFrame;
+    int numFeatureMapSamplesPerFrame;
 
     // For residual ratio tracking and decomposition tracking.
     ivec3 superVoxelSize;

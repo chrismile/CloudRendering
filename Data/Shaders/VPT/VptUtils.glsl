@@ -119,6 +119,7 @@ float evaluatePhase(float GFactor, vec3 org_dir, vec3 scatter_dir) {
 }
 
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
+
 vec3 octahedralUVToWorld(vec2 uv) {
     uv = uv * 2. - 1.;
     vec2 sgn = sign(uv);
@@ -252,7 +253,20 @@ float evaluateSkyboxPDF(vec3 sampledDir) {
     }
     return pdf;
 }
+
+#else
+
+vec3 importanceSampleSkybox(out float pdf) {
+    pdf = 1.0 / (4 * PI);
+    return randomDirection(vec3(1.0, 0.0, 0.0));
+}
+
+float evaluateSkyboxPDF(vec3 sampledDir) {
+    return 1.0 / (4 * PI);
+}
+
 #endif
+
 //--- Tools
 
 /**
@@ -431,10 +445,10 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 #else
 float sampleCloudRaw(in vec3 coord) {
 
-    #if defined(GRID_INTERPOLATION_STOCHASTIC)
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
-    #endif
+#endif
     return texture(gridImage, coord).x;
 }
 #endif
@@ -442,19 +456,19 @@ float sampleCloudRaw(in vec3 coord) {
 #ifdef USE_EMISSION
 float sampleEmissionRaw(in vec3 coord) {
 
-    #if defined(GRID_INTERPOLATION_STOCHASTIC)
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(emissionImage, 0);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
-    #endif
+#endif
     return texture(emissionImage, coord).x;
 }
 vec3 sampleEmission(in vec3 pos){
 
     // transform world pos to density grid pos
     vec3 coord = (pos - parameters.emissionBoxMin) / (parameters.emissionBoxMax - parameters.emissionBoxMin);
-    #if defined(FLIP_YZ)
+#if defined(FLIP_YZ)
     coord = coord.xzy;
-    #endif
+#endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
 
     float t = sampleEmissionRaw(coord);
@@ -467,18 +481,17 @@ vec3 sampleEmission(in vec3 pos){
 #endif
 
 #ifdef USE_TRANSFER_FUNCTION
-vec4 sampleCloud(
+vec4 sampleCloudColorAndDensity(
 #ifdef USE_NANOVDB
         pnanovdb_readaccessor_t accessor,
 #endif
         in vec3 pos) {
     // Idea: Returns (color.rgb, density).
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    #if defined(FLIP_YZ)
+#if defined(FLIP_YZ)
     coord = coord.xzy;
-    #endif
+#endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    coord = 1-coord.xyz;
     float densityRaw = sampleCloudRaw(
 #ifdef USE_NANOVDB
             accessor,
@@ -486,6 +499,26 @@ vec4 sampleCloud(
             coord);
     //return densityRaw;
     return texture(transferFunctionTexture, densityRaw);
+}
+
+float sampleCloud(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
+#endif
+        in vec3 pos) {
+    // Idea: Returns (color.rgb, density).
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    float densityRaw = sampleCloudRaw(
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            coord);
+    //return densityRaw;
+    return texture(transferFunctionTexture, densityRaw).a;
 }
 #else
 float sampleCloud(
@@ -495,30 +528,30 @@ float sampleCloud(
         in vec3 pos) {
     // transform world pos to density grid pos
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    #if defined(FLIP_YZ)
+#if defined(FLIP_YZ)
     coord = coord.xzy;
-    #endif
+#endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
 
     return sampleCloudRaw(
-    #ifdef USE_NANOVDB
-    accessor,
-    #endif
-    coord);// + parameters.extinction.g / parameters.extinction.r * .01;
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            coord);// + parameters.extinction.g / parameters.extinction.r * .01;
 }
 #endif
 
 
 vec3 getCloudFiniteDifference(in vec3 pos) {
-    #ifdef USE_NANOVDB
+#ifdef USE_NANOVDB
     return vec3(0);
-    #else
+#else
 
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     ivec3 dim = textureSize(gridImage, 0);
-    #if defined(GRID_INTERPOLATION_STOCHASTIC)
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
-    #endif
+#endif
     float density = texture(gridImage, coord).x;
     vec3 dFdpos = vec3(
         texture(gridImage, coord - vec3(1, 0, 0) / dim).x - texture(gridImage, coord + vec3(1, 0, 0) / dim).x,
@@ -526,7 +559,7 @@ vec3 getCloudFiniteDifference(in vec3 pos) {
         texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
     ) / dim * 100;
     return dFdpos;
-    #endif
+#endif
 }
 
 void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {

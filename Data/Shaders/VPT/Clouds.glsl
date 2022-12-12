@@ -48,9 +48,9 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     ivec2 imageCoord = ivec2(gl_GlobalInvocationID.xy);
 
     uint seed = frame * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
-    #ifdef CUSTOM_SEED_OFFSET
+#ifdef CUSTOM_SEED_OFFSET
     seed += CUSTOM_SEED_OFFSET;
-    #endif
+#endif
     initializeRandom(seed);
 
     vec2 screenCoord = 2.0 * (gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
@@ -60,30 +60,30 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     createCameraRay(screenCoord, x, w);
 
     // Perform a single path and get radiance
-    #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
+#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
     float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1];
-    #endif
+#endif
 
-    #if defined(USE_DELTA_TRACKING)
+#if defined(USE_DELTA_TRACKING)
     vec3 result = deltaTracking(
     x, w, firstEvent
-    #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
+#ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
     , scatterRayAbsorptionMoments
-    #endif
+#endif
     );
-    #elif defined(USE_SPECTRAL_DELTA_TRACKING)
+#elif defined(USE_SPECTRAL_DELTA_TRACKING)
     vec3 result = deltaTrackingSpectral(x, w, firstEvent);
-    #elif defined(USE_RATIO_TRACKING)
+#elif defined(USE_RATIO_TRACKING)
     vec3 result = ratioTracking(x, w, firstEvent);
-    #elif defined(USE_RESIDUAL_RATIO_TRACKING)
+#elif defined(USE_RESIDUAL_RATIO_TRACKING)
     vec3 result = residualRatioTracking(x, w, firstEvent);
-    #elif defined(USE_DECOMPOSITION_TRACKING)
+#elif defined(USE_DECOMPOSITION_TRACKING)
     vec3 result = analogDecompositionTracking(x, w, firstEvent);
-    #elif defined(USE_NEXT_EVENT_TRACKING)
+#elif defined(USE_NEXT_EVENT_TRACKING)
     vec3 result = nextEventTracking(x, w, firstEvent, onlyFirstEvent);
-    #elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
+#elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
     vec3 result = nextEventTrackingSpectral(x, w, firstEvent, onlyFirstEvent);
-    #endif
+#endif
 
     if (!onlyFirstEvent) {
         // Accumulate cloudOnly
@@ -146,7 +146,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         imageStore(firstW, imageCoord, vec4(0));
     }
 
-    #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
+#ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
     float primaryRayAbsorptionMoments[NUM_PRIMARY_RAY_ABSORPTION_MOMENTS + 1];
     computePrimaryRayAbsorptionMoments(x, w, primaryRayAbsorptionMoments);
     for (int i = 0; i <= NUM_PRIMARY_RAY_ABSORPTION_MOMENTS; i++) {
@@ -155,11 +155,11 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         moment = mix(momentOld, moment, 1.0 / float(frame + 1));
         imageStore(primaryRayAbsorptionMomentsImage, ivec3(imageCoord, i), vec4(moment));
     }
-    #endif
+#endif
 }
 
 void main() {
-    for (int i = 0; i < parameters.samplesPerFrame; i++){
+    for (int i = 0; i < parameters.numFeatureMapSamplesPerFrame; i++){
         ScatterEvent firstEvent;
         pathTraceSample(i, i > 0, firstEvent);
     }
