@@ -102,7 +102,7 @@ jobs:
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v10
       with:
-        vcpkgGitCommitId: '51685e17d6982871e1e8bab164edfe16f7ae6866'
+        vcpkgGitCommitId: 'e51afe4695ebf5e6c6f523dbd3bb518db1970531'
         #doNotCacheOnWorkflowFailure: true
 
     - name: Create custom vcpkg triplet
