@@ -62,14 +62,8 @@ jobs:
         path: sgl-repo
         submodules: true
 
-    - name: Install Vulkan SDK
-      shell: bash
-      run: |
-        choco install vulkan-sdk
-
     - name: Configure CMake (sgl)
       run: |
-        export VULKAN_SDK="C:/VulkanSDK/$(ls C:/VulkanSDK)"
         cmake "${{env.sgl_REPO_DIR}}" -B "${{env.sgl_REPO_DIR}}/build" -G "MSYS Makefiles" \
         -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_INSTALL_PREFIX="${{env.sgl_DIR}}"
 
@@ -81,7 +75,6 @@ jobs:
 
     - name: Configure CMake (CloudRendering)
       run: |
-        export VULKAN_SDK="C:/VulkanSDK/$(ls C:/VulkanSDK)"
         cmake -B "${{github.workspace}}/build" -G "MSYS Makefiles" -DPython3_FIND_REGISTRY=NEVER \
         -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -Dsgl_DIR="${{env.sgl_DIR}}/lib/cmake/sgl"
 
