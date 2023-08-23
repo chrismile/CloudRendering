@@ -59,10 +59,19 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
             x += w * t;
 
+#ifdef USE_TRANSFER_FUNCTION
+#ifdef USE_NANOVDB
+            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
+#else
+            vec4 densityEmission = sampleCloudDensityEmission(x);
+#endif
+            float density = densityEmission.a;
+#else
 #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
 #else
             float density = sampleCloud(x);
+#endif
 #endif
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
@@ -100,7 +109,12 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     firstEvent.depth = tMax - d + t;
                 }
 
+#ifdef USE_TRANSFER_FUNCTION
+                vec3 L_e = parameters.emissionStrength * densityEmission.rgb;
+                return weights * sigma_a / (majorant * Pa) * L_e;
+#else
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
+#endif
             }
 
             if (xi < Pa + Ps) { // scattering event
@@ -210,10 +224,19 @@ vec3 deltaTracking(
             depth += t;
 #endif
 
+#ifdef USE_TRANSFER_FUNCTION
+#ifdef USE_NANOVDB
+            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
+#else
+            vec4 densityEmission = sampleCloudDensityEmission(x);
+#endif
+            float density = densityEmission.a;
+#else
 #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
 #else
             float density = sampleCloud(x);
+#endif
 #endif
             transmittance *= 1.0 - density;
 
@@ -237,12 +260,22 @@ vec3 deltaTracking(
                     firstEvent.density = density * parameters.extinction.x;
                     firstEvent.depth = tMax - d + t;
                 }
-                #ifdef USE_EMISSION
-                vec3 emission = sampleEmission(x);
+#if defined(USE_EMISSION) || defined(USE_TRANSFER_FUNCTION)
+                vec3 L_e = vec3(0.0);
+#endif
+#ifdef USE_EMISSION
+                L_e += sampleEmission(x);
                 return emission;
-                #else
+#endif
+#ifdef USE_TRANSFER_FUNCTION
+                L_e += parameters.emissionStrength * densityEmission.rgb;
+                //return weights * sigma_a / (majorant * Pa) * L_e;
+#endif
+#if defined(USE_EMISSION) || defined(USE_TRANSFER_FUNCTION)
+                return L_e;
+#else
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
-                #endif
+#endif
             }
 
             if (xi < 1 - Pn) // scattering event

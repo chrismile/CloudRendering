@@ -77,8 +77,6 @@ layout (binding = 3) uniform Parameters {
 
     // Whether to use linear RGB or sRGB.
     int useLinearRGB;
-
-
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {

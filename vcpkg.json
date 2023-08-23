@@ -12,14 +12,38 @@
         },
         {
             "name": "sdl2",
-            "features": [ "vulkan" ]
+            "features": [ "vulkan", "x11", "wayland" ],
+            "platform": "linux"
+        },
+        {
+            "name": "sdl2",
+            "features": [ "vulkan" ],
+            "platform": "!linux"
+        },
+        "sdl2-image",
+        {
+            "name": "glfw3",
+            "platform": "!linux"
         },
         "tinyxml2",
+        {
+            "name": "libarchive",
+            "default-features": true,
+            "features": [ "bzip2", "lz4", "lzma", "zstd" ]
+        },
+        "shaderc",
         "glm",
+        "tbb",
         "jsoncpp",
         "openexr"
     ],
     "features": {
+        "tbb": {
+            "description": "Use TBB instead of OpenMP for multi-threading",
+            "dependencies": [
+                "tbb"
+            ]
+        },
         "tests": {
             "description": "Unit test cases for the volumetric path tracing algorithms.",
             "dependencies": [ "gtest" ]

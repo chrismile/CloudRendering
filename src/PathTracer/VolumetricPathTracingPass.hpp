@@ -51,10 +51,12 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV
+    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV,
+    PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV"
+        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV",
+        "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
 enum class VptMode {
@@ -205,7 +207,7 @@ private:
 
     bool useEmission = false; ///< Use an emission texture
     float emissionCap = 1;
-    float emissionStrength = 1;
+    float emissionStrength = 1.0f;
 
     // Environment map data.
     bool isEnvironmentMapLoaded = false;
@@ -253,7 +255,7 @@ private:
         glm::vec3 extinction; float pad6;
         glm::vec3 scatteringAlbedo;
 
-        float G = 0.5f;
+        float G = 0.5f; // 0.875f
         glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
@@ -269,7 +271,6 @@ private:
 
         // Whether to use linear RGB or sRGB.
         int useLinearRGB;
-
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;
@@ -299,6 +300,7 @@ public:
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage) override;
     void setVisualizeMomentTexture(bool visualizeMomentTexture);
+    void renderOptional(); ///< Calls 'render' if the moment texture is set.
     [[nodiscard]] inline MomentType getMomentType() const { return momentType; }
     [[nodiscard]] inline int getNumMoments() const { return numMoments; }
     inline sgl::vk::TexturePtr getMomentTexture() { return momentTexture; }
@@ -312,8 +314,8 @@ private:
     void _render() override;
     void recreateMomentTexture();
 
-    const char* const MOMENT_TYPE_NAMES[2] = {
-            "Power", "Trigonometric"
+    const char* const MOMENT_TYPE_NAMES[3] = {
+            "None", "Power", "Trigonometric"
     };
     const int NUM_MOMENTS_SUPPORTED[3] = {
             4, 6, 8

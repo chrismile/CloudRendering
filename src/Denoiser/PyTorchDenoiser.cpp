@@ -41,14 +41,19 @@
 #include <Utils/File/FileUtils.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
+#ifdef SUPPORT_CUDA_INTEROP
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
+#endif
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 
 #include "PyTorchDenoiser.hpp"
+
+#ifdef USE_KPN_MODULE
 #include "../../modules/kpn_module/src/perPixelKernel.hpp"
+#endif
 
 #if CUDA_VERSION >= 11020
 #define USE_TIMELINE_SEMAPHORES
@@ -93,7 +98,6 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
 #endif
 
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
-    denoiseFinishedFence = std::make_shared<sgl::vk::Fence>(device);
     featureCombinePass = std::make_shared<FeatureCombinePass>(renderer);
     backgroundAddPass = std::make_shared<BackgroundAddPass>(renderer);
 
@@ -161,12 +165,14 @@ void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFe
     // Ignore, as we can't easily turn on or off individual feature maps of the loaded model.
 }
 
+#ifdef USE_KPN_MODULE
 torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, int kernelSize, bool usePrevious) {
     //torch::Tensor base = x;
     torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, usePrevious, kernelSize);
     torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,kernelSize*kernelSize)}), 1);
     return perPixelKernelCuda(base, weights, kernelSize);
 }
+#endif
 
 void PyTorchDenoiser::denoise() {
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
@@ -295,14 +301,18 @@ void PyTorchDenoiser::denoise() {
         inputTensor = inputTensor.contiguous();
     }
     inputs.emplace_back(inputTensor);
+#ifdef USE_KPN_MODULE
     bool hasPreviousFrame = true;
+#endif
     if (usePreviousFrame) {
         //std::cout << width << ", " << height << std::endl;
         //std::cout << previousTensor.sizes() << std::endl;
 
         if (previousTensor.sizes()[0] == 0 || zeroOutPreviousFrame) {
             //std::cout <<"new tensor: "<< width << ", " << height << std::endl;
+#ifdef USE_KPN_MODULE
             hasPreviousFrame = false;
+#endif
             if (useBatchDimension) {
                 inputSizes = { 1, int64_t(4), int64_t(height), int64_t(width)};
                 previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
@@ -320,11 +330,12 @@ void PyTorchDenoiser::denoise() {
     }
     if (useFP16) {
         wrapper->module.to(torch::kFloat16);
-    }else{
+    } else {
         wrapper->module.to(torch::kFloat32);
     }
     at::Tensor outputTensor;
     if (blend_inv_iter){
+#ifdef USE_KPN_MODULE
         c10::IValue layer_outputs = wrapper->module.forward(inputs);
         at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor().to(torch::kFloat32);
         at::Tensor l2 = layer_outputs.toTuple()->elements()[1].toTensor().to(torch::kFloat32);
@@ -351,7 +362,8 @@ void PyTorchDenoiser::denoise() {
         at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0, kernelSize, hasPreviousFrame);
 
         outputTensor = kp0;
-    }else{
+#endif
+    } else{
         outputTensor = wrapper->module.forward(inputs).toTensor().to(torch::kFloat32);
     }
     previousTensor = outputTensor.clone().detach();
@@ -466,12 +478,14 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     }
     renderImageStagingBuffers = {};
     denoisedImageStagingBuffer = {};
+#ifdef SUPPORT_CUDA_INTEROP
     outputImageBufferCu = {};
     outputImageBufferVk = {};
     postRenderCommandBuffers = {};
     renderFinishedSemaphores = {};
     denoiseFinishedSemaphores = {};
     timelineValue = 0;
+#endif
 
     if (pyTorchDevice == PyTorchDevice::CPU) {
         renderImageStagingBuffers.resize(inputFeatureMapsUsed.size());
@@ -590,22 +604,29 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
         return false;
     }
 
-    /**
-     * set the blend type, if none provided, assume color output
+    /*
+     * Set the blend type, if none provided, assume color output
      */
-     blend_inv_iter = false;
+    blend_inv_iter = false;
     if (root.isMember("blend")) {
         Json::Value& blendType = root["blend"];
         if (!blendType.isString()) {
             sgl::Logfile::get()->writeError(
-                    "Error: Array 'blendtype' should be string. "
-                    "module loaded from \"" + modelPath + "\"!");
+                    "Error: Array 'blendtype' should be a string in \"" + modelPath + "\"!");
             wrapper = {};
             return false;
         }
         std::string bt = boost::to_lower_copy(blendType.asString());
-        if (bt == "inv_iter"){
+        if (bt == "inv_iter") {
+#ifdef USE_KPN_MODULE
             blend_inv_iter = true;
+#else
+            sgl::Logfile::get()->writeError(
+                    "Error: Blend type 'inv_iter' is used in \"" + modelPath
+                    + "\", but the program is compiled without the KPN module.");
+            wrapper = {};
+            return false;
+#endif
             std::cout << "blending inv_iter" << std::endl;
         }
     }

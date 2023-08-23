@@ -500,7 +500,9 @@ vec4 sampleCloudColorAndDensity(
     //return densityRaw;
     return texture(transferFunctionTexture, densityRaw);
 }
+#endif
 
+#ifdef USE_TRANSFER_FUNCTION
 float sampleCloud(
 #ifdef USE_NANOVDB
         pnanovdb_readaccessor_t accessor,
@@ -516,9 +518,21 @@ float sampleCloud(
 #ifdef USE_NANOVDB
             accessor,
 #endif
-            coord);
-    //return densityRaw;
+            pos);
     return texture(transferFunctionTexture, densityRaw).a;
+}
+vec4 sampleCloudDensityEmission(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
+#endif
+        in vec3 pos) {
+    // Idea: Returns (color.rgb, density).
+    float densityRaw = sampleCloudRaw(
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            pos);
+    return texture(transferFunctionTexture, densityRaw);
 }
 #else
 float sampleCloud(

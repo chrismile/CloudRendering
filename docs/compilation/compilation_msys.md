@@ -15,6 +15,7 @@ mingw64/mingw-w64-x86_64-boost mingw64/mingw-w64-x86_64-libarchive \
 mingw64/mingw-w64-x86_64-SDL2 mingw64/mingw-w64-x86_64-SDL2_image mingw64/mingw-w64-x86_64-glew \
 mingw64/mingw-w64-x86_64-vulkan-headers mingw64/mingw-w64-x86_64-vulkan-loader \
 mingw64/mingw-w64-x86_64-vulkan-validation-layers mingw64/mingw-w64-x86_64-shaderc \
+mingw64/mingw-w64-x86_64-opencl-headers mingw64/mingw-w64-x86_64-opencl-icd \
 mingw64/mingw-w64-x86_64-openexr
 ```
 

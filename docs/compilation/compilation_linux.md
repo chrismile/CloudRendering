@@ -13,7 +13,7 @@ After that, all obligatory dependencies can be installed using the following com
 
 ```
 sudo apt-get install cmake libglm-dev libsdl2-dev libsdl2-image-dev libpng-dev libboost-filesystem-dev libtinyxml2-dev \
-libarchive-dev libjsoncpp-dev libopenexr-dev
+libarchive-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev
 ```
 
 Python 3 is an optional dependency necessary for enabling replay script support.
@@ -45,7 +45,8 @@ export LD_LIBRARY_PATH=<path-to-sgl>/lib
 The following command can be used to install all dependencies on Arch Linux (last tested in May 2021).
 
 ```
-sudo pacman -S cmake boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc jsoncpp openexr
+sudo pacman -S cmake boost libarchive glm tinyxml2 sdl2 sdl2_image glew vulkan-devel shaderc opencl-headers ocl-icd \
+jsoncpp openexr
 ```
 
 All other build instructions are identical to the ones for Ubuntu provided above.

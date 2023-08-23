@@ -289,7 +289,12 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
             x += w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-            float density = sampleCloud(x).a;
+#ifdef USE_NANOVDB
+            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
+#else
+            vec4 densityEmission = sampleCloudDensityEmission(x);
+#endif
+            float density = densityEmission.a;
 #else
 #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
@@ -326,8 +331,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 return color + emission;
 #else
 #ifdef USE_TRANSFER_FUNCTION
-                vec4 emission_density = sampleCloud(x);
-                return emission_density.rgb * parameters.emissionStrength;
+                return parameters.emissionStrength * densityEmission.rgb;
 #endif
                 return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
 #endif

@@ -36,7 +36,7 @@
 #include "nanovdb/util/GridHandle.h"
 
 namespace sgl {
-    class TransferFunctionWindow;
+class TransferFunctionWindow;
 }
 
 class CloudData {
@@ -101,7 +101,6 @@ public:
     void getSparseDensityField(uint8_t*& data, uint64_t& size);
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
-
 
     /// Called when the transfer function texture was updated.
     void onTransferFunctionMapRebuilt() {}

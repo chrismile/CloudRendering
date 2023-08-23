@@ -141,7 +141,6 @@ private:
     std::vector<sgl::vk::BufferPtr> renderImageStagingBuffers;
     sgl::vk::BufferPtr denoisedImageStagingBuffer;
     sgl::vk::FencePtr renderFinishedFence;
-    sgl::vk::FencePtr denoiseFinishedFence;
     float* renderedImageData = nullptr;
     float* denoisedImageData = nullptr;
 
@@ -165,8 +164,8 @@ private:
     std::vector<sgl::vk::SemaphoreVkCudaDriverApiInteropPtr> renderFinishedSemaphores;
     std::vector<sgl::vk::SemaphoreVkCudaDriverApiInteropPtr> denoiseFinishedSemaphores;
     uint64_t timelineValue = 0;
-    std::shared_ptr<FeatureCombinePass> featureCombinePass;
 #endif
+    std::shared_ptr<FeatureCombinePass> featureCombinePass;
 };
 
 class FeatureCombinePass : public sgl::vk::ComputePass {

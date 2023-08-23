@@ -66,9 +66,9 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 
 #if defined(USE_DELTA_TRACKING)
     vec3 result = deltaTracking(
-    x, w, firstEvent
+            x, w, firstEvent
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
-    , scatterRayAbsorptionMoments
+            , scatterRayAbsorptionMoments
 #endif
     );
 #elif defined(USE_SPECTRAL_DELTA_TRACKING)
