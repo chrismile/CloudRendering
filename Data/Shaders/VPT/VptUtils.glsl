@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2021-2022, Christoph Neuhauser, Ludwig Leonard
+ * Copyright (c) 2021-2022, Christoph Neuhauser, Timm Knörle, Ludwig Leonard
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -291,7 +291,7 @@ vec3 sampleSkybox(in vec3 dir) {
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
     vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;
     
-    // Make sure there is no infinity in the skybox
+    // Make sure there is no 'inf' value in the skybox.
     textureColor = min(textureColor , vec3(100000, 100000, 100000));
 
 #ifdef ENV_MAP_IMAGE_USES_LINEAR_RGB

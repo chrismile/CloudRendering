@@ -67,8 +67,8 @@ void CloudData::computeGridBounds() {
     boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
     boxMin = -boxMax;
 
-    gridMin = glm::vec3 (0,0,0);
-    gridMax = glm::vec3 (1,1,1);
+    gridMin = glm::vec3(0,0,0);
+    gridMax = glm::vec3(1,1,1);
 }
 
 void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
@@ -102,7 +102,6 @@ bool CloudData::loadFromFile(const std::string& filename) {
     }
 
     if (sgl::FileUtils::get()->isDirectory(filename)){
-        std::cout << "Loading Directory" << std::endl;
         std::shared_ptr<CloudData> prev = nullptr;
 
         std::list<std::string> files = sgl::FileUtils::get()->getFilesInDirectoryList(filename);

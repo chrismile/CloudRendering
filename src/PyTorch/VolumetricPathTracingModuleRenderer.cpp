@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -77,13 +77,13 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
 }
 
 void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloudData) {
-    if (storeNextBounds){
+    if (storeNextBounds) {
         storeNextBounds = false;
         seq_bounds_min = cloudData->getWorldSpaceGridMin();
         seq_bounds_max = cloudData->getWorldSpaceGridMax();
         hasStoredBounds = true;
     }
-    if (hasStoredBounds){
+    if (hasStoredBounds) {
         cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
     }
 
@@ -91,14 +91,14 @@ void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloud
 }
 
 void VolumetricPathTracingModuleRenderer::setEmissionData(const CloudDataPtr& cloudData) {
-    if (hasStoredBounds){
+    if (hasStoredBounds) {
         cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
     }
     vptPass->setEmissionData(cloudData);
 }
 
 void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::string& filename) {
-    if (filename.length() == 0){
+    if (filename.length() == 0) {
         vptPass->setUseEnvironmentMapFlag(false);
     } else {
         vptPass->loadEnvironmentMapImage(filename);
@@ -106,50 +106,53 @@ void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::str
     }
 }
 
-void VolumetricPathTracingModuleRenderer::setEnvironmentMapIntensityFactor(float intensityFactor){
+void VolumetricPathTracingModuleRenderer::setEnvironmentMapIntensityFactor(float intensityFactor) {
     vptPass->setEnvironmentMapIntensityFactor(intensityFactor);
 }
 
-void VolumetricPathTracingModuleRenderer::setScatteringAlbedo(glm::vec3 albedo){
+void VolumetricPathTracingModuleRenderer::setScatteringAlbedo(glm::vec3 albedo) {
     vptPass->setScatteringAlbedo(albedo);
 }
 
-void VolumetricPathTracingModuleRenderer::setExtinctionScale(double extinctionScale){
+void VolumetricPathTracingModuleRenderer::setExtinctionScale(double extinctionScale) {
     vptPass->setExtinctionScale(extinctionScale);
 }
 
-void VolumetricPathTracingModuleRenderer::setPhaseG(double phaseG){
+void VolumetricPathTracingModuleRenderer::setPhaseG(double phaseG) {
     vptPass->setPhaseG(phaseG);
 }
 
-void VolumetricPathTracingModuleRenderer::setExtinctionBase(glm::vec3 extinctionBase){
+void VolumetricPathTracingModuleRenderer::setExtinctionBase(glm::vec3 extinctionBase) {
     vptPass->setExtinctionBase(extinctionBase);
 }
 
-void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt type){
+void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt type) {
     vptPass->setFeatureMapType(type);
 }
 
-void VolumetricPathTracingModuleRenderer::setEmissionCap(double emissionCap){
+void VolumetricPathTracingModuleRenderer::setEmissionCap(double emissionCap) {
     vptPass->setEmissionCap(emissionCap);
 }
-void VolumetricPathTracingModuleRenderer::setEmissionStrength(double emissionStrength){
+
+void VolumetricPathTracingModuleRenderer::setEmissionStrength(double emissionStrength) {
     vptPass->setEmissionStrength(emissionStrength);
 }
-void VolumetricPathTracingModuleRenderer::setUseEmission(bool useEmission){
+
+void VolumetricPathTracingModuleRenderer::setUseEmission(bool useEmission) {
     vptPass->setUseEmission(useEmission);
 }
-void VolumetricPathTracingModuleRenderer::flipYZ(bool flip){
+
+void VolumetricPathTracingModuleRenderer::flipYZ(bool flip) {
     vptPass->flipYZ(flip);
 }
 
-void VolumetricPathTracingModuleRenderer::setCameraPosition(glm::vec3 cameraPosition){
+void VolumetricPathTracingModuleRenderer::setCameraPosition(const glm::vec3& cameraPosition) {
     this->cameraPosition = cameraPosition;
     camera->setPosition(cameraPosition);
     camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
 }
 
-void VolumetricPathTracingModuleRenderer::setCameraTarget(glm::vec3 cameraTarget){
+void VolumetricPathTracingModuleRenderer::setCameraTarget(const glm::vec3& cameraTarget) {
     this->cameraTarget = cameraTarget;
     camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
 }

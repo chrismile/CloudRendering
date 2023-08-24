@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2021-2022, Christoph Neuhauser, Ludwig Leonard
+ * Copyright (c) 2021-2022, Christoph Neuhauser, Timm Knörle, Ludwig Leonard
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,6 +46,7 @@ layout (binding = 3) uniform Parameters {
     // Transform from normalized device coordinates to world space.
     mat4 inverseViewProjMatrix;
     mat4 previousViewProjMatrix;
+
     // Cloud properties.
     vec3 boxMin;
     vec3 boxMax;

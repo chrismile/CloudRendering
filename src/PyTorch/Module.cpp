@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without

@@ -510,9 +510,8 @@ const std::string& MainApp::getSelectedDataSetFilename() {
 
 const std::string& MainApp::getSelectedDataSetEmissionFilename() {
     if (selectedDataSetIndex == 0) {
-        return customDataSetFileName;
+        return customDataSetFileNameEmission;
     }
-    std::cout << "emission: " << dataSetInformationList.at(selectedDataSetIndex - NUM_MANUAL_LOADERS)->emission << std::endl;
     return dataSetInformationList.at(selectedDataSetIndex - NUM_MANUAL_LOADERS)->emission;
 }
 
@@ -798,8 +797,6 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
     }
 
     if (!emissionFileName.empty()) {
-        std::cout << "loading emission file " << emissionFileName << std::endl;
-
         CloudDataPtr emissionData(new CloudData);
 
         bool dataLoaded = emissionData->loadFromFile(emissionFileName);
@@ -808,8 +805,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
             emissionData->setClearColor(clearColor);
             volumetricPathTracingPass->setEmissionData(emissionData);
         }
-    }else{
-        std::cout << "no emission Data " << std::endl;
+    } else {
         CloudDataPtr emissionData = CloudDataPtr();
         volumetricPathTracingPass->setEmissionData(emissionData);
     }

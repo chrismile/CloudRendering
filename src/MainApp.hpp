@@ -108,6 +108,7 @@ private:
     int selectedDataSetIndex = 0; //< Contains "Local file..." at beginning, thus starts actually at 1.
     int currentlyLoadedDataSetIndex = -1;
     std::string customDataSetFileName;
+    std::string customDataSetFileNameEmission;
     ImGuiFileDialog* fileDialogInstance = nullptr;
     std::string fileDialogDirectory;
 

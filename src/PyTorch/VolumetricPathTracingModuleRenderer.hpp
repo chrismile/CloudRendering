@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,8 +71,8 @@ public:
     void setUseEmission(bool useEmission);
     void flipYZ(bool flip);
 
-    void setCameraPosition(glm::vec3 cameraPosition);
-    void setCameraTarget(glm::vec3 cameraTarget);
+    void setCameraPosition(const glm::vec3& cameraPosition);
+    void setCameraTarget(const glm::vec3& cameraTarget);
     void setCameraFOVy(double FOVy);
 
     void rememberNextBounds();

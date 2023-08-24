@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022-2023, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -136,8 +136,7 @@ void PyTorchDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk
         backgroundImage = featureTexture->getImageView();
         backgroundAddPass->setBackgroundImage(backgroundImage);
     }
-    if (inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end())
-    {
+    if (inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end()) {
         inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
         featureCombinePass->setFeatureMap(featureMapType, featureTexture);
     }
@@ -398,7 +397,7 @@ void PyTorchDenoiser::denoise() {
         outputTensor = outputTensor.permute({1, 2, 0}); // (c, h, w) -> (h, w, c)
     }
     if (outputTensorChannels != 4) {
-        std::cout << "got " << outputTensorChannels << " channels" << std::endl;
+        //std::cout << "got " << outputTensorChannels << " channels" << std::endl;
         sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor channels.");
     }
     if (outputTensorWidth != width || outputTensorHeight != height) {
