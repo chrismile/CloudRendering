@@ -1063,9 +1063,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
             optionChanged = true;
         }
-        if (propertyEditor.addSliderFloat("Emission Strength", &emissionStrength, 0.0f, 1.0f)) {
-            optionChanged = true;
-        }
         if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {
             optionChanged = true;
         }

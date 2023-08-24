@@ -66,7 +66,12 @@ float calculateTransmittance(vec3 x, vec3 w
             x += w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-            float density = sampleCloud(x).a;
+#ifdef USE_NANOVDB
+            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
+#else
+            vec4 densityEmission = sampleCloudDensityEmission(x);
+#endif
+            float density = densityEmission.a;
 #else
 #ifdef USE_NANOVDB
             float density = sampleCloud(accessor, x);
