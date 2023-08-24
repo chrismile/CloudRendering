@@ -535,7 +535,7 @@ float sampleCloud(
         pnanovdb_readaccessor_t accessor,
 #endif
         in vec3 pos) {
-    // transform world pos to density grid pos
+    // Transform world position to density grid position.
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
     coord = coord.xzy;

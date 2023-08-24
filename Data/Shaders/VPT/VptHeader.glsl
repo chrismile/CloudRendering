@@ -52,10 +52,8 @@ layout (binding = 3) uniform Parameters {
     vec3 boxMax;
     vec3 gridMin;
     vec3 gridMax;
-
     vec3 emissionBoxMin;
     vec3 emissionBoxMax;
-
     vec3 extinction;
     vec3 scatteringAlbedo;
 
@@ -70,14 +68,14 @@ layout (binding = 3) uniform Parameters {
     float emissionStrength;
     int numFeatureMapSamplesPerFrame;
 
+    // Whether to use linear RGB or sRGB.
+    int useLinearRGB;
+
     // For residual ratio tracking and decomposition tracking.
     ivec3 superVoxelSize;
     ivec3 superVoxelGridSize;
 
     //ivec3 gridResolution;
-
-    // Whether to use linear RGB or sRGB.
-    int useLinearRGB;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {

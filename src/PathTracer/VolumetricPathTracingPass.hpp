@@ -245,13 +245,10 @@ private:
         // Cloud properties
         glm::vec3 boxMin; float pad0;
         glm::vec3 boxMax; float pad1;
-
         glm::vec3 gridMin; float pad2;
         glm::vec3 gridMax; float pad3;
-
         glm::vec3 emissionBoxMin; float pad4;
         glm::vec3 emissionBoxMax; float pad5;
-
         glm::vec3 extinction; float pad6;
         glm::vec3 scatteringAlbedo;
 
@@ -262,15 +259,14 @@ private:
 
         float emissionCap;
         float emissionStrength;
-
         int numFeatureMapSamplesPerFrame;
-
-        // For decomposition and residual ratio tracking.
-        glm::ivec3 superVoxelSize; int pad8;
-        glm::ivec3 superVoxelGridSize;
 
         // Whether to use linear RGB or sRGB.
         int useLinearRGB;
+
+        // For decomposition and residual ratio tracking.
+        glm::ivec3 superVoxelSize; int pad8;
+        glm::ivec3 superVoxelGridSize; int pad9;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;
