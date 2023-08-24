@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022-2023, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,8 +30,6 @@
 #include <boost/algorithm/string/case_conv.hpp>
 
 #include <json/json.h>
-#include <torch/script.h>
-#include <torch/cuda.h>
 #include <c10/core/MemoryFormat.h>
 #ifdef SUPPORT_CUDA_INTEROP
 #include <c10/cuda/CUDAStream.h>
@@ -52,6 +50,10 @@
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 
 #include "PyTorchDenoiser.hpp"
+
+#ifdef USE_KPN_MODULE
+#include "../../modules/kpn_module/src/perPixelKernel.hpp"
+#endif
 
 #if CUDA_VERSION >= 11020
 #define USE_TIMELINE_SEMAPHORES
@@ -97,6 +99,7 @@ PyTorchDenoiser::PyTorchDenoiser(sgl::vk::Renderer* renderer) : renderer(rendere
 
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
     featureCombinePass = std::make_shared<FeatureCombinePass>(renderer);
+    backgroundAddPass = std::make_shared<BackgroundAddPass>(renderer);
 
     // When loading a model, the metadata in the TorchScript file is read to get the used feature map names.
     inputFeatureMapsUsed = { FeatureMapType::COLOR };
@@ -122,18 +125,26 @@ PyTorchDenoiser::~PyTorchDenoiser() {
 
 void PyTorchDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
     outputImageVulkan = outputImage;
+    backgroundAddPass->setTargetImage(outputImageVulkan);
 }
 
 void PyTorchDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
     }
-    inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
-    featureCombinePass->setFeatureMap(featureMapType, featureTexture);
+    if (featureMapType == FeatureMapType::BACKGROUND) {
+        backgroundImage = featureTexture->getImageView();
+        backgroundAddPass->setBackgroundImage(backgroundImage);
+    }
+    if (inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end()) {
+        inputFeatureMaps.at(inputFeatureMapsIndexMap.find(featureMapType)->second) = featureTexture;
+        featureCombinePass->setFeatureMap(featureMapType, featureTexture);
+    }
 }
 
 bool PyTorchDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
-    return inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end();
+    return inputFeatureMapsIndexMap.find(featureMapType) != inputFeatureMapsIndexMap.end()
+            || featureMapType == FeatureMapType::BACKGROUND; // TODO: Find nicer way to do this
 }
 
 void PyTorchDenoiser::computeNumChannels() {
@@ -152,6 +163,15 @@ void PyTorchDenoiser::computeNumChannels() {
 void PyTorchDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) {
     // Ignore, as we can't easily turn on or off individual feature maps of the loaded model.
 }
+
+#ifdef USE_KPN_MODULE
+torch::Tensor inv_iter_kernel(torch::Tensor x, torch::Tensor low_res_pred, torch::Tensor low_res_x, torch::Tensor prev, torch::Tensor fused_weights, int kernelSize, bool usePrevious) {
+    //torch::Tensor base = x;
+    torch::Tensor base = getInvIterBaseCuda(x, low_res_pred, low_res_x, prev, fused_weights, usePrevious, kernelSize);
+    torch::Tensor weights = torch::softmax(fused_weights.index({torch::indexing::Slice(),torch::indexing::Slice(0,kernelSize*kernelSize)}), 1);
+    return perPixelKernelCuda(base, weights, kernelSize);
+}
+#endif
 
 void PyTorchDenoiser::denoise() {
     sgl::vk::Swapchain* swapchain = sgl::AppSettings::get()->getSwapchain();
@@ -272,8 +292,81 @@ void PyTorchDenoiser::denoise() {
 #endif
 
     std::vector<torch::jit::IValue> inputs;
+    if (useFP16){
+        inputTensor = inputTensor.toType(torch::kFloat16);
+    }
+    if (!inputTensor.is_contiguous()){
+        //std::cout << "input not contiguous" << std::endl;
+        inputTensor = inputTensor.contiguous();
+    }
     inputs.emplace_back(inputTensor);
-    at::Tensor outputTensor = wrapper->module.forward(inputs).toTensor();
+#ifdef USE_KPN_MODULE
+    bool hasPreviousFrame = true;
+#endif
+    if (usePreviousFrame) {
+        //std::cout << width << ", " << height << std::endl;
+        //std::cout << previousTensor.sizes() << std::endl;
+
+        if (previousTensor.sizes()[0] == 0 || zeroOutPreviousFrame) {
+            //std::cout <<"new tensor: "<< width << ", " << height << std::endl;
+#ifdef USE_KPN_MODULE
+            hasPreviousFrame = false;
+#endif
+            if (useBatchDimension) {
+                inputSizes = { 1, int64_t(4), int64_t(height), int64_t(width)};
+                previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
+            } else {
+                inputSizes = { int64_t(4), int64_t(height), int64_t(width)};
+                previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
+            }
+        }
+        if (useFP16){
+            previousTensor = previousTensor.toType(torch::kFloat16);
+        }else{
+            previousTensor = previousTensor.toType(torch::kFloat32);
+        }
+        inputs.emplace_back(previousTensor);
+    }
+    if (useFP16) {
+        wrapper->module.to(torch::kFloat16);
+    } else {
+        wrapper->module.to(torch::kFloat32);
+    }
+    at::Tensor outputTensor;
+    if (blend_inv_iter){
+#ifdef USE_KPN_MODULE
+        c10::IValue layer_outputs = wrapper->module.forward(inputs);
+        at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor().to(torch::kFloat32);
+        at::Tensor l2 = layer_outputs.toTuple()->elements()[1].toTensor().to(torch::kFloat32);
+        at::Tensor l1 = layer_outputs.toTuple()->elements()[2].toTensor().to(torch::kFloat32);
+        at::Tensor l0 = layer_outputs.toTuple()->elements()[3].toTensor().to(torch::kFloat32);
+        inputTensor = inputTensor.to(torch::kFloat32);
+        at::Tensor x0 = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(0,4)});
+        at::Tensor x1 = torch::avg_pool2d(x0, 2, 2);
+        at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
+
+        int kernelSize = 5;
+        if (l0.size(1) < 25){
+            kernelSize = 3;
+        }
+
+        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
+        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor.to(torch::kFloat32), reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
+
+        reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), kernelSize);
+        torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
+
+        at::Tensor kp2 = perPixelKernelForward(x2, torch::softmax(l2, 1), kernelSize);
+        at::Tensor kp1 = inv_iter_kernel(x1, kp2, x2, reproj1, l1, kernelSize, hasPreviousFrame);
+        at::Tensor kp0 = inv_iter_kernel(x0, kp1, x1, reproj0, l0, kernelSize, hasPreviousFrame);
+
+        outputTensor = kp0;
+#endif
+    } else{
+        outputTensor = wrapper->module.forward(inputs).toTensor().to(torch::kFloat32);
+    }
+    previousTensor = outputTensor.clone().detach();
+    //std::cout << "got " << previousTensor.sizes() << std::endl;
     uint32_t outputTensorWidth = 0;
     uint32_t outputTensorHeight = 0;
     uint32_t outputTensorChannels = 0;
@@ -304,6 +397,7 @@ void PyTorchDenoiser::denoise() {
         outputTensor = outputTensor.permute({1, 2, 0}); // (c, h, w) -> (h, w, c)
     }
     if (outputTensorChannels != 4) {
+        //std::cout << "got " << outputTensorChannels << " channels" << std::endl;
         sgl::Logfile::get()->throwError("Error in PyTorchDenoiser::denoise: Mismatch in output tensor channels.");
     }
     if (outputTensorWidth != width || outputTensorHeight != height) {
@@ -358,6 +452,15 @@ void PyTorchDenoiser::denoise() {
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
         outputImageVulkan->getImage()->copyFromBuffer(
                 outputImageBufferVk, renderer->getVkCommandBuffer());
+
+        if (addBackground) {
+            backgroundImage->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            outputImageVulkan->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+
+            backgroundAddPass->render();
+        }
     }
 #endif
 }
@@ -498,6 +601,33 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
         sgl::Logfile::get()->writeError("Error in PyTorchDenoiser::loadModelFromFile: " + errorString);
         wrapper = {};
         return false;
+    }
+
+    /*
+     * Set the blend type, if none provided, assume color output
+     */
+    blend_inv_iter = false;
+    if (root.isMember("blend")) {
+        Json::Value& blendType = root["blend"];
+        if (!blendType.isString()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: Array 'blendtype' should be a string in \"" + modelPath + "\"!");
+            wrapper = {};
+            return false;
+        }
+        std::string bt = boost::to_lower_copy(blendType.asString());
+        if (bt == "inv_iter") {
+#ifdef USE_KPN_MODULE
+            blend_inv_iter = true;
+#else
+            sgl::Logfile::get()->writeError(
+                    "Error: Blend type 'inv_iter' is used in \"" + modelPath
+                    + "\", but the program is compiled without the KPN module.");
+            wrapper = {};
+            return false;
+#endif
+            std::cout << "blending inv_iter" << std::endl;
+        }
     }
 
     /*
@@ -656,6 +786,19 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
         reRender = true;
     }
 
+    if (propertyEditor.addCheckbox("Add Background", &addBackground)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Requires Previous Frame", &usePreviousFrame)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Zero Out Previous Frame", &zeroOutPreviousFrame)) {
+        reRender = true;
+    }
+    if (propertyEditor.addCheckbox("Use FP16", &useFP16)) {
+        reRender = true;
+    }
+
     return reRender;
 }
 
@@ -698,11 +841,15 @@ void FeatureCombinePass::setUsedInputFeatureMaps(
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     uniformData.numChannelsOut = numChannels;
     uniformData.colorWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::COLOR);
-    uniformData.albedoWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::ALBEDO);
     uniformData.normalWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::NORMAL);
     uniformData.depthWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::DEPTH);
     uniformData.positionWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::POSITION);
+    uniformData.densityWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::DENSITY);
+    uniformData.cloudOnlyWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::CLOUDONLY);
+    uniformData.albedoWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::ALBEDO);
     uniformData.flowWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::FLOW);
+    uniformData.reproj_uvWriteStartOffset = getFeatureMapWriteOffset(FeatureMapType::REPROJ_UV);
+
     uniformBuffer->updateData(
             sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
     renderer->insertMemoryBarrier(
@@ -762,4 +909,43 @@ void FeatureCombinePass::_render() {
     renderer->dispatch(
             computeData, sgl::iceil(width, computeBlockSize),
             sgl::iceil(height, computeBlockSize), 1);
+}
+
+
+BackgroundAddPass::BackgroundAddPass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+}
+
+void BackgroundAddPass::setBackgroundImage(const sgl::vk::ImageViewPtr& _backgroundImage) {
+    backgroundImage = _backgroundImage;
+    setDataDirty();
+}
+
+void BackgroundAddPass::setTargetImage(sgl::vk::ImageViewPtr& _outputImage) {
+    outputImage = _outputImage;
+    setDataDirty();
+}
+
+void BackgroundAddPass::loadShader() {
+    std::map<std::string, std::string> preprocessorDefines;
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE", std::to_string(BLOCK_SIZE)));
+    preprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
+
+    shaderStages = sgl::vk::ShaderManager->getShaderStages(
+            { "BackgroundPass.Compute" }, preprocessorDefines);
+}
+
+void BackgroundAddPass::createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+    computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
+    //computeData->setStaticImageView(cloudOnlyImage, "cloudOnlyImage");
+    computeData->setStaticImageView(backgroundImage, "backgroundImage");
+    computeData->setStaticImageView(outputImage, "resultImage");
+}
+
+void BackgroundAddPass::_render() {
+    auto width = int(outputImage->getImage()->getImageSettings().width);
+    auto height = int(outputImage->getImage()->getImageSettings().height);
+
+    renderer->dispatch(
+            computeData,
+            sgl::iceil(width, BLOCK_SIZE), sgl::iceil(height, BLOCK_SIZE), 1);
 }

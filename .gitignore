@@ -78,6 +78,7 @@ cmake-build-*/
 *.vtk
 *.mesh
 
+Data/EnvironmentMaps/*
 Data/CloudDataSets/*
 Data/CameraPaths/*
 Data/Checkpoints/*

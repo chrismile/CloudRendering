@@ -94,12 +94,13 @@ private:
 
     // This setting lets all data views use the same viewport resolution.
     bool useFixedSizeViewport = false;
-    glm::ivec2 fixedViewportSizeEdit{ 2186, 1358 };
-    glm::ivec2 fixedViewportSize{ 2186, 1358 };
+    glm::ivec2 fixedViewportSizeEdit{ 1920, 1080 };
+    glm::ivec2 fixedViewportSize{ 1920, 1080 };
 
     // Data set GUI information.
     void loadAvailableDataSetInformation();
     const std::string& getSelectedDataSetFilename();
+    const std::string& getSelectedDataSetEmissionFilename();
     void openFileDialog();
     DataSetInformationPtr dataSetInformationRoot;
     std::vector<DataSetInformationPtr> dataSetInformationList; //< List of all leaves.
@@ -107,6 +108,7 @@ private:
     int selectedDataSetIndex = 0; //< Contains "Local file..." at beginning, thus starts actually at 1.
     int currentlyLoadedDataSetIndex = -1;
     std::string customDataSetFileName;
+    std::string customDataSetFileNameEmission;
     ImGuiFileDialog* fileDialogInstance = nullptr;
     std::string fileDialogDirectory;
 
@@ -127,7 +129,7 @@ private:
     /// --- Visualization pipeline ---
 
     /// Loads line data from a file.
-    void loadCloudDataSet(const std::string& fileName, bool blockingDataLoading = true);
+    void loadCloudDataSet(const std::string& fileName, const std::string& emissionFileName, bool blockingDataLoading = true);
     /// Checks if an asynchronous loading request was finished.
     void checkLoadingRequestFinished();
     /// Reload the currently loaded data set.

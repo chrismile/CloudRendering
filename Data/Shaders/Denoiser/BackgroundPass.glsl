@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2021, Christoph Neuhauser
+ * Copyright (c) 2022, Timm Knörle, Christoph Neuhauser
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,37 +26,30 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef LINEDENSITYCONTROL_DATASETLIST_HPP
-#define LINEDENSITYCONTROL_DATASETLIST_HPP
+-- Compute
 
-#include <vector>
+#version 460
 
-#include <Math/Geometry/MatrixUtil.hpp>
+layout(local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
+//layout (binding = 0, rgba32f) uniform readonly image2D cloudOnlyImage;
+layout (binding = 1, rgba32f) uniform image2D backgroundImage;
+layout (binding = 2, rgba32f) uniform image2D resultImage;
 
-enum DataSetType {
-    DATA_SET_TYPE_NONE,
-    DATA_SET_TYPE_NODE, //< Hierarchical container.
-    DATA_SET_TYPE_VOLUME //< Grid storing volumetric data.
-};
+void main() {
+    ivec2 writePos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 outputImageSize = imageSize(resultImage);
 
-struct DataSetInformation;
-typedef std::shared_ptr<DataSetInformation> DataSetInformationPtr;
+    //if (writePos.x < outputImageSize.x && writePos.y < outputImageSize.y) {
+        // get background color
+        vec3 background = imageLoad(backgroundImage, writePos).xyz;
 
-struct DataSetInformation {
-    DataSetType type = DATA_SET_TYPE_VOLUME;
-    std::string name;
-    std::string filename;
-    std::string emission;
+        // read cloud only texture
+        vec4 cloudOnly = imageLoad(resultImage, writePos);
 
-    // For type DATA_SET_TYPE_NODE.
-    std::vector<DataSetInformationPtr> children;
-    int sequentialIndex = 0;
+        // Accumulate result
+        vec3 result = background.xyz * clamp(1. - cloudOnly.a, 0., 1.) + cloudOnly.xyz;
+        //result = cloudOnly.xyz;
+        imageStore(resultImage, writePos, vec4(result,1));
+    //}
 
-    // Optional attributes.
-    bool hasCustomTransform = false;
-    glm::mat4 transformMatrix = sgl::matrixIdentity();
-};
-
-DataSetInformationPtr loadDataSetList(const std::string& filename);
-
-#endif //LINEDENSITYCONTROL_DATASETLIST_HPP
+}

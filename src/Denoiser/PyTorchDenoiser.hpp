@@ -33,6 +33,9 @@
 #include <unordered_map>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
+#include <torch/script.h>
+#include <torch/cuda.h>
+#include <Graphics/Vulkan/Utils/Timer.hpp>
 
 #include "Denoiser.hpp"
 
@@ -62,7 +65,7 @@ typedef std::shared_ptr<SemaphoreVkCudaDriverApiInterop> SemaphoreVkCudaDriverAp
 
 struct ModuleWrapper;
 class FeatureCombinePass;
-
+class BackgroundAddPass;
 /**
  * Loads a PyTorch denoiser model from a TorchScript intermediate representation file.
  *
@@ -132,6 +135,7 @@ private:
 
     // Image data.
     sgl::vk::ImageViewPtr inputImageVulkan, outputImageVulkan;
+    sgl::vk::ImageViewPtr backgroundImage;
 
     // Data for CPU rendering.
     std::vector<sgl::vk::BufferPtr> renderImageStagingBuffers;
@@ -139,6 +143,18 @@ private:
     sgl::vk::FencePtr renderFinishedFence;
     float* renderedImageData = nullptr;
     float* denoisedImageData = nullptr;
+
+    bool addBackground = false;
+    bool usePreviousFrame = false;
+    bool zeroOutPreviousFrame = false;
+    bool useFP16 = false;
+    torch::Tensor previousTensor;
+    std::shared_ptr<BackgroundAddPass> backgroundAddPass;
+
+    bool blend_inv_iter = false;
+
+    sgl::vk::TimerPtr totalTimer;
+    sgl::vk::TimerPtr networkTimer;
 
 #ifdef SUPPORT_CUDA_INTEROP
     // Synchronization primitives.
@@ -177,12 +193,14 @@ private:
     struct UniformData {
         uint32_t numChannelsOut = 0;
         uint32_t colorWriteStartOffset = 0;
-        uint32_t albedoWriteStartOffset = 0;
         uint32_t normalWriteStartOffset = 0;
         uint32_t depthWriteStartOffset = 0;
         uint32_t positionWriteStartOffset = 0;
+        uint32_t densityWriteStartOffset = 0;
+        uint32_t cloudOnlyWriteStartOffset = 0;
+        uint32_t albedoWriteStartOffset = 0;
         uint32_t flowWriteStartOffset = 0;
-        uint32_t padding = 0;
+        uint32_t reproj_uvWriteStartOffset = 0;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;
@@ -193,6 +211,22 @@ private:
     std::vector<uint32_t> inputFeatureMapsChannelOffset;
     uint32_t numChannels = 0;
     sgl::vk::BufferPtr outputBuffer;
+};
+
+class BackgroundAddPass : public sgl::vk::ComputePass {
+public:
+    explicit BackgroundAddPass(sgl::vk::Renderer* renderer);
+    void setBackgroundImage(const sgl::vk::ImageViewPtr& _backgroundImage);
+    void setTargetImage(sgl::vk::ImageViewPtr& colorImage);
+protected:
+    void loadShader() override;
+    void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
+    void _render() override;
+
+private:
+    const int BLOCK_SIZE = 16;
+    sgl::vk::ImageViewPtr backgroundImage;
+    sgl::vk::ImageViewPtr outputImage;
 };
 
 #endif //CLOUDRENDERING_PYTORCHDENOISER_HPP

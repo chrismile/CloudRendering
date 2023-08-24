@@ -79,6 +79,30 @@ void processDataSetNodeChildren(Json::Value& childList, DataSetInformation* data
             }
         }
 
+        Json::Value emissionFilenames = source["emission"];
+        if (emissionFilenames.isArray()) {
+            for (Json::Value::const_iterator filenameIt = emissionFilenames.begin();
+                 filenameIt != emissionFilenames.end(); ++filenameIt) {
+                bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(filenameIt->asString());
+                if (isAbsolutePath) {
+                    dataSetInformation->emission = filenameIt->asString();
+                } else {
+                    if (!filenameIt->asString().empty()) {
+                        dataSetInformation->emission = cloudDataSetsDirectory + filenameIt->asString();
+                    }
+                }
+            }
+        } else {
+            bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(emissionFilenames.asString());
+            if (isAbsolutePath) {
+                dataSetInformation->emission = emissionFilenames.asString();
+            } else {
+                if (!emissionFilenames.asString().empty()){
+                    dataSetInformation->emission = cloudDataSetsDirectory + emissionFilenames.asString();
+                }
+            }
+        }
+
         if (dataSetInformation->type == DATA_SET_TYPE_NODE) {
             dataSetInformationParent->children.emplace_back(dataSetInformation);
             processDataSetNodeChildren(source["children"], dataSetInformation);

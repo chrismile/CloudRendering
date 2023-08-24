@@ -33,7 +33,7 @@
 #if !defined(USE_NANOVDB) || defined(USE_SUPER_VOXEL_GRID)
 
 vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
 #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();
@@ -134,7 +134,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
  * Analog decomposition tracking implemented using NanoVDB's HDDA algorithm for traversing the sparse grid.
  */
 vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     pnanovdb_readaccessor_t accessor = createAccessor();
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);

@@ -73,7 +73,18 @@ public:
     [[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMax() const { return boxMax; }
     [[nodiscard]] inline sgl::AABB3 getWorldSpaceBoundingBox() const { return sgl::AABB3(boxMin, boxMax); }
 
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMin() const { return gridMin; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMax() const { return gridMax; }
+
+    void setNextCloudDataFrame(std::shared_ptr<CloudData>nextFrame) {
+        nextCloudDataFrame = nextFrame;
+    }
+
+    std::shared_ptr<CloudData> getNextCloudDataFrame(){ return nextCloudDataFrame; }
+
     void setClearColor(const sgl::Color& clearColor) {}
+
+    void setSeqBounds(glm::vec3 min, glm::vec3 max);
 
     /**
      * @return An array of size gridSizeX * gridSizeY * gridSizeZ containing the dense data field.
@@ -97,10 +108,16 @@ public:
 
 private:
     sgl::TransferFunctionWindow* transferFunctionWindow = nullptr;
+    std::shared_ptr<CloudData> nextCloudDataFrame;
+
     std::string gridFilename, gridName;
     uint32_t gridSizeX = 0, gridSizeY = 0, gridSizeZ = 0;
     float voxelSizeX = 0.0f, voxelSizeY = 0.0f, voxelSizeZ = 0.0f;
-    glm::vec3 boxMin{}, boxMax{};
+    glm::vec3 boxMin{}, boxMax{}; // Box in which to render
+    glm::vec3 gridMin{}, gridMax{}; // Box from which to sample density values. (0,0,0) to (1,1,1) for dense
+    bool gotSeqBounds = false;
+    glm::vec3 seqMin{}, seqMax{}; // World space bounds of sequence
+
     void computeGridBounds();
 
     // --- Dense field. ---
@@ -148,6 +165,7 @@ private:
     void printSparseGridMetadata();
     nanovdb::GridHandle<nanovdb::HostBuffer> sparseGridHandle;
     bool cacheSparseGrid = false;
+
 };
 
 typedef std::shared_ptr<CloudData> CloudDataPtr;

@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,6 +55,30 @@ public:
 
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     void setCloudData(const CloudDataPtr& cloudData);
+    void setEmissionData(const CloudDataPtr& cloudData);
+
+    void loadEnvironmentMapImage(const std::string& filename);
+    void setEnvironmentMapIntensityFactor(float intensityFactor);
+
+    void setScatteringAlbedo(glm::vec3 albedo);
+    void setExtinctionScale(double extinctionScale);
+    void setExtinctionBase(glm::vec3 extinctionBase);
+    void setPhaseG(double phaseG);
+    void setFeatureMapType(FeatureMapTypeVpt type);
+
+    void setEmissionCap(double emissionCap);
+    void setEmissionStrength(double emissionStrength);
+    void setUseEmission(bool useEmission);
+    void flipYZ(bool flip);
+
+    void setCameraPosition(const glm::vec3& cameraPosition);
+    void setCameraTarget(const glm::vec3& cameraTarget);
+    void setCameraFOVy(double FOVy);
+
+    void rememberNextBounds();
+    void forgetCurrentBounds();
+
+    void setViewProjectionMatrixAsPrevious();
 
     /// Called when the resolution of the application window has changed.
     void setRenderingResolution(
@@ -88,16 +112,30 @@ public:
      * @return A CPU floating point array of size width * height * 3 containing the frame data.
      * NOTE: The returned data is managed by this class.
      */
-    float* renderFrameCpu(int numFrames);
+    float* renderFrameCpu(uint32_t numFrames);
 
-    float* renderFrameVulkan(int numFrames);
+    float* renderFrameVulkan(uint32_t numFrames);
+
+    float* getFeatureMapCpu(FeatureMapTypeVpt featureMap);
+    float* getFeatureMapCuda(FeatureMapTypeVpt featureMap);
 
 #ifdef SUPPORT_CUDA_INTEROP
-    float* renderFrameCuda(int numFrames);
+    void createCommandStructures(uint32_t numFrames);
+    float* renderFrameCuda(uint32_t numFrames);
 #endif
 
 private:
     sgl::CameraPtr camera;
+    glm::vec3 cameraPosition = glm::vec3(0,0,0);
+    glm::vec3 cameraTarget = glm::vec3(0,0,0);
+
+    glm::vec3 seq_bounds_min = glm::vec3(0,0,0);
+    glm::vec3 seq_bounds_max = glm::vec3(0,0,0);
+    bool hasStoredBounds = false;
+    bool storeNextBounds = false;
+
+    glm::mat4 previousViewProjectionMatrix;
+
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;
 

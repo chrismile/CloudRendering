@@ -63,16 +63,17 @@ const char* const DENOISER_NAMES[] = {
 };
 
 enum class FeatureMapType {
-    COLOR, ALBEDO, NORMAL, DEPTH, POSITION, FLOW
+    COLOR, ALBEDO, FLOW, POSITION, NORMAL, CLOUDONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV
 };
 const char* const FEATURE_MAP_NAMES[] = {
-        "Color", "Albedo", "Normal", "Depth", "Position", "Flow",
+        "Color", "Albedo", "Flow",  "Position", "Normal",
+        "CloudOnly", "Depth", "Density", "Background", "Reproj_UV"
 };
 const uint32_t FEATURE_MAP_NUM_CHANNELS[] = {
-        4, 4, 3, 1, 3, 2
+        4, 4, 2, 3, 3, 4, 2, 2, 4, 2
 };
 const uint32_t FEATURE_MAP_NUM_CHANNELS_PADDED[] = {
-        4, 4, 4, 1, 4, 2
+        4, 4, 2, 4, 4, 4, 2, 2, 4, 2
 };
 
 class Denoiser {

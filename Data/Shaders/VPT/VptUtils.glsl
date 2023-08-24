@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2021-2022, Christoph Neuhauser, Ludwig Leonard
+ * Copyright (c) 2021-2022, Christoph Neuhauser, Timm Knörle, Ludwig Leonard
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,8 @@ struct ScatterEvent {
     bool hasValue;
     vec3 x; float pdf_x;
     vec3 w; float pdf_w;
+    float depth;
+    float density;
 };
 
 
@@ -110,6 +112,160 @@ vec3 importanceSamplePhase(float GFactor, vec3 D, out float pdf) {
     return sinTheta * sin(phi) * t0 + sinTheta * cos(phi) * t1 + cosTheta * D;
 }
 
+float evaluatePhase(float GFactor, vec3 org_dir, vec3 scatter_dir) {
+    float cosTheta = dot(normalize(org_dir), normalize(scatter_dir));
+    float pdf = 0.25 / PI * (oneMinusG2) / pow(onePlusG2 - 2 * GFactor * cosTheta, 1.5);
+    return pdf;
+}
+
+#ifdef USE_ENVIRONMENT_MAP_IMAGE
+
+vec3 octahedralUVToWorld(vec2 uv) {
+    uv = uv * 2. - 1.;
+    vec2 sgn = sign(uv);
+    uv = abs(uv);
+
+    float r = 1. - abs(1. - uv.x - uv.y);
+    float phi = .25 * PI * ( (uv.y - uv.x) / r + 1. );
+    if (r == 0.){
+        phi = 0.;
+    }
+
+    float x = sgn.x * cos(phi) * r * sqrt(2 - r * r);
+    float y = sgn.y * sin(phi) * r * sqrt(2 - r * r);
+    float z = sign(1. - uv.x - uv.y) * (1. - r * r);
+    return vec3(x, y, z);
+}
+
+vec2 worldToOctahedralUV(vec3 dir) {
+    dir = normalize(dir);
+    vec3 sgn = sign(dir);
+    dir = abs(dir);
+
+    float phi = atan(dir.y , dir.x);
+    float r = sqrt(1. - dir.z);
+
+    float v = r * 2. / PI * phi;
+    float u = r - v;
+
+    vec2 uv = vec2(u,v);
+    if (sgn.z < 0.){
+        uv = vec2(1.-v, 1.-u);
+    }
+    uv *= sgn.xy;// + 1.- abs(sgn.xy);
+
+    return uv * .5 + .5;
+}
+
+vec3 importanceSampleSkybox(out float pdf) {
+    vec2 rnd = vec2(random(), random());
+    ivec2 pos = ivec2(0,0);
+
+    int maxMip = textureQueryLevels(environmentMapOctahedralTexture);
+    int minMip = 0;
+
+    pdf = 0.25 / PI;
+
+    for (int mip = maxMip - 1; mip >= minMip; mip--) {
+        pos *= 2;
+        pdf *= 4;
+        float ul = texelFetch(environmentMapOctahedralTexture, pos + ivec2(0,0), mip).r + .001;
+        float ur = texelFetch(environmentMapOctahedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float dl = texelFetch(environmentMapOctahedralTexture, pos + ivec2(0,1), mip).r + .001;
+        float dr = texelFetch(environmentMapOctahedralTexture, pos + ivec2(1,1), mip).r + .001;
+
+        float l = ul + dl;
+        float r = ur + dr;
+        float total = l + r;
+
+        float hSplit = l / total;
+        float vSplit;
+        if (rnd.x < hSplit) {
+            rnd.x = rnd.x / hSplit;
+            vSplit = ul / l;
+            pdf *= hSplit;
+        } else{
+            pos.x += 1;
+            rnd.x = (rnd.x - hSplit) / (1. - hSplit);
+            vSplit = ur / r;
+            pdf *= (1. - hSplit);
+        }
+
+        if (rnd.y < vSplit) {
+            rnd.y = rnd.y / vSplit;
+            pdf *= vSplit;
+        } else {
+            pos.y += 1;
+            rnd.y = (rnd.y - vSplit) / (1-vSplit);
+            pdf *= (1. - vSplit);
+        }
+
+    }
+    vec2 uv = (vec2(pos) + rnd) / vec2(1 << (maxMip - minMip));
+    //uv = vec2(random(), random());
+    //pdf = .25 / PI;
+    return octahedralUVToWorld(uv);
+}
+
+float evaluateSkyboxPDF(vec3 sampledDir) {
+    vec2 uv = worldToOctahedralUV(sampledDir);
+    ivec2 pos = ivec2(0,0);
+
+    float pdf = 0.25 / PI;
+
+    int maxMip = textureQueryLevels(environmentMapOctahedralTexture);
+    int minMip = 0;
+
+    for (int mip = maxMip - 1; mip >= minMip; mip--) {
+        pos *= 2;
+        pdf *= 4;
+        float ul = texelFetch(environmentMapOctahedralTexture, pos + ivec2(0,0), mip).r + .001;
+        float ur = texelFetch(environmentMapOctahedralTexture, pos + ivec2(1,0), mip).r + .001;
+        float dl = texelFetch(environmentMapOctahedralTexture, pos + ivec2(0,1), mip).r + .001;
+        float dr = texelFetch(environmentMapOctahedralTexture, pos + ivec2(1,1), mip).r + .001;
+
+        float l = ul + dl;
+        float r = ur + dr;
+        float total = l + r;
+
+        float hSplit = l / total;
+        float vSplit;
+        if (uv.x < .5) {
+            vSplit = ul / l;
+            pdf *= hSplit;
+            uv.x *= 2;
+        } else{
+            pos.x += 1;
+            vSplit = ur / r;
+            pdf *= (1. - hSplit);
+            uv.x = uv.x * 2. - 1.;
+        }
+
+        if (uv.y < .5) {
+            pdf *= vSplit;
+            uv.y = uv.y * 2.;
+        } else {
+            pos.y += 1;
+            pdf *= (1. - vSplit);
+            uv.y = uv.y * 2. - 1.;
+        }
+
+    }
+    return pdf;
+}
+
+#else
+
+vec3 importanceSampleSkybox(out float pdf) {
+    pdf = 1.0 / (4 * PI);
+    return randomDirection(vec3(1.0, 0.0, 0.0));
+}
+
+float evaluateSkyboxPDF(vec3 sampledDir) {
+    return 1.0 / (4 * PI);
+}
+
+#endif
 
 //--- Tools
 
@@ -129,12 +285,15 @@ vec3 sRGBToLinearRGB(in vec3 linearRGB) {
     return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
 }
 
-
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 vec3 sampleSkybox(in vec3 dir) {
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
     vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;
+    
+    // Make sure there is no 'inf' value in the skybox.
+    textureColor = min(textureColor , vec3(100000, 100000, 100000));
+
 #ifdef ENV_MAP_IMAGE_USES_LINEAR_RGB
 #ifdef USE_LINEAR_RGB
     return parameters.environmentMapIntensityFactor * textureColor;
@@ -196,6 +355,15 @@ vec3 sampleLight(in vec3 dir) {
 
 #ifdef USE_NANOVDB
 pnanovdb_readaccessor_t createAccessor() {
+    pnanovdb_buf_t buf = pnanovdb_buf_t(0);
+    pnanovdb_readaccessor_t accessor;
+    pnanovdb_grid_handle_t gridHandle;
+    gridHandle.address = pnanovdb_address_null();
+    pnanovdb_root_handle_t root = pnanovdb_tree_get_root(buf, pnanovdb_grid_get_tree(buf, gridHandle));
+    pnanovdb_readaccessor_init(accessor, root);
+    return accessor;
+}
+pnanovdb_readaccessor_t createEmissionAccessor() {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_readaccessor_t accessor;
     pnanovdb_grid_handle_t gridHandle;
@@ -272,13 +440,59 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
 }
 #endif
 #else
-float sampleCloudRaw(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+float sampleCloudRaw(in vec3 coord) {
 #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
 #endif
     return texture(gridImage, coord).x;
+}
+#endif
+
+#ifdef USE_EMISSION
+float sampleEmissionRaw(in vec3 coord) {
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
+    ivec3 dim = textureSize(emissionImage, 0);
+    coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
+#endif
+    return texture(emissionImage, coord).x;
+}
+vec3 sampleEmission(in vec3 pos){
+    // transform world pos to density grid pos
+    vec3 coord = (pos - parameters.emissionBoxMin) / (parameters.emissionBoxMax - parameters.emissionBoxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+
+    float t = sampleEmissionRaw(coord);
+    t = clamp(t * parameters.emissionCap,0,1);
+    vec3 col = vec3(t*t);
+    col.g = col.r * col.r;
+    col.b = col.g * col.g;
+    return col * parameters.emissionStrength;
+}
+#endif
+
+#ifdef USE_TRANSFER_FUNCTION
+vec4 sampleCloudColorAndDensity(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
+#endif
+        in vec3 pos) {
+    // Idea: Returns (color.rgb, density).
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    float densityRaw = sampleCloudRaw(
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            coord);
+    //return densityRaw;
+    return texture(transferFunctionTexture, densityRaw);
 }
 #endif
 
@@ -289,6 +503,11 @@ float sampleCloud(
 #endif
         in vec3 pos) {
     // Idea: Returns (color.rgb, density).
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     float densityRaw = sampleCloudRaw(
 #ifdef USE_NANOVDB
             accessor,
@@ -302,16 +521,55 @@ vec4 sampleCloudDensityEmission(
 #endif
         in vec3 pos) {
     // Idea: Returns (color.rgb, density).
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     float densityRaw = sampleCloudRaw(
 #ifdef USE_NANOVDB
             accessor,
 #endif
-            pos);
+            coord);
     return texture(transferFunctionTexture, densityRaw);
 }
 #else
-#define sampleCloud sampleCloudRaw
+float sampleCloud(
+#ifdef USE_NANOVDB
+        pnanovdb_readaccessor_t accessor,
 #endif
+        in vec3 pos) {
+    // Transform world position to density grid position.
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+
+    return sampleCloudRaw(
+#ifdef USE_NANOVDB
+            accessor,
+#endif
+            coord);// + parameters.extinction.g / parameters.extinction.r * .01;
+}
+#endif
+
+
+vec3 getCloudFiniteDifference(in vec3 pos) {
+#ifdef USE_NANOVDB
+    return vec3(0);
+#else
+
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    ivec3 dim = textureSize(gridImage, 0);
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
+    coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
+#endif
+    float density = texture(gridImage, coord).x;
+    vec3 dFdpos = vec3(
+        texture(gridImage, coord - vec3(1, 0, 0) / dim).x - texture(gridImage, coord + vec3(1, 0, 0) / dim).x,
+        texture(gridImage, coord - vec3(0, 1, 0) / dim).x - texture(gridImage, coord + vec3(0, 1, 0) / dim).x,
+        texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
+    ) / dim * 100;
+    return dFdpos;
+#endif
+}
 
 void createCameraRay(in vec2 coord, out vec3 x, out vec3 w) {
     vec4 ndcP = vec4(coord, 0, 1);

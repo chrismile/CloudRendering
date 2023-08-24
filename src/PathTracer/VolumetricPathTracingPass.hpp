@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2021, Christoph Neuhauser, Ludwig Leonard
+ * Copyright (c) 2021, Christoph Neuhauser, Timm Knörle, Ludwig Leonard
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@ typedef std::shared_ptr<CloudData> CloudDataPtr;
 class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
+class OctahedralMappingPass;
 
 namespace IGFD {
 class FileDialog;
@@ -50,18 +51,22 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
+    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV,
+    PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
+        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV",
+        "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
 enum class VptMode {
-    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING
+    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING,
+    NEXT_EVENT_TRACKING, NEXT_EVENT_TRACKING_SPECTRAL
 };
 const char* const VPT_MODE_NAMES[] = {
         "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
-        "Decomposition Tracking", "Residual Ratio Tracking"
+        "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking",
+        "Next Event Tracking (Spectral)"
 };
 
 enum class GridInterpolationType {
@@ -93,12 +98,29 @@ public:
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
     void setCloudData(const CloudDataPtr& data);
+    void setEmissionData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
     void setUseSparseGrid(bool useSparse);
     void setSparseGridInterpolationType(GridInterpolationType type);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
+
+    void loadEnvironmentMapImage(const std::string& filename);
+    void setUseEnvironmentMapFlag(bool useEnvironmentMap);
+    void setEnvironmentMapIntensityFactor(float intensityFactor);
+
+    void setScatteringAlbedo(glm::vec3 albedo);
+    void setExtinctionScale(double extinctionScale);
+    void setPhaseG(double phaseG);
+    void setExtinctionBase(glm::vec3 extinctionBase);
+    void setFeatureMapType(FeatureMapTypeVpt type);
+    void setPreviousViewProjMatrix(glm::mat4 previousViewProjMatrix);
+
+    void setUseEmission(bool emission);
+    void setEmissionStrength(float emissionStrength);
+    void setEmissionCap(float emissionCap);
+    void flipYZ(bool flip);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -107,7 +129,11 @@ public:
     /// Renders the GUI. The "reRender" flag might be set depending on the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
 
+    sgl::vk::TexturePtr getFeatureMapTexture(FeatureMapTypeVpt type);
+
 private:
+    std::shared_ptr<OctahedralMappingPass> equalAreaPass;
+
     void loadShader() override;
     void setComputePipelineInfo(sgl::vk::ComputePipelineInfo& pipelineInfo) override {}
     void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
@@ -120,10 +146,12 @@ private:
     const glm::ivec2 blockSize2D = glm::ivec2(16, 16);
     sgl::vk::ImageViewPtr sceneImageView;
     CloudDataPtr cloudData;
+    CloudDataPtr emissionData;
     FeatureMapTypeVpt featureMapType = FeatureMapTypeVpt::RESULT;
+    std::string emissionGridFilenameGui;
 
     void updateVptMode();
-    VptMode vptMode = VptMode::DELTA_TRACKING;
+    VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
     std::shared_ptr<SuperVoxelGridResidualRatioTracking> superVoxelGridResidualRatioTracking;
@@ -134,9 +162,15 @@ private:
     void setGridData();
     void updateGridSampler();
     bool useSparseGrid = false; ///< Use NanoVDB or a dense grid texture?
+
     GridInterpolationType gridInterpolationType = GridInterpolationType::STOCHASTIC;
     sgl::vk::TexturePtr densityFieldTexture; /// < Dense grid texture.
     sgl::vk::BufferPtr nanoVdbBuffer; /// < Sparse grid buffer.
+
+    sgl::vk::TexturePtr emissionFieldTexture; /// < Dense grid texture.
+    sgl::vk::BufferPtr emissionNanoVdbBuffer; /// < Sparse grid buffer.
+
+    bool flipYZCoordinates = false;
 
     uint32_t lastViewportWidth = 0, lastViewportHeight = 0;
 
@@ -147,32 +181,45 @@ private:
     sgl::vk::TexturePtr accImageTexture;
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
+    sgl::vk::TexturePtr normalTexture;
+    sgl::vk::TexturePtr cloudOnlyTexture;
+    sgl::vk::TexturePtr depthTexture;
+    sgl::vk::TexturePtr densityTexture;
+    sgl::vk::TexturePtr  backgroundTexture;
+    sgl::vk::TexturePtr  reprojUVTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
+    int numFeatureMapSamplesPerFrame = 1;
     bool reachedTarget = true;
     bool changedDenoiserSettings = false;
     bool timerStopped = false;
     bool createNewAccumulationTimer = false;
     sgl::vk::TimerPtr accumulationTimer;
+    sgl::vk::TimerPtr denoiseTimer;
 
     glm::vec3 sunlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float sunlightIntensity = 2.6f;
     glm::vec3 sunlightDirection = glm::normalize(glm::vec3(0.5826f, 0.7660f, 0.2717f));
     float cloudExtinctionScale = 1024.0f;
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
-    glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 1.0, 1.0);
+    glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 0.9, 0.9);
+
+    bool useEmission = false; ///< Use an emission texture
+    float emissionCap = 1;
     float emissionStrength = 1.0f;
 
     // Environment map data.
-    void loadEnvironmentMapImage();
     bool isEnvironmentMapLoaded = false;
     bool useEnvironmentMapImage = false;
     bool envMapImageUsesLinearRgb = false;
     std::string environmentMapFilenameGui;
     std::string loadedEnvironmentMapFilename;
+    void createEnvironmentMapOctahedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
-    float environmentMapIntensityFactor = 1.5f;
+    sgl::vk::TexturePtr environmentMapOctahedralTexture;
+    float environmentMapIntensityFactor = 1;
+    bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
@@ -188,27 +235,38 @@ private:
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
 
+    glm::mat4 previousViewProjMatrix;
+
     // Uniform buffer object storing the camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
+        glm::mat4 previousViewProjMatrix;
 
         // Cloud properties
         glm::vec3 boxMin; float pad0;
         glm::vec3 boxMax; float pad1;
-        glm::vec3 extinction;
-        float emissionStrength = 1.0f;
+        glm::vec3 gridMin; float pad2;
+        glm::vec3 gridMax; float pad3;
+        glm::vec3 emissionBoxMin; float pad4;
+        glm::vec3 emissionBoxMax; float pad5;
+        glm::vec3 extinction; float pad6;
         glm::vec3 scatteringAlbedo;
-        float G = 0.875f;
-        glm::vec3 sunDirection; float pad3;
+
+        float G = 0.5f; // 0.875f
+        glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
 
-        // For decomposition and residual ratio tracking.
-        glm::ivec3 superVoxelSize; int pad5;
-        glm::ivec3 superVoxelGridSize;
+        float emissionCap;
+        float emissionStrength;
+        int numFeatureMapSamplesPerFrame;
 
         // Whether to use linear RGB or sRGB.
         int useLinearRGB;
+
+        // For decomposition and residual ratio tracking.
+        glm::ivec3 superVoxelSize; int pad8;
+        glm::ivec3 superVoxelGridSize; int pad9;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;
@@ -269,6 +327,23 @@ private:
     int numMoments = 8;
     int selectedMomentBlitIdx = 0;
     sgl::vk::TexturePtr momentTexture;
+};
+
+class OctahedralMappingPass : public sgl::vk::ComputePass {
+public:
+    explicit OctahedralMappingPass(sgl::vk::Renderer* renderer);
+    void setInputImage(const sgl::vk::TexturePtr& _inputImage);
+    void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
+protected:
+    void loadShader() override;
+    void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
+    void _render() override;
+
+private:
+    const int BLOCK_SIZE = 16;
+    bool useEnvironmentMapImage;
+    sgl::vk::TexturePtr inputImage;
+    sgl::vk::ImageViewPtr outputImage;
 };
 
 #endif //CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP

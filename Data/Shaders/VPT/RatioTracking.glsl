@@ -24,7 +24,7 @@
 
 #ifdef USE_RATIO_TRACKING
 vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
 #ifdef USE_NANOVDB
     pnanovdb_readaccessor_t accessor = createAccessor();

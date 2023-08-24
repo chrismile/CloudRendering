@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2022, Christoph Neuhauser, Timm Knörle
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,6 +29,7 @@
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/imgui.h>
+#include "CloudData.hpp"
 
 #include "PathTracer/VolumetricPathTracingPass.hpp"
 
@@ -76,7 +77,100 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
 }
 
 void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloudData) {
+    if (storeNextBounds) {
+        storeNextBounds = false;
+        seq_bounds_min = cloudData->getWorldSpaceGridMin();
+        seq_bounds_max = cloudData->getWorldSpaceGridMax();
+        hasStoredBounds = true;
+    }
+    if (hasStoredBounds) {
+        cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
+    }
+
     vptPass->setCloudData(cloudData);
+}
+
+void VolumetricPathTracingModuleRenderer::setEmissionData(const CloudDataPtr& cloudData) {
+    if (hasStoredBounds) {
+        cloudData->setSeqBounds(seq_bounds_min, seq_bounds_max);
+    }
+    vptPass->setEmissionData(cloudData);
+}
+
+void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::string& filename) {
+    if (filename.length() == 0) {
+        vptPass->setUseEnvironmentMapFlag(false);
+    } else {
+        vptPass->loadEnvironmentMapImage(filename);
+        vptPass->setUseEnvironmentMapFlag(true);
+    }
+}
+
+void VolumetricPathTracingModuleRenderer::setEnvironmentMapIntensityFactor(float intensityFactor) {
+    vptPass->setEnvironmentMapIntensityFactor(intensityFactor);
+}
+
+void VolumetricPathTracingModuleRenderer::setScatteringAlbedo(glm::vec3 albedo) {
+    vptPass->setScatteringAlbedo(albedo);
+}
+
+void VolumetricPathTracingModuleRenderer::setExtinctionScale(double extinctionScale) {
+    vptPass->setExtinctionScale(extinctionScale);
+}
+
+void VolumetricPathTracingModuleRenderer::setPhaseG(double phaseG) {
+    vptPass->setPhaseG(phaseG);
+}
+
+void VolumetricPathTracingModuleRenderer::setExtinctionBase(glm::vec3 extinctionBase) {
+    vptPass->setExtinctionBase(extinctionBase);
+}
+
+void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt type) {
+    vptPass->setFeatureMapType(type);
+}
+
+void VolumetricPathTracingModuleRenderer::setEmissionCap(double emissionCap) {
+    vptPass->setEmissionCap(emissionCap);
+}
+
+void VolumetricPathTracingModuleRenderer::setEmissionStrength(double emissionStrength) {
+    vptPass->setEmissionStrength(emissionStrength);
+}
+
+void VolumetricPathTracingModuleRenderer::setUseEmission(bool useEmission) {
+    vptPass->setUseEmission(useEmission);
+}
+
+void VolumetricPathTracingModuleRenderer::flipYZ(bool flip) {
+    vptPass->flipYZ(flip);
+}
+
+void VolumetricPathTracingModuleRenderer::setCameraPosition(const glm::vec3& cameraPosition) {
+    this->cameraPosition = cameraPosition;
+    camera->setPosition(cameraPosition);
+    camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
+}
+
+void VolumetricPathTracingModuleRenderer::setCameraTarget(const glm::vec3& cameraTarget) {
+    this->cameraTarget = cameraTarget;
+    camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
+}
+
+void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
+    camera->setFOVy(FOVy);
+}
+
+void VolumetricPathTracingModuleRenderer::rememberNextBounds() {
+    storeNextBounds = true;
+}
+
+void VolumetricPathTracingModuleRenderer::forgetCurrentBounds() {
+    hasStoredBounds = false;
+}
+
+void VolumetricPathTracingModuleRenderer::setViewProjectionMatrixAsPrevious() {
+    previousViewProjectionMatrix = camera->getProjectionMatrix() * camera->getViewMatrix();
 }
 
 bool VolumetricPathTracingModuleRenderer::settingsDiffer(
@@ -155,35 +249,6 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
                 | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
                 true, true);
         outputImageBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputImageBufferVk);
-
-        // TODO: Use swapchain-like structure where we have N images in flight.
-        size_t numImages = NUM_FRAMES;
-        commandBuffers.clear();
-        sgl::vk::CommandPoolType commandPoolType;
-        commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-#ifdef USE_TIMELINE_SEMAPHORES
-        renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(
-                device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
-                timelineValue);
-        renderFinishedSemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(
-                device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
-                timelineValue);
-#else
-        renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
-        denoiseFinishedSemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
-#endif
-        for (size_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
-            commandBuffers.push_back(std::make_shared<sgl::vk::CommandBuffer>(device, commandPoolType));
-        }
-        for (size_t frameIdx = 0; frameIdx < numImages - 1; frameIdx++) {
-#ifdef USE_TIMELINE_SEMAPHORES
-            interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(
-                    device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
-                    timelineValue));
-#else
-            interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(device));
-#endif
-        }
     }
 #endif
     else {
@@ -197,6 +262,55 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
     camera->onResolutionChanged(width, height);
 }
 
+void VolumetricPathTracingModuleRenderer::createCommandStructures(uint32_t numFrames) {
+    //std::cout << "Creating new command structures "<<numFrames<<std::endl;
+
+    sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+
+    if (renderImageView) {
+        device->waitIdle();
+        renderer->getFrameCommandBuffers();
+    }
+
+    commandBuffers = {};
+    renderReadySemaphore = {};
+    renderFinishedSemaphore = {};
+    interFrameSemaphores = {};
+    timelineValue = 0;
+
+    // TODO: Use swapchain-like structure where we have N images in flight.
+    size_t numImages = numFrames;
+    commandBuffers.clear();
+    sgl::vk::CommandPoolType commandPoolType;
+    commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(
+            device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
+            timelineValue);
+    renderFinishedSemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(
+            device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
+            timelineValue);
+#else
+    renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
+    denoiseFinishedSemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
+#endif
+    for (size_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
+        commandBuffers.push_back(std::make_shared<sgl::vk::CommandBuffer>(device, commandPoolType));
+    }
+    for (size_t frameIdx = 0; frameIdx < numImages - 1; frameIdx++) {
+#ifdef USE_TIMELINE_SEMAPHORES
+        interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(
+                device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
+                timelineValue));
+#else
+        interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(device));
+#endif
+    }
+
+    //std::cout << "Done creating new command structures "<<numFrames<<std::endl;
+
+}
+
 void VolumetricPathTracingModuleRenderer::setUseSparseGrid(bool useSparseGrid) {
     vptPass->setUseSparseGrid(useSparseGrid);
 }
@@ -208,6 +322,7 @@ void VolumetricPathTracingModuleRenderer::setGridInterpolationType(GridInterpola
 void VolumetricPathTracingModuleRenderer::setCustomSeedOffset(uint32_t offset) {
     vptPass->setCustomSeedOffset(offset);
 }
+
 
 void VolumetricPathTracingModuleRenderer::setUseLinearRGB(bool useLinearRGB) {
     vptPass->setUseLinearRGB(useLinearRGB);
@@ -229,9 +344,10 @@ void VolumetricPathTracingModuleRenderer::setVptModeFromString(const std::string
             + vptModeName + "\".");
 }
 
-float* VolumetricPathTracingModuleRenderer::renderFrameCpu(int numFrames) {
+float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
     // TODO: Allow multiple frames in flight.
-    for (int i = 0; i < numFrames; i++) {
+    for (uint32_t i = 0; i < numFrames; i++) {
+        vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
         renderer->beginCommandBuffer();
         vptPass->render();
         if (i == numFrames - 1) {
@@ -275,30 +391,32 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCpu(int numFrames) {
     return imageData;
 }
 
-float* VolumetricPathTracingModuleRenderer::renderFrameVulkan(int numFrames) {
+float* VolumetricPathTracingModuleRenderer::renderFrameVulkan(uint32_t numFrames) {
     // TODO: Add support for not going the GPU->CPU->GPU route.
     return nullptr;
 }
 
 #ifdef SUPPORT_CUDA_INTEROP
-float* VolumetricPathTracingModuleRenderer::renderFrameCuda(int numFrames) {
+float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) {
     if (!sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
         sgl::Logfile::get()->throwError(
                 "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: "
                 "sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() returned false.", false);
     }
 
+    if (size_t(numFrames) > commandBuffers.size() || size_t(numFrames) > interFrameSemaphores.size() + 1) {
+        this->createCommandStructures(numFrames);
+
+        //sgl::Logfile::get()->throwError(
+        //        "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: Frame data was not allocated.",
+        //        false);
+    }
+
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
     timelineValue++;
 
-    if (size_t(numFrames) > commandBuffers.size() || size_t(numFrames) > interFrameSemaphores.size() + 1) {
-        sgl::Logfile::get()->throwError(
-                "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: Frame data was not allocated.",
-                false);
-    }
-
-    for (int frameIndex = 0; frameIndex < numFrames; frameIndex++) {
+    for (uint32_t frameIndex = 0; frameIndex < numFrames; frameIndex++) {
         sgl::vk::CommandBufferPtr commandBuffer = commandBuffers.at(frameIndex);
         sgl::vk::SemaphorePtr waitSemaphore;
         sgl::vk::SemaphorePtr signalSemaphore;
@@ -324,6 +442,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(int numFrames) {
 
         renderer->pushCommandBuffer(commandBuffer);
         renderer->beginCommandBuffer();
+
+        vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
 
         vptPass->render();
 
@@ -352,7 +472,114 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(int numFrames) {
 
     //renderer->getDevice()->waitIdle();
     //cudaStreamSynchronize(stream);
-
     return (float*)outputImageBufferCu->getCudaDevicePtr();
 }
 #endif
+
+float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt featureMap) {
+
+    sgl::vk::TexturePtr texture = vptPass->getFeatureMapTexture(featureMap);
+    
+    renderer->beginCommandBuffer();
+
+    renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+
+    renderImageView->getImage()->transitionImageLayout(
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+    renderImageStaging->transitionImageLayout(
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+    renderImageView->getImage()->copyToImage(
+            renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
+            renderer->getVkCommandBuffer());
+    
+    renderer->endCommandBuffer();
+
+    // Submit the rendering operations in Vulkan.
+    renderer->submitToQueue(
+            {}, {}, renderFinishedFence,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+    renderFinishedFence->wait();
+    renderFinishedFence->reset();
+    
+    uint32_t width = renderImageStaging->getImageSettings().width;
+    uint32_t height = renderImageStaging->getImageSettings().height;
+    VkSubresourceLayout subresourceLayout =
+            renderImageStaging->getSubresourceLayout(VK_IMAGE_ASPECT_COLOR_BIT);
+    auto* mappedData = (float*)renderImageStaging->mapMemory();
+    const auto rowPitch = uint32_t(subresourceLayout.rowPitch / sizeof(float));
+
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            uint32_t writeLocation = (x + y * width) * numChannels;
+            // We don't need to add "uint32_t(subresourceLayout.offset)" here, as this is automatically done by VMA.
+            uint32_t readLocation = x * 4 + rowPitch * y;
+            for (uint32_t c = 0; c < numChannels; c++) {
+                imageData[writeLocation + c] = mappedData[readLocation + c];
+            }
+        }
+    }
+
+    renderImageStaging->unmapMemory();
+    return imageData;
+}
+
+
+float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt featureMap) {
+
+    sgl::vk::TexturePtr texture = vptPass->getFeatureMapTexture(featureMap);
+    
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+    timelineValue++;
+
+    sgl::vk::CommandBufferPtr commandBuffer = commandBuffers.at(0);
+    sgl::vk::SemaphorePtr waitSemaphore;
+    sgl::vk::SemaphorePtr signalSemaphore;
+
+    VkPipelineStageFlags waitStage;
+    waitSemaphore = renderReadySemaphore;
+    waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+    signalSemaphore = renderFinishedSemaphore;
+    
+#ifdef USE_TIMELINE_SEMAPHORES
+    waitSemaphore->setWaitSemaphoreValue(timelineValue);
+    signalSemaphore->setSignalSemaphoreValue(timelineValue);
+#endif
+    commandBuffer->pushWaitSemaphore(waitSemaphore, waitStage);
+    commandBuffer->pushSignalSemaphore(signalSemaphore);
+
+    renderer->pushCommandBuffer(commandBuffer);
+    renderer->beginCommandBuffer();
+
+    renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+
+    renderImageView->getImage()->transitionImageLayout(
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+    renderImageView->getImage()->copyToBuffer(
+            outputImageBufferVk, renderer->getVkCommandBuffer());
+
+    renderer->endCommandBuffer();
+    renderer->submitToQueue();
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderReadySemaphore->signalSemaphoreCuda(stream, timelineValue);
+#else
+    renderReadySemaphores->signalSemaphoreCuda(stream);
+#endif
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderFinishedSemaphore->waitSemaphoreCuda(stream, timelineValue);
+#else
+    renderFinishedSemaphore->waitSemaphoreCuda(stream);
+#endif
+
+    //renderer->getDevice()->waitIdle();
+    //cudaStreamSynchronize(stream);
+    return (float*)outputImageBufferCu->getCudaDevicePtr();
+    
+}
