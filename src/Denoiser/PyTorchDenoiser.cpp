@@ -604,14 +604,14 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     }
 
     /*
-     * Set the blend type, if none provided, assume color output
+     * Set the blend type, if none provided, assume color output.
      */
     blend_inv_iter = false;
     if (root.isMember("blend")) {
         Json::Value& blendType = root["blend"];
         if (!blendType.isString()) {
             sgl::Logfile::get()->writeError(
-                    "Error: Array 'blendtype' should be a string in \"" + modelPath + "\"!");
+                    "Error: Element 'blendtype' should be a string in \"" + modelPath + "\"!");
             wrapper = {};
             return false;
         }
@@ -628,6 +628,50 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
 #endif
             std::cout << "blending inv_iter" << std::endl;
         }
+    }
+
+    // Check whether the previous frame needs to be provided.
+    usePreviousFrame = false;
+    if (root.isMember("use_previous_frame")) {
+        Json::Value& usePreviousFrameElement = root["use_previous_frame"];
+        if (!usePreviousFrameElement.isBool()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: Element 'use_previous_frame' should be a bool in \"" + modelPath + "\"!");
+            wrapper = {};
+            return false;
+        }
+        usePreviousFrame = usePreviousFrameElement.asBool();
+    }
+
+    // Does the model use 3 or 4 input dimensions?
+    useBatchDimension = false;
+    if (wrapper->module.parameters().size() > 0) {
+        auto paramSizes = (*wrapper->module.parameters().begin()).sizes();
+        if (paramSizes.size() == 4) {
+            useBatchDimension = true;
+        }
+    }
+    if (root.isMember("use_batch_dimension")) {
+        Json::Value& useBatchDimensionElement = root["use_batch_dimension"];
+        if (!useBatchDimensionElement.isBool()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: Element 'use_batch_dimension' should be a bool in \"" + modelPath + "\"!");
+            wrapper = {};
+            return false;
+        }
+        useBatchDimension = useBatchDimensionElement.asBool();
+    }
+
+    // Should FP16 be used by default (e.g., due to high memory consumption otherwise)?
+    if (root.isMember("use_fp16")) {
+        Json::Value& useFP16Element = root["use_fp16"];
+        if (!useFP16Element.isBool()) {
+            sgl::Logfile::get()->writeError(
+                    "Error: Element 'use_fp16' should be a bool in \"" + modelPath + "\"!");
+            wrapper = {};
+            return false;
+        }
+        useFP16 = useFP16Element.asBool();
     }
 
     /*
@@ -687,14 +731,6 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
                 inputImageVulkan->getImage()->getImageSettings().height);
     }
     isFirstContiguousWarning = true;
-
-    // Does the model use 3 or 4 input dimensions?
-    if (wrapper->module.parameters().size() > 0) {
-        auto paramSizes = (*wrapper->module.parameters().begin()).sizes();
-        if (paramSizes.size() == 4) {
-            useBatchDimension = true;
-        }
-    }
 
     return true;
 }
@@ -787,9 +823,6 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
     }
 
     if (propertyEditor.addCheckbox("Add Background", &addBackground)) {
-        reRender = true;
-    }
-    if (propertyEditor.addCheckbox("Requires Previous Frame", &usePreviousFrame)) {
         reRender = true;
     }
     if (propertyEditor.addCheckbox("Zero Out Previous Frame", &zeroOutPreviousFrame)) {

@@ -144,7 +144,7 @@ private:
     float* renderedImageData = nullptr;
     float* denoisedImageData = nullptr;
 
-    bool addBackground = false;
+    bool addBackground = true;
     bool usePreviousFrame = false;
     bool zeroOutPreviousFrame = false;
     bool useFP16 = false;
