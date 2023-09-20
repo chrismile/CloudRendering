@@ -78,14 +78,6 @@ if (${USE_GTEST})
     )
 endif()
 
-if (${BUILD_PYTORCH_MODULE} OR ${BUILD_KPN_MODULE} OR ${SUPPORT_PYTORCH_DENOISER})
-    find_package(Torch QUIET)
-endif()
-if ((${BUILD_PYTORCH_MODULE} OR ${BUILD_KPN_MODULE} OR ${SUPPORT_PYTORCH_DENOISER}) AND NOT Torch_FOUND)
-    MESSAGE(STATUS "The PyTorch module or denoiser build was enabled, but PyTorch couldn't be found. Disabling PyTorch support.")
-endif()
-
-
 if ((UNIX OR MSYS) AND (NOT APPLE OR NOT VCPKG_TOOLCHAIN))
     find_package(PkgConfig REQUIRED)
 endif()
@@ -113,7 +105,34 @@ endif()
 
 get_target_property(SGL_INTERFACE_COMPILE_DEFINITIONS sgl INTERFACE_COMPILE_DEFINITIONS)
 if ("SUPPORT_VULKAN" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
-	set(SUPPORT_VULKAN ON)
+    set(SUPPORT_VULKAN ON)
+endif()
+
+if (${BUILD_PYTORCH_MODULE} OR ${BUILD_KPN_MODULE} OR ${SUPPORT_PYTORCH_DENOISER})
+    if ("SUPPORT_CUDA_INTEROP" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
+        if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
+            # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
+            find_package(CUDA)
+        else()
+            # https://cmake.org/cmake/help/git-stage/module/FindCUDAToolkit.html
+            find_package(CUDAToolkit)
+        endif()
+    else()
+        MESSAGE(STATUS "sgl was not built with CUDA interoperability support. Disabling PyTorch module CUDA support.")
+    endif()
+
+    if(CUDAToolkit_FOUND OR CUDA_FOUND)
+        #find_package(CUDNN)
+        #if(CUDNN_FOUND)
+        #    set(CAFFE2_USE_CUDNN 1)
+        #endif()
+        set(CAFFE2_USE_CUDNN 1)
+    endif()
+
+    find_package(Torch)
+endif()
+if ((${BUILD_PYTORCH_MODULE} OR ${BUILD_KPN_MODULE} OR ${SUPPORT_PYTORCH_DENOISER}) AND NOT Torch_FOUND)
+    MESSAGE(STATUS "The PyTorch module or denoiser build was enabled, but PyTorch couldn't be found. Disabling PyTorch support.")
 endif()
 
 if ("SUPPORT_CUDA_INTEROP" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
@@ -236,17 +255,6 @@ endif()
 
 if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
     set(PYTORCH_MODULE_ENABLED TRUE)
-    if ("SUPPORT_CUDA_INTEROP" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
-        if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
-            # https://cmake.org/cmake/help/git-stage/module/FindCUDA.html
-            find_package(CUDA QUIET)
-        else()
-            # https://cmake.org/cmake/help/git-stage/module/FindCUDAToolkit.html
-            find_package(CUDAToolkit QUIET)
-        endif()
-    else()
-        MESSAGE(STATUS "sgl was not built with CUDA interoperability support. Disabling PyTorch module CUDA support.")
-    endif()
 
     if(CUDAToolkit_FOUND OR CUDA_FOUND)
         add_library(vpt SHARED ${PYTORCH_MODULE_SOURCES} ${PYTORCH_MODULE_SOURCES_CUDA} ${VPT_SOURCES} ${SHADER_FILES})

@@ -491,7 +491,10 @@ void OptixVptDenoiser::runOptixDenoiser() {
 #endif
 
     OptixDenoiserParams params{};
-#if OPTIX_VERSION >= 70500
+#if OPTIX_VERSION >= 80000
+    params.denoiseAlpha = denoiseAlpha ? OPTIX_DENOISER_ALPHA_MODE_COPY : OPTIX_DENOISER_ALPHA_MODE_DENOISE;
+#elif OPTIX_VERSION >= 70500
+    // OPTIX_DENOISER_ALPHA_MODE_ALPHA_AS_AOV or OPTIX_DENOISER_ALPHA_MODE_FULL_DENOISE_PASS?
     params.denoiseAlpha = denoiseAlpha ? OPTIX_DENOISER_ALPHA_MODE_COPY : OPTIX_DENOISER_ALPHA_MODE_ALPHA_AS_AOV;
 #else
     params.denoiseAlpha = denoiseAlpha;
