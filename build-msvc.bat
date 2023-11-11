@@ -25,23 +25,68 @@
 :: OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 @echo off
+setlocal
 pushd %~dp0
 
-set debug=true
+set VSLANG=1033
+set run_program=true
+set debug=false
 set build_dir=".build"
 set destination_dir="Shipping"
-
+set vcpkg_triplet="x64-windows"
 :: Leave empty to let cmake try to find the correct paths
 set optix_install_dir=""
+
+:loop
+IF NOT "%1"=="" (
+    IF "%1"=="--do-not-run" (
+        SET run_program=false
+    )
+    IF "%1"=="--debug" (
+        SET debug=true
+    )
+    IF "%1"=="--vcpkg-triplet" (
+        SET vcpkg_triplet=%2
+        SHIFT
+    )
+    SHIFT
+    GOTO :loop
+)
 
 where cmake >NUL 2>&1 || echo cmake was not found but is required to build the program && exit /b 1
 
 :: Creates a string with, e.g., -G "Visual Studio 17 2022".
 :: Needs to be run from a Visual Studio developer PowerShell or command prompt.
-set VCINSTALLDIR_ESC=%VCINSTALLDIR:\=\\%
-set "x=%VCINSTALLDIR_ESC:Microsoft Visual Studio\\=" & set "VsPathEnd=%"
-set VsYear=%VsPathEnd:~0,4%
-set cmake_generator=-G "Visual Studio %VisualStudioVersion:~0,2% %VsYear%"
+if defined VCINSTALLDIR (
+    set VCINSTALLDIR_ESC=%VCINSTALLDIR:\=\\%
+)
+if defined VCINSTALLDIR (
+    set "x=%VCINSTALLDIR_ESC:Microsoft Visual Studio\\=" & set "VsPathEnd=%"
+)
+if defined VCINSTALLDIR (
+    set cmake_generator=-G "Visual Studio %VisualStudioVersion:~0,2% %VsPathEnd:~0,4%"
+)
+if not defined VCINSTALLDIR (
+    set cmake_generator=
+)
+
+IF "%VULKAN_SDK%"=="" (
+  for /D %%F in (C:\VulkanSDK\*) do (
+    set VULKAN_SDK=%%F
+    goto vulkan_finished
+  )
+)
+:vulkan_finished
+
+
+set third_party_dir=%~dp0/third_party
+set cmake_args=-DCMAKE_TOOLCHAIN_FILE="third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
+               -DVCPKG_TARGET_TRIPLET=%vcpkg_triplet% ^
+               -DCMAKE_CXX_FLAGS="/MP" ^
+               -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/"
+
+set cmake_args_general=-DCMAKE_TOOLCHAIN_FILE="%third_party_dir%/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
+               -DVCPKG_TARGET_TRIPLET=%vcpkg_triplet%
 
 if not exist .\third_party\ mkdir .\third_party\
 pushd third_party
@@ -52,7 +97,7 @@ if not exist .\vcpkg (
    echo ------------------------
    git clone --depth 1 https://github.com/Microsoft/vcpkg.git || exit /b 1
    call vcpkg\bootstrap-vcpkg.bat -disableMetrics             || exit /b 1
-   vcpkg\vcpkg install --triplet=x64-windows                  || exit /b 1
+   vcpkg\vcpkg install --triplet=%vcpkg_triplet%              || exit /b 1
 )
 
 if not exist .\sgl (
@@ -69,16 +114,20 @@ if not exist .\sgl\install (
    mkdir sgl\.build 2> NUL
    pushd sgl\.build
 
-   cmake .. %cmake_generator% ^
-            -DCMAKE_TOOLCHAIN_FILE=../../vcpkg/scripts/buildsystems/vcpkg.cmake ^
-            -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_CXX_FLAGS="/MP" || exit /b 1
-   cmake --build . --config Debug   -- /m            || exit /b 1
-   cmake --build . --config Debug   --target install || exit /b 1
-   cmake --build . --config Release -- /m            || exit /b 1
-   cmake --build . --config Release --target install || exit /b 1
+   cmake .. %cmake_generator% %cmake_args_general% ^
+            -DCMAKE_INSTALL_PREFIX="%third_party_dir%/sgl/install" -DCMAKE_CXX_FLAGS="/MP" || exit /b 1
+   if x%vcpkg_triplet:release=%==x%vcpkg_triplet% (
+      cmake --build . --config Debug   -- /m            || exit /b 1
+      cmake --build . --config Debug   --target install || exit /b 1
+   )
+   if x%vcpkg_triplet:debug=%==x%vcpkg_triplet% (
+      cmake --build . --config Release -- /m            || exit /b 1
+      cmake --build . --config Release --target install || exit /b 1
+   )
 
    popd
 )
+
 
 popd
 
@@ -100,10 +149,8 @@ echo ------------------------
 echo       generating
 echo ------------------------
 
-set cmake_args=-DCMAKE_TOOLCHAIN_FILE="third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
-               -DCMAKE_CXX_FLAGS="/MP" -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/"
 if not %optix_install_dir% == "" (
-   echo using custom optix path
+   echo Using custom OptiX path
    set cmake_args=%cmake_args% -DOptiX_INSTALL_DIR=%optix_install_dir%
 )
 
@@ -121,14 +168,14 @@ if %debug% == true (
    if not exist %destination_dir%\*.pdb (
       del %destination_dir%\*.dll
    )
-   robocopy %build_dir%\Debug\             %destination_dir%  >NUL
-   robocopy third_party\sgl\.build\Debug   %destination_dir% *.dll *.pdb >NUL
+   robocopy %build_dir%\Debug\  %destination_dir%  >NUL
+   robocopy third_party\sgl\.build\Debug %destination_dir% *.dll *.pdb >NUL
 ) else (
    if exist %destination_dir%\*.pdb (
       del %destination_dir%\*.dll
       del %destination_dir%\*.pdb
    )
-   robocopy %build_dir%\Release\           %destination_dir% >NUL
+   robocopy %build_dir%\Release\ %destination_dir% >NUL
    robocopy third_party\sgl\.build\Release %destination_dir% *.dll >NUL
 )
 
@@ -136,4 +183,9 @@ echo.
 echo All done!
 
 pushd %destination_dir%
-CloudRendering.exe
+
+if %run_program% == true (
+   CloudRendering.exe
+) else (
+   echo Build finished.
+)
