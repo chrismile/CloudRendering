@@ -157,7 +157,9 @@ private:
     sgl::vk::BufferPtr outputImageBufferVk;
     sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputImageBufferCu;
     // Synchronization primitives.
+    const uint32_t maxNumFramesInFlight = 32;
     std::vector<sgl::vk::CommandBufferPtr> commandBuffers;
+    std::vector<sgl::vk::FencePtr> frameFences;
     sgl::vk::SemaphoreVkCudaDriverApiInteropPtr renderReadySemaphore;
     sgl::vk::SemaphoreVkCudaDriverApiInteropPtr renderFinishedSemaphore;
     std::vector<sgl::vk::SemaphorePtr> interFrameSemaphores;

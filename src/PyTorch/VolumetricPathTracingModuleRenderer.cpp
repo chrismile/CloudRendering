@@ -278,9 +278,10 @@ void VolumetricPathTracingModuleRenderer::createCommandStructures(uint32_t numFr
     interFrameSemaphores = {};
     timelineValue = 0;
 
-    // TODO: Use swapchain-like structure where we have N images in flight.
-    size_t numImages = numFrames;
+    // Use swapchain-like structure where we have N images in flight.
+    uint32_t numImages = std::min(numFrames, maxNumFramesInFlight);
     commandBuffers.clear();
+    frameFences.clear();
     sgl::vk::CommandPoolType commandPoolType;
     commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 #ifdef USE_TIMELINE_SEMAPHORES
@@ -294,10 +295,10 @@ void VolumetricPathTracingModuleRenderer::createCommandStructures(uint32_t numFr
     renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
     denoiseFinishedSemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(device);
 #endif
-    for (size_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
+    for (uint32_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
         commandBuffers.push_back(std::make_shared<sgl::vk::CommandBuffer>(device, commandPoolType));
     }
-    for (size_t frameIdx = 0; frameIdx < numImages - 1; frameIdx++) {
+    for (uint32_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
 #ifdef USE_TIMELINE_SEMAPHORES
         interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(
                 device, 0, VK_SEMAPHORE_TYPE_TIMELINE,
@@ -305,6 +306,7 @@ void VolumetricPathTracingModuleRenderer::createCommandStructures(uint32_t numFr
 #else
         interFrameSemaphores.push_back(std::make_shared<sgl::vk::Semaphore>(device));
 #endif
+        frameFences.push_back(std::make_shared<sgl::vk::Fence>(device, VK_FENCE_CREATE_SIGNALED_BIT));
     }
 
     //std::cout << "Done creating new command structures "<<numFrames<<std::endl;
@@ -404,8 +406,9 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
                 "sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() returned false.", false);
     }
 
-    if (size_t(numFrames) > commandBuffers.size() || size_t(numFrames) > interFrameSemaphores.size() + 1) {
-        this->createCommandStructures(numFrames);
+    uint32_t numImages = std::min(numFrames, maxNumFramesInFlight);
+    if (size_t(numImages) > commandBuffers.size()) {
+        this->createCommandStructures(numImages);
 
         //sgl::Logfile::get()->throwError(
         //        "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: Frame data was not allocated.",
@@ -415,9 +418,28 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
     timelineValue++;
+    uint64_t waitValue = timelineValue;
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderReadySemaphore->signalSemaphoreCuda(stream, timelineValue);
+#else
+    renderReadySemaphores->signalSemaphoreCuda(stream);
+#endif
 
     for (uint32_t frameIndex = 0; frameIndex < numFrames; frameIndex++) {
-        sgl::vk::CommandBufferPtr commandBuffer = commandBuffers.at(frameIndex);
+        const uint32_t imageIndex = frameIndex % maxNumFramesInFlight;
+        auto& fence = frameFences.at(imageIndex);
+        if (frameIndex == maxNumFramesInFlight) {
+            sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamSynchronize(stream);
+        }
+        if (frameIndex != 0 && imageIndex == 0) {
+            waitValue = timelineValue;
+            timelineValue++;
+        }
+        fence->wait();
+        fence->reset();
+
+        sgl::vk::CommandBufferPtr commandBuffer = commandBuffers.at(imageIndex);
         sgl::vk::SemaphorePtr waitSemaphore;
         sgl::vk::SemaphorePtr signalSemaphore;
         VkPipelineStageFlags waitStage;
@@ -425,20 +447,21 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
             waitSemaphore = renderReadySemaphore;
             waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         } else {
-            waitSemaphore = interFrameSemaphores.at(frameIndex - 1);
+            waitSemaphore = interFrameSemaphores.at((imageIndex + maxNumFramesInFlight - 1) % maxNumFramesInFlight);
             waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
         }
         if (frameIndex == numFrames - 1) {
             signalSemaphore = renderFinishedSemaphore;
         } else {
-            signalSemaphore = interFrameSemaphores.at(frameIndex);
+            signalSemaphore = interFrameSemaphores.at(imageIndex);
         }
 #ifdef USE_TIMELINE_SEMAPHORES
-        waitSemaphore->setWaitSemaphoreValue(timelineValue);
+        waitSemaphore->setWaitSemaphoreValue(waitValue);
         signalSemaphore->setSignalSemaphoreValue(timelineValue);
 #endif
         commandBuffer->pushWaitSemaphore(waitSemaphore, waitStage);
         commandBuffer->pushSignalSemaphore(signalSemaphore);
+        commandBuffer->setFence(fence);
 
         renderer->pushCommandBuffer(commandBuffer);
         renderer->beginCommandBuffer();
@@ -455,14 +478,9 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
         }
 
         renderer->endCommandBuffer();
-    }
-    renderer->submitToQueue();
 
-#ifdef USE_TIMELINE_SEMAPHORES
-    renderReadySemaphore->signalSemaphoreCuda(stream, timelineValue);
-#else
-    renderReadySemaphores->signalSemaphoreCuda(stream);
-#endif
+        renderer->submitToQueue();
+    }
 
 #ifdef USE_TIMELINE_SEMAPHORES
     renderFinishedSemaphore->waitSemaphoreCuda(stream, timelineValue);
