@@ -53,7 +53,11 @@ public:
     explicit VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer);
     ~VolumetricPathTracingModuleRenderer();
 
+    inline sgl::TransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
+    VolumetricPathTracingPass* getVptPass();
+    const CloudDataPtr& getCloudData();
     void setCloudData(const CloudDataPtr& cloudData);
     void setEmissionData(const CloudDataPtr& cloudData);
 
@@ -70,6 +74,9 @@ public:
     void setEmissionStrength(double emissionStrength);
     void setUseEmission(bool useEmission);
     void flipYZ(bool flip);
+
+    const glm::vec3& getCameraPosition();
+    const sgl::CameraPtr& getCamera();
 
     void setCameraPosition(const glm::vec3& cameraPosition);
     void setCameraTarget(const glm::vec3& cameraTarget);
@@ -125,6 +132,7 @@ public:
 #endif
 
 private:
+    sgl::TransferFunctionWindow* transferFunctionWindow;
     sgl::CameraPtr camera;
     glm::vec3 cameraPosition = glm::vec3(0,0,0);
     glm::vec3 cameraTarget = glm::vec3(0,0,0);

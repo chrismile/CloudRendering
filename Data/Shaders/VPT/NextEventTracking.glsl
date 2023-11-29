@@ -24,11 +24,7 @@
 
 // Pathtracing with Delta tracking and Spectral tracking.
 #if defined(USE_NEXT_EVENT_TRACKING) || defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
-float calculateTransmittance(vec3 x, vec3 w
-#ifdef USE_NANOVDB
-        , pnanovdb_readaccessor_t accessor
-#endif
-) {
+float calculateTransmittance(vec3 x, vec3 w) {
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
@@ -66,18 +62,10 @@ float calculateTransmittance(vec3 x, vec3 w
             x += w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-#ifdef USE_NANOVDB
-            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
-#else
             vec4 densityEmission = sampleCloudDensityEmission(x);
-#endif
             float density = densityEmission.a;
 #else
-#ifdef USE_NANOVDB
-            float density = sampleCloud(accessor, x);
-#else
             float density = sampleCloud(x);
-#endif
 #endif
 
             float sigma_a = PA * density;
@@ -108,10 +96,6 @@ float calculateTransmittance(vec3 x, vec3 w
  */
 #ifdef USE_NEXT_EVENT_TRACKING_SPECTRAL
 vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
-#ifdef USE_NANOVDB
-    pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
-
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     float majorant = maxComponent(parameters.extinction);
@@ -147,11 +131,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
             float PA = maxComponent(absorptionAlbedo * parameters.extinction);
             float PS = maxComponent(scatteringAlbedo * parameters.extinction);
 #else
-#ifdef USE_NANOVDB
-            float density = sampleCloud(accessor, x);
-#else
             float density = sampleCloud(x);
-#endif
 #endif
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
@@ -234,11 +214,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 
                 weights *= sigma_s / (majorant * Ps);
                 color += bw_nee * min(weights, vec3(100000, 100000, 100000)) *
-#ifdef USE_NANOVDB
-                    calculateTransmittance(x,nee_w, accessor) *
-#else
                     calculateTransmittance(x,nee_w) *
-#endif
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -263,10 +239,6 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
-#ifdef USE_NANOVDB
-    pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
-
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
@@ -274,6 +246,12 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
     float PS = scatteringAlbedo * parameters.extinction.x;
 
     float transmittance = 1.0;
+
+#ifdef USE_ISOSURFACES
+    vec3 weights = vec3(1, 1, 1);
+    float lastScalarSign, currentScalarSign;
+    bool isFirstPoint = true;
+#endif
 
     float bw_phase = 1.;
     vec3 color = vec3(0.);
@@ -291,23 +269,45 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 break;
             }
 
-            x += w * t;
+            vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-#ifdef USE_NANOVDB
-            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
-#else
             vec4 densityEmission = sampleCloudDensityEmission(x);
-#endif
             float density = densityEmission.a;
 #else
-#ifdef USE_NANOVDB
-            float density = sampleCloud(accessor, x);
-#else
-            float density = sampleCloud(x);
-#endif
+            float density = sampleCloud(xNew);
 #endif
 
+#ifdef USE_ISOSURFACES
+#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+            float scalarValue = density;
+#else
+            float scalarValue = sampleCloudDirect(xNew);
+#endif
+            currentScalarSign = sign(scalarValue - parameters.isoValue);
+            if (isFirstPoint) {
+                isFirstPoint = false;
+                lastScalarSign = currentScalarSign;
+            }
+
+            if (lastScalarSign != currentScalarSign) {
+                vec3 isosurfaceHitPoint = xNew;
+                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
+                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
+                weights *= color;
+                x = isosurfaceHitPoint;
+                x += w * 1e-4;
+                isFirstPoint = true;
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                    x += w * tMin;
+                    d = tMax - tMin;
+                }
+                continue;
+            }
+#endif
+
+            x = xNew;
+            
             float sigma_a = PA * density;
             float sigma_s = PS * density;
             float sigma_n = majorant - parameters.extinction.x * density;
@@ -333,10 +333,18 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 }
 #ifdef USE_EMISSION
                 vec3 emission = sampleEmission(x);
+#ifdef USE_ISOSURFACES
+                return color + weights * emission;
+#else
                 return color + emission;
+#endif
 #else
 #ifdef USE_TRANSFER_FUNCTION
+#ifdef USE_ISOSURFACES
+                return weights * parameters.emissionStrength * densityEmission.rgb;
+#else
                 return parameters.emissionStrength * densityEmission.rgb;
+#endif
 #endif
                 return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
 #endif
@@ -374,13 +382,13 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
                 float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
-                color += bw_nee * transmittance *
-#ifdef USE_NANOVDB
-                    calculateTransmittance(x,nee_w, accessor) *
-#else
+                vec3 colorNew = bw_nee * transmittance *
                     calculateTransmittance(x,nee_w) *
-#endif
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+#ifdef USE_ISOSURFACES
+                colorNew *= weights;
+#endif
+                color += colorNew;
                 //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
 
                 //return color;

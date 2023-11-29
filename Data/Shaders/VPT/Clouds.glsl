@@ -26,6 +26,8 @@
 
 #version 450
 
+//#extension GL_EXT_debug_printf : enable
+
 #include "VptHeader.glsl"
 
 #ifdef USE_NANOVDB
@@ -58,6 +60,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     // Get ray direction and volume entry point
     vec3 x, w;
     createCameraRay(screenCoord, x, w);
+
+#ifdef USE_NANOVDB
+    accessor = createAccessor();
+#endif
 
     // Perform a single path and get radiance
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS

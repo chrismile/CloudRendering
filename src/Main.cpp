@@ -58,6 +58,7 @@ int main(int argc, char *argv[]) {
 #else
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
 #endif
+    //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
     ImVector<ImWchar> fontRanges;
     ImFontGlyphRangesBuilder builder;

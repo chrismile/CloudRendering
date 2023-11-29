@@ -31,15 +31,15 @@
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
 vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-#ifdef USE_NANOVDB
-    pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
-
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     float majorant = maxComponent(parameters.extinction);
 
     vec3 weights = vec3(1, 1, 1);
+#ifdef USE_ISOSURFACES
+    float lastScalarSign, currentScalarSign;
+    bool isFirstPoint = true;
+#endif
 
     vec3 absorptionAlbedo = vec3(1, 1, 1) - parameters.scatteringAlbedo;
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
@@ -57,22 +57,44 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 break;
             }
 
-            x += w * t;
+            vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-#ifdef USE_NANOVDB
-            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
-#else
-            vec4 densityEmission = sampleCloudDensityEmission(x);
-#endif
+            vec4 densityEmission = sampleCloudDensityEmission(xNew);
             float density = densityEmission.a;
 #else
-#ifdef USE_NANOVDB
-            float density = sampleCloud(accessor, x);
+            float density = sampleCloud(xNew);
+#endif
+
+#ifdef USE_ISOSURFACES
+#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+            float scalarValue = density;
 #else
-            float density = sampleCloud(x);
+            float scalarValue = sampleCloudDirect(xNew);
 #endif
+            currentScalarSign = sign(scalarValue - parameters.isoValue);
+            if (isFirstPoint) {
+                isFirstPoint = false;
+                lastScalarSign = currentScalarSign;
+            }
+
+            if (lastScalarSign != currentScalarSign) {
+                vec3 isosurfaceHitPoint = xNew;
+                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
+                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
+                weights *= color;
+                x = isosurfaceHitPoint;
+                x += w * 1e-4;
+                isFirstPoint = true;
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                    x += w * tMin;
+                    d = tMax - tMin;
+                }
+                continue;
+            }
 #endif
+
+            x = xNew;
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
             vec3 sigma_s = scatteringAlbedo * parameters.extinction * density;
@@ -167,16 +189,19 @@ vec3 deltaTracking(
 
     firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
-#ifdef USE_NANOVDB
-    pnanovdb_readaccessor_t accessor = createAccessor();
-#endif
-
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
 
+#ifdef USE_ISOSURFACES
+    vec3 weights = vec3(1, 1, 1);
+    float lastScalarSign, currentScalarSign;
+    bool isFirstPoint = true;
+#endif
+
+    int i = 0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
@@ -189,6 +214,11 @@ vec3 deltaTracking(
         float transmittance = 1.0;
 
         while (true) {
+            i++;
+            if (i == 1000) {
+                //debugPrintfEXT("HERE");
+                return vec3(0.0, 1.0, 0.0);
+            }
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
             float absorbance = -log(transmittance);
             if (absorbance > ABSORBANCE_MAX_VALUE) {
@@ -213,31 +243,84 @@ vec3 deltaTracking(
 #endif
             transmittance = 1.0;
 #endif
-            float t = -log(max(0.0000000001, 1 - random()))/majorant;
+            float t = -log(max(0.0000000001, 1 - random())) / majorant;
 
             if (t > d) {
                 break;
             }
 
-            x += w * t;
+            vec3 xNew = x + w * t;
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
             depth += t;
 #endif
 
 #ifdef USE_TRANSFER_FUNCTION
-#ifdef USE_NANOVDB
-            vec4 densityEmission = sampleCloudDensityEmission(accessor, x);
-#else
-            vec4 densityEmission = sampleCloudDensityEmission(x);
-#endif
+            vec4 densityEmission = sampleCloudDensityEmission(xNew);
             float density = densityEmission.a;
 #else
-#ifdef USE_NANOVDB
-            float density = sampleCloud(accessor, x);
-#else
-            float density = sampleCloud(x);
+            float density = sampleCloud(xNew);
 #endif
+
+#ifdef USE_ISOSURFACES
+//#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+//            float scalarValue = density;
+//#else
+//            float scalarValue = sampleCloudDirect(xNew);
+//#endif
+            const int isoSubdivs = 2;
+            bool foundHit = false;
+            for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
+                vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
+                vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
+                float scalarValue = sampleCloudDirect(x1);
+
+                currentScalarSign = sign(scalarValue - parameters.isoValue);
+                if (isFirstPoint) {
+                    isFirstPoint = false;
+                    lastScalarSign = currentScalarSign;
+                }
+
+                if (lastScalarSign != currentScalarSign) {
+                    refineIsoSurfaceHit(x1, x0, currentScalarSign);
+                    x = x1;
+                    vec3 color = getIsoSurfaceHit(x, w);
+                    weights *= color;
+                    x += w * 1e-4;
+                    isFirstPoint = true;
+                    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                        x += w * tMin;
+                        d = tMax - tMin;
+                    }
+                    foundHit = true;
+                    break;
+                }
+            }
+            if (foundHit) {
+                continue;
+            }
+            /*currentScalarSign = sign(scalarValue - parameters.isoValue);
+            if (isFirstPoint) {
+                isFirstPoint = false;
+                lastScalarSign = currentScalarSign;
+            }
+
+            if (lastScalarSign != currentScalarSign) {
+                vec3 isosurfaceHitPoint = xNew;
+                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
+                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
+                weights *= color;
+                x = isosurfaceHitPoint;
+                x += w * 1e-4;
+                isFirstPoint = true;
+                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                    x += w * tMin;
+                    d = tMax - tMin;
+                }
+                continue;
+            }*/
 #endif
+
+            x = xNew;
             transmittance *= 1.0 - density;
 
             float sigma_a = PA * density;
@@ -265,14 +348,22 @@ vec3 deltaTracking(
 #endif
 #ifdef USE_EMISSION
                 L_e += sampleEmission(x);
+#ifdef USE_ISOSURFACES
+                return weights * emission;
+#else
                 return emission;
+#endif
 #endif
 #ifdef USE_TRANSFER_FUNCTION
                 L_e += parameters.emissionStrength * densityEmission.rgb;
                 //return weights * sigma_a / (majorant * Pa) * L_e;
 #endif
 #if defined(USE_EMISSION) || defined(USE_TRANSFER_FUNCTION)
+#ifdef USE_ISOSURFACES
+                return weights * L_e;
+#else
                 return L_e;
+#endif
 #else
                 return vec3(0); // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
 #endif
@@ -309,6 +400,10 @@ vec3 deltaTracking(
         }
     }
 
+#ifdef USE_ISOSURFACES
+    return weights * (sampleSkybox(w) + sampleLight(w));
+#else
     return sampleSkybox(w) + sampleLight(w);
+#endif
 }
 #endif

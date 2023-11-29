@@ -475,66 +475,47 @@ vec3 sampleEmission(in vec3 pos){
 #endif
 
 #ifdef USE_TRANSFER_FUNCTION
-vec4 sampleCloudColorAndDensity(
-#ifdef USE_NANOVDB
-        pnanovdb_readaccessor_t accessor,
-#endif
-        in vec3 pos) {
+vec4 sampleCloudColorAndDensity(in vec3 pos) {
     // Idea: Returns (color.rgb, density).
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
     coord = coord.xzy;
 #endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    float densityRaw = sampleCloudRaw(
-#ifdef USE_NANOVDB
-            accessor,
-#endif
-            coord);
+    float densityRaw = sampleCloudRaw(coord);
     //return densityRaw;
     return texture(transferFunctionTexture, densityRaw);
 }
 #endif
 
 #ifdef USE_TRANSFER_FUNCTION
-float sampleCloud(
-#ifdef USE_NANOVDB
-        pnanovdb_readaccessor_t accessor,
-#endif
-        in vec3 pos) {
-    // Idea: Returns (color.rgb, density).
+float sampleCloud(in vec3 pos) {
+    // Idea: Returns density.
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
     coord = coord.xzy;
 #endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    float densityRaw = sampleCloudRaw(
-#ifdef USE_NANOVDB
-            accessor,
-#endif
-            pos);
+    float densityRaw = sampleCloudRaw(coord);
     return texture(transferFunctionTexture, densityRaw).a;
 }
-vec4 sampleCloudDensityEmission(
-#ifdef USE_NANOVDB
-        pnanovdb_readaccessor_t accessor,
-#endif
-        in vec3 pos) {
+vec4 sampleCloudDensityEmission(in vec3 pos) {
     // Idea: Returns (color.rgb, density).
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    float densityRaw = sampleCloudRaw(
-#ifdef USE_NANOVDB
-            accessor,
-#endif
-            coord);
+    float densityRaw = sampleCloudRaw(coord);
     return texture(transferFunctionTexture, densityRaw);
 }
-#else
-float sampleCloud(
-#ifdef USE_NANOVDB
-        pnanovdb_readaccessor_t accessor,
+float sampleCloudDirect(in vec3 pos) {
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
 #endif
-        in vec3 pos) {
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    float densityRaw = sampleCloudRaw(coord);
+    return densityRaw;
+}
+#else
+float sampleCloud(in vec3 pos) {
     // Transform world position to density grid position.
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
@@ -542,12 +523,9 @@ float sampleCloud(
 #endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
 
-    return sampleCloudRaw(
-#ifdef USE_NANOVDB
-            accessor,
-#endif
-            coord);// + parameters.extinction.g / parameters.extinction.r * .01;
+    return sampleCloudRaw(coord);// + parameters.extinction.g / parameters.extinction.r * .01;
 }
+#define sampleCloudDirect sampleCloud
 #endif
 
 
@@ -607,3 +585,140 @@ float maxComponent(vec3 v) {
 float avgComponent(vec3 v) {
     return (v.x + v.y + v.z) / 3.0;
 }
+
+
+#ifdef USE_ISOSURFACES
+#include "RayTracingUtilities.glsl"
+
+#define M_PI 3.14159265358979323846
+vec3 computeGradient(vec3 texCoords) {
+#ifdef DIFFERENCES_NEIGHBOR
+    const float dx = 1.0;
+    const float dy = 1.0;
+    const float dz = 1.0;
+    float gradX =
+            (textureOffset(gridImage, texCoords, ivec3(-1, 0, 0)).r
+            - textureOffset(gridImage, texCoords, ivec3(1, 0, 0)).r) * 0.5 / dx;
+    float gradY =
+            (textureOffset(gridImage, texCoords, ivec3(0, -1, 0)).r
+            - textureOffset(gridImage, texCoords, ivec3(0, 1, 0)).r) * 0.5 / dy;
+    float gradZ =
+            (textureOffset(gridImage, texCoords, ivec3(0, 0, -1)).r
+            - textureOffset(gridImage, texCoords, ivec3(0, 0, 1)).r) * 0.5 / dz;
+#else
+    const float dx = 1e-6;
+    const float dy = 1e-6;
+    const float dz = 1e-6;
+    float gradX =
+            (texture(gridImage, texCoords - vec3(dx, 0.0, 0.0)).r
+            - texture(gridImage, texCoords + vec3(dx, 0.0, 0.0)).r) * 0.5 / dx;
+    float gradY =
+            (texture(gridImage, texCoords - vec3(0.0, dy, 0.0)).r
+            - texture(gridImage, texCoords + vec3(0.0, dy, 0.0)).r) * 0.5 / dy;
+    float gradZ =
+            (texture(gridImage, texCoords - vec3(0.0, 0.0, dz)).r
+            - texture(gridImage, texCoords + vec3(0.0, 0.0, dz)).r) * 0.5 / dz;
+#endif
+
+    vec3 grad = vec3(gradX, gradY, gradZ);
+    float gradLength = length(grad);
+    if (gradLength < 1e-3) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    return grad / gradLength;
+}
+
+const int MAX_NUM_REFINEMENT_STEPS = 8;
+
+void refineIsoSurfaceHit(inout vec3 currentPoint, vec3 lastPoint, float stepSign) {
+    for (int i = 0; i < MAX_NUM_REFINEMENT_STEPS; i++) {
+        vec3 midPoint = (currentPoint + lastPoint) * 0.5;
+        //vec3 texCoordsMidPoint = (midPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+        //float scalarValueMidPoint = texture(scalarField, texCoordsMidPoint).r;
+        float scalarValueMidPoint = sampleCloudDirect(midPoint);
+        if ((scalarValueMidPoint - parameters.isoValue) * stepSign >= 0.0) {
+            currentPoint = midPoint;
+        } else {
+            lastPoint = midPoint;
+        }
+    }
+}
+
+
+/**
+ * Uniformly samples a direction on the upper hemisphere for the surface normal vector n = (0, 0, 1)^T.
+ * For more details see:
+ * https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/2D_Sampling_with_Multidimensional_Transformations
+ * @param xi Two random numbers uniformly sampled in the range [0, 1).
+ */
+vec3 sampleHemisphere(vec2 xi) {
+    // Uniform Hemisphere PDF: 1 / (2 * pi)
+    //float theta = acos(xi.x);
+    float phi = 2.0 * M_PI * xi.y;
+    float r = sqrt(1.0 - xi.x * xi.x);
+    return vec3(cos(phi) * r, sin(phi) * r, xi.x);
+}
+vec2 concentricSampleDisk(vec2 xi) {
+    vec2 xiOffset = 2.0 * xi - vec2(1.0);
+    if (xiOffset.x == 0 && xiOffset.y == 0) {
+        return vec2(0.0);
+    }
+    float theta, r;
+    if (abs(xiOffset.x) > abs(xiOffset.y)) {
+        r = xiOffset.x;
+        theta = M_PI / 4.0 * (xiOffset.y / xiOffset.x);
+    } else {
+        r = xiOffset.y;
+        theta = M_PI / 2.0 - M_PI / 4.0 * (xiOffset.x / xiOffset.y);
+    }
+    return r * vec2(cos(theta), sin(theta));
+}
+vec3 sampleHemisphereCosineWeighted(vec2 xi) {
+    // Cosine Hemisphere PDF: cos(theta) / pi
+    vec2 d = concentricSampleDisk(xi);
+    float z = sqrt(1.0 - d.x * d.x - d.y * d.y);
+    return vec3(d.x, d.y, z);
+}
+
+//#define UNIFORM_SAMPLING
+
+vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
+    vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    vec3 surfaceNormal = computeGradient(texCoords);
+
+    vec3 surfaceTangent;
+    vec3 surfaceBitangent;
+    ComputeDefaultBasis(surfaceNormal, surfaceTangent, surfaceBitangent);
+    mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
+    //mat3 frame = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
+
+#ifdef SURFACE_BRDF_LAMBERTIAN
+    // Lambertian BRDF is: R / pi
+#ifdef UNIFORM_SAMPLING
+    // Sampling PDF: 1/(2pi)
+    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+    vec3 color = parameters.isoSurfaceColor * dot(surfaceNormal, dirOut);
+#else
+    // Sampling PDF: cos(theta) / pi
+    vec3 dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
+    vec3 color = parameters.isoSurfaceColor * 0.5;
+#endif
+#endif
+
+#ifdef SURFACE_BRDF_BLINN_PHONG
+    // http://www.thetenthplanet.de/archives/255
+    const float n = 10.0;
+    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+    vec3 halfwayVector = normalize(-w + dirOut);
+    float rdf = pow(max(dot(surfaceNormal, halfwayVector), 0.0), n);
+    float norm = clamp(
+            (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
+            (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
+    vec3 color = parameters.isoSurfaceColor * (rdf / norm);
+#endif
+
+    w = dirOut;
+    return color;
+}
+#endif

@@ -89,6 +89,20 @@ const char* const SPECTRAL_DELTA_TRACKING_COLLISION_PROBABILITY_NAMES[] = {
         "Max-based", "Avg-based", "Path History Avg-based"
 };
 
+enum class IsosurfaceType {
+    DENSITY, GRADIENT
+};
+const char* const ISOSURFACE_TYPE_NAMES[] = {
+        "Density", "Gradient"
+};
+
+enum class SurfaceBrdf {
+    LAMBERTIAN, BLINN_PHONG
+};
+const char* const SURFACE_BRDF_NAMES[] = {
+        "Lambertian", "Blinn Phong"
+};
+
 class VolumetricPathTracingPass : public sgl::vk::ComputePass {
 public:
     explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera);
@@ -97,6 +111,7 @@ public:
     // Public interface.
     void setOutputImage(sgl::vk::ImageViewPtr& colorImage);
     void recreateSwapchain(uint32_t width, uint32_t height) override;
+    const CloudDataPtr& getCloudData();
     void setCloudData(const CloudDataPtr& data);
     void setEmissionData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
@@ -121,6 +136,13 @@ public:
     void setEmissionStrength(float emissionStrength);
     void setEmissionCap(float emissionCap);
     void flipYZ(bool flip);
+
+    // Isosurfaces.
+    void setUseIsosurfaces(bool _useIsosurfaces);
+    void setIsoValue(float _isoValue);
+    void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
+    void setIsosurfaceType(IsosurfaceType _isosurfaceType);
+    void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -235,6 +257,13 @@ private:
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
 
+    // Isosurface data.
+    bool useIsosurfaces = false;
+    float isoValue = 0.5f;
+    glm::vec3 isoSurfaceColor = glm::vec3(0.8f, 0.8f, 0.8f);
+    IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
+    SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
+
     glm::mat4 previousViewProjMatrix;
 
     // Uniform buffer object storing the camera settings.
@@ -267,6 +296,10 @@ private:
         // For decomposition and residual ratio tracking.
         glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize; int pad9;
+
+        // Isosurfaces.
+        glm::vec3 isoSurfaceColor;
+        float isoValue = 0.5f;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

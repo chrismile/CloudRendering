@@ -332,6 +332,10 @@ void VolumetricPathTracingPass::updateGridSampler() {
             densityFieldTexture->getImageView(), samplerSettings);
 }
 
+const CloudDataPtr& VolumetricPathTracingPass::getCloudData() {
+    return cloudData;
+}
+
 void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     cloudData = data;
     frameInfo.frameCount = 0;
@@ -400,6 +404,55 @@ void VolumetricPathTracingPass::setEmissionCap(float emissionCap){
 
 void VolumetricPathTracingPass::flipYZ(bool flip) {
     this->flipYZCoordinates = flip;
+}
+
+void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
+    if (useIsosurfaces != _useIsosurfaces) {
+        useIsosurfaces = _useIsosurfaces;
+        if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
+            gridInterpolationType = GridInterpolationType::TRILINEAR;
+            updateGridSampler();
+        }
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+
+}
+
+void VolumetricPathTracingPass::setIsoValue(float _isoValue) {
+    if (isoValue != _isoValue) {
+        isoValue = _isoValue;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor) {
+    if (isoSurfaceColor != _isoSurfaceColor) {
+        isoSurfaceColor = _isoSurfaceColor;
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setIsosurfaceType(IsosurfaceType _isosurfaceType) {
+    if (isosurfaceType != _isosurfaceType) {
+        isosurfaceType = _isosurfaceType;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
+    if (surfaceBrdf != _surfaceBrdf) {
+        surfaceBrdf = _surfaceBrdf;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
 }
 
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
@@ -675,6 +728,20 @@ void VolumetricPathTracingPass::loadShader() {
         frameInfo.frameCount = 0;
     }
 
+    if (useIsosurfaces) {
+        customPreprocessorDefines.insert({ "USE_ISOSURFACES", "" });
+        if (surfaceBrdf == SurfaceBrdf::LAMBERTIAN) {
+            customPreprocessorDefines.insert({ "SURFACE_BRDF_LAMBERTIAN", "" });
+        } else if (surfaceBrdf == SurfaceBrdf::BLINN_PHONG) {
+            customPreprocessorDefines.insert({ "SURFACE_BRDF_BLINN_PHONG", "" });
+        }
+        if (isosurfaceType == IsosurfaceType::DENSITY) {
+            customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_DENSITY", "" });
+        } else if (isosurfaceType == IsosurfaceType::GRADIENT) {
+            customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_GRADIENT", "" });
+        }
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -842,6 +909,8 @@ void VolumetricPathTracingPass::_render() {
             uniformData.superVoxelSize = superVoxelGridDecompositionTracking->getSuperVoxelSize();
             uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
         }
+        uniformData.isoSurfaceColor = isoSurfaceColor;
+        uniformData.isoValue = isoValue;
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
 
@@ -1120,7 +1189,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             setDataDirty();
         }
 
-        if (propertyEditor.addCombo(
+        if (!useIsosurfaces && propertyEditor.addCombo(
                 "Grid Interpolation", (int*)&gridInterpolationType,
                 GRID_INTERPOLATION_TYPE_NAMES, IM_ARRAYSIZE(GRID_INTERPOLATION_TYPE_NAMES))) {
             optionChanged = true;
@@ -1236,6 +1305,38 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         }
         if (momentTypeChangedA || momentTypeChangedB) {
             setShaderDirty();
+        }
+
+        if (propertyEditor.addCheckbox("Use Isosurfaces", &useIsosurfaces)) {
+            if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
+                gridInterpolationType = GridInterpolationType::TRILINEAR;
+                updateGridSampler();
+            }
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (useIsosurfaces && propertyEditor.addSliderFloat("Iso Value", &isoValue, 0.0f, 1.0f)) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (useIsosurfaces && propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (useIsosurfaces && propertyEditor.addCombo(
+                "Isosurface Field", (int*)&isosurfaceType,
+                ISOSURFACE_TYPE_NAMES, IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES))) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (useIsosurfaces && propertyEditor.addCombo(
+                "Surface BRDF", (int*)&surfaceBrdf, SURFACE_BRDF_NAMES, IM_ARRAYSIZE(SURFACE_BRDF_NAMES))) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
         }
 
         propertyEditor.endNode();

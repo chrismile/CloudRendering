@@ -32,6 +32,7 @@
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
 #include <Graphics/Vulkan/Image/Image.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
+#include <ImGui/Widgets/TransferFunctionWindow.hpp>
 
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
@@ -46,6 +47,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::cleanup", cleanup);
     m.def("vpt::render_frame", renderFrame);
     m.def("vpt::load_cloud_file", loadCloudFile);
+    m.def("vpt::load_volume_file", loadCloudFile);
     m.def("vpt::load_emission_file", loadEmissionFile);
     m.def("vpt::load_environment_map", loadEnvironmentMap);
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
@@ -53,10 +55,22 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_extinction_base", setExtinctionBase);
     m.def("vpt::set_extinction_scale", setExtinctionScale);
     m.def("vpt::set_vpt_mode", setVPTMode);
+    m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
+    m.def("vpt::set_use_transfer_function", setUseTransferFunction);
+    m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
+    m.def("vpt::get_camera_position", getCameraPosition);
+    m.def("vpt::get_camera_view_matrix", getCameraViewMatrix);
+    m.def("vpt::get_camera_fovy", getCameraFOVy);
     m.def("vpt::set_camera_position", setCameraPosition);
     m.def("vpt::set_camera_target", setCameraTarget);
+    m.def("vpt::overwrite_camera_view_matrix", overwriteCameraViewMatrix);
     m.def("vpt::set_camera_FOVy", setCameraFOVy);
     m.def("vpt::set_feature_map_type", setFeatureMapType);
+    m.def("vpt::set_use_isosurfaces", setUseIsosurfaces);
+    m.def("vpt::set_iso_value", setIsoValue);
+    m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
+    m.def("vpt::set_isosurface_type", setIsosurfaceType);
+    m.def("vpt::set_surface_brdf", setSurfaceBrdf);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::get_feature_map", getFeatureMap);
     m.def("vpt::set_phase_g", setPhaseG);
@@ -64,10 +78,10 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_use_emission", setUseEmission);
     m.def("vpt::set_emission_strength", setEmissionStrength);
     m.def("vpt::set_emission_cap", setEmissionCap);
+    m.def("vpt::get_render_bounding_box", getRenderBoundingBox);
     m.def("vpt::remember_next_bounds", rememberNextBounds);
     m.def("vpt::forget_current_bounds", forgetCurrentBounds);
     m.def("vpt::flip_yz_coordinates", flipYZ);
-
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -325,7 +339,7 @@ void initialize() {
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);
 
         // TODO: Make this configurable.
-        CloudDataPtr cloudData = std::make_shared<CloudData>();
+        CloudDataPtr cloudData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
         cloudData->setNanoVdbGridHandle(nanovdb::createFogVolumeSphere<float>(
                 0.25f, nanovdb::Vec3<float>(0), 0.01f));
         vptRenderer->setCloudData(cloudData);
@@ -349,14 +363,14 @@ void cleanup() {
 
 void loadCloudFile(const std::string& filename) {
     //std::cout << "loading cloud from " << filename << std::endl;
-    CloudDataPtr cloudData = std::make_shared<CloudData>();
+    CloudDataPtr cloudData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
     cloudData->loadFromFile(filename);
     vptRenderer->setCloudData(cloudData);
 }
 
 void loadEmissionFile(const std::string& filename) {
     //std::cout << "loading emission from " << filename << std::endl;
-    CloudDataPtr emissionData = std::make_shared<CloudData>();
+    CloudDataPtr emissionData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
     emissionData->loadFromFile(filename);
     vptRenderer->setEmissionData(emissionData);
 }
@@ -405,9 +419,19 @@ void setExtinctionBase(std::vector<double> extinctionBase) {
     }
 }
 
-void setVPTMode(int64_t mode){
+void setVPTMode(int64_t mode) {
     std::cout << "setVPTMode to " << VPT_MODE_NAMES[mode] << std::endl;
     vptRenderer->setVptMode(VptMode(mode));
+}
+
+void setVPTModeFromName(const std::string& modeName) {
+    for (int mode = 0; mode < IM_ARRAYSIZE(VPT_MODE_NAMES); mode++) {
+        if (modeName == VPT_MODE_NAMES[mode]) {
+            std::cout << "setVPTMode to " << VPT_MODE_NAMES[mode] << std::endl;
+            vptRenderer->setVptMode(VptMode(mode));
+            break;
+        }
+    }
 }
 
 void setFeatureMapType(int64_t type) {
@@ -415,6 +439,69 @@ void setFeatureMapType(int64_t type) {
     vptRenderer->setFeatureMapType(FeatureMapTypeVpt(type));
 }
 
+
+void setUseIsosurfaces(bool _useIsosurfaces) {
+    vptRenderer->getVptPass()->setUseIsosurfaces(_useIsosurfaces);
+}
+
+void setIsoValue(double _isoValue) {
+    vptRenderer->getVptPass()->setIsoValue(float(_isoValue));
+}
+
+void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor) {
+    glm::vec3 color = glm::vec3(0,0,0);
+    if (parseVector3(_isoSurfaceColor, color)) {
+        vptRenderer->getVptPass()->setIsoSurfaceColor(color);
+    }
+}
+
+void setIsosurfaceType(const std::string& _isosurfaceType) {
+    for (int i = 0; i < IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES); i++) {
+        if (_isosurfaceType == ISOSURFACE_TYPE_NAMES[i]) {
+            vptRenderer->getVptPass()->setIsosurfaceType(IsosurfaceType(i));
+            break;
+        }
+    }
+}
+
+void setSurfaceBrdf(const std::string& _surfaceBrdf) {
+    for (int i = 0; i < IM_ARRAYSIZE(SURFACE_BRDF_NAMES); i++) {
+        if (_surfaceBrdf == SURFACE_BRDF_NAMES[i]) {
+            vptRenderer->getVptPass()->setSurfaceBrdf(SurfaceBrdf(i));
+            break;
+        }
+    }
+}
+
+
+void setUseTransferFunction(bool _useTf) {
+    sgl::TransferFunctionWindow* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->setShowWindow(_useTf);
+}
+
+void loadTransferFunctionFile(const std::string& tfFilePath) {
+    sgl::TransferFunctionWindow* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->loadFunctionFromFile(tfFilePath);
+}
+
+
+std::vector<double> getCameraPosition() {
+    auto pos = vptRenderer->getCameraPosition();
+    return { pos.x, pos.y, pos.z };
+}
+
+std::vector<double> getCameraViewMatrix() {
+    std::vector<double> viewMatrixData(16);
+    auto viewMatrix = vptRenderer->getCamera()->getViewMatrix();
+    for (int i = 0; i < 16; i++) {
+        viewMatrixData[i] = viewMatrix[i / 4][i % 4];
+    }
+    return viewMatrixData;
+}
+
+double getCameraFOVy() {
+    return vptRenderer->getCamera()->getFOVy();
+}
 
 void setCameraPosition(std::vector<double> cameraPosition) {
     glm::vec3 vec = glm::vec3(0,0,0);
@@ -430,6 +517,14 @@ void setCameraTarget(std::vector<double> cameraTarget) {
         //std::cout << "setCameraTarget to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
         vptRenderer->setCameraTarget(vec);
     }
+}
+
+void overwriteCameraViewMatrix(std::vector<double> viewMatrixData) {
+    glm::mat4 viewMatrix;
+    for (int i = 0; i < 16; i++) {
+        viewMatrix[i / 4][i % 4] = viewMatrixData[i];
+    }
+    vptRenderer->getCamera()->overwriteViewMatrix(viewMatrix);
 }
 
 void setCameraFOVy(double FOVy){
@@ -461,6 +556,12 @@ void setUseEmission(bool useEmission){
 }
 void flipYZ(bool flip){
     vptRenderer->flipYZ(flip);
+}
+
+
+std::vector<double> getRenderBoundingBox() {
+    const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox();
+    return { aabb.min.x, aabb.max.x, aabb.min.y, aabb.max.y, aabb.min.z, aabb.max.z };
 }
 
 void rememberNextBounds(){

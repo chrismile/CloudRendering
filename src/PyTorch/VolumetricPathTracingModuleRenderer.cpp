@@ -29,6 +29,8 @@
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/imgui.h>
+#include <ImGui/Widgets/TransferFunctionWindow.hpp>
+
 #include "CloudData.hpp"
 
 #include "PathTracer/VolumetricPathTracingPass.hpp"
@@ -59,6 +61,9 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
     camera->resetLookAtLocation();
 
+    transferFunctionWindow = new sgl::TransferFunctionWindow;
+    transferFunctionWindow->setShowWindow(false);
+
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
@@ -74,6 +79,17 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
         cudaStreamSynchronize(stream);
     }
     renderer->getDevice()->waitIdle();
+
+    delete transferFunctionWindow;
+    renderer->getDevice()->waitIdle();
+}
+
+VolumetricPathTracingPass* VolumetricPathTracingModuleRenderer::getVptPass() {
+    return vptPass.get();
+}
+
+const CloudDataPtr& VolumetricPathTracingModuleRenderer::getCloudData() {
+    return vptPass->getCloudData();
 }
 
 void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloudData) {
@@ -144,6 +160,14 @@ void VolumetricPathTracingModuleRenderer::setUseEmission(bool useEmission) {
 
 void VolumetricPathTracingModuleRenderer::flipYZ(bool flip) {
     vptPass->flipYZ(flip);
+}
+
+const glm::vec3& VolumetricPathTracingModuleRenderer::getCameraPosition() {
+    return camera->getPosition();
+}
+
+const sgl::CameraPtr& VolumetricPathTracingModuleRenderer::getCamera() {
+    return camera;
 }
 
 void VolumetricPathTracingModuleRenderer::setCameraPosition(const glm::vec3& cameraPosition) {

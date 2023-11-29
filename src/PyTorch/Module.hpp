@@ -46,12 +46,27 @@ MODULE_OP_API void setExtinctionScale(double extinctionScale);
 MODULE_OP_API void setExtinctionBase(std::vector<double> extinctionBase);
 MODULE_OP_API void setPhaseG(double phaseG);
 
+MODULE_OP_API void setUseTransferFunction(bool _useTf);
+MODULE_OP_API void loadTransferFunctionFile(const std::string& tfFilePath);
+
+MODULE_OP_API std::vector<double> getCameraPosition();
+MODULE_OP_API std::vector<double> getCameraViewMatrix();
+MODULE_OP_API double getCameraFOVy();
+
 MODULE_OP_API void setCameraPosition(std::vector<double> cameraPosition);
 MODULE_OP_API void setCameraTarget(std::vector<double> cameraTarget);
+MODULE_OP_API void overwriteCameraViewMatrix(std::vector<double> viewMatrixData);
 MODULE_OP_API void setCameraFOVy(double FOVy);
 
 MODULE_OP_API void setVPTMode(int64_t mode);
+MODULE_OP_API void setVPTModeFromName(const std::string& modeName);
 MODULE_OP_API void setFeatureMapType(int64_t type);
+
+MODULE_OP_API void setUseIsosurfaces(bool _useIsosurfaces);
+MODULE_OP_API void setIsoValue(double _isoValue);
+MODULE_OP_API void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor);
+MODULE_OP_API void setIsosurfaceType(const std::string& _isosurfaceType);
+MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
 
 MODULE_OP_API void setSeedOffset(int64_t offset);
 
@@ -62,6 +77,7 @@ MODULE_OP_API void setEmissionStrength(double emissionStrength);
 MODULE_OP_API void setUseEmission(bool useEmission);
 MODULE_OP_API void flipYZ(bool flip);
 
+MODULE_OP_API std::vector<double> getRenderBoundingBox();
 MODULE_OP_API void rememberNextBounds();
 MODULE_OP_API void forgetCurrentBounds();
 
