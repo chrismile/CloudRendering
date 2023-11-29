@@ -35,6 +35,10 @@
 #include "PNanoVDB.glsl"
 #endif
 
+#ifdef USE_NANOVDB
+pnanovdb_readaccessor_t accessor;
+#endif
+
 #include "VptUtils.glsl"
 #include "VptMomentUtils.glsl"
 #include "DeltaTracking.glsl"

@@ -373,7 +373,7 @@ pnanovdb_readaccessor_t createEmissionAccessor() {
     return accessor;
 }
 #if defined(GRID_INTERPOLATION_NEAREST)
-float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -383,7 +383,7 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     return pnanovdb_read_float(buf, address);
 }
 #elif defined(GRID_INTERPOLATION_STOCHASTIC)
-float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos);
@@ -393,7 +393,7 @@ float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
     return pnanovdb_read_float(buf, address);
 }
 #elif defined(GRID_INTERPOLATION_TRILINEAR)
-float sampleCloudRaw(pnanovdb_readaccessor_t accessor, in vec3 pos) {
+float sampleCloudRaw(in vec3 pos) {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
     pnanovdb_grid_handle_t gridHandle = pnanovdb_grid_handle_t(pnanovdb_address_null());
     vec3 posIndex = pnanovdb_grid_world_to_indexf(buf, gridHandle, pos) - vec3(0.5);

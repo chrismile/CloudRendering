@@ -142,7 +142,3 @@ layout(binding = 21) uniform sampler1D transferFunctionTexture;
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }
-
-#ifdef USE_NANOVDB
-pnanovdb_readaccessor_t accessor;
-#endif

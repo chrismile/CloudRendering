@@ -341,12 +341,14 @@ elif command -v yum &> /dev/null; then
     if $use_vcpkg; then
         if ! is_installed_rpm "perl" || ! is_installed_rpm "libstdc++-devel" || ! is_installed_rpm "libstdc++-static" \
                 || ! is_installed_rpm "glew-devel" || ! is_installed_rpm "libXext-devel" \
-                || ! is_installed_rpm "vulkan-devel" || ! is_installed_rpm "libshaderc-devel"; then
+                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "vulkan-loader" \
+                || ! is_installed_rpm "vulkan-tools" || ! is_installed_rpm "vulkan-validation-layers" \
+                || ! is_installed_rpm "libshaderc-devel"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
-            sudo yum install -y perl libstdc++-devel libstdc++-static glew-devel libXext-devel vulkan-devel \
-            libshaderc-devel
+            sudo yum install -y perl libstdc++-devel libstdc++-static glew-devel libXext-devel vulkan-headers \
+            vulkan-loader vulkan-tools vulkan-validation-layers libshaderc-devel
         fi
     else
         if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "glm-devel" || ! is_installed_rpm "libarchive-devel" \
