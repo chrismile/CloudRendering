@@ -82,6 +82,8 @@ MODULE_OP_API void rememberNextBounds();
 MODULE_OP_API void forgetCurrentBounds();
 
 MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount);
+MODULE_OP_API void setUseFeatureMaps(std::vector<std::string> featureMapNames);
+MODULE_OP_API torch::Tensor getFeatureMapFromString(torch::Tensor inputTensor, const std::string& featureMap);
 MODULE_OP_API torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t frameCount);
 
 class VolumetricPathTracingModuleRenderer;

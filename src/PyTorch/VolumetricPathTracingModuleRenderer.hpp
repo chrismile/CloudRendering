@@ -68,6 +68,7 @@ public:
     void setExtinctionScale(double extinctionScale);
     void setExtinctionBase(glm::vec3 extinctionBase);
     void setPhaseG(double phaseG);
+    void setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& featureMapSet);
     void setFeatureMapType(FeatureMapTypeVpt type);
 
     void setEmissionCap(double emissionCap);

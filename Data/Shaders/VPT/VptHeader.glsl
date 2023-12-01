@@ -89,9 +89,13 @@ layout (binding = 4) uniform FrameInfo {
 
 layout (binding = 5, rgba32f) uniform image2D accImage;
 
+#ifdef WRITE_POSITION_MAP
 layout (binding = 6, rgba32f) uniform image2D firstX;
+#endif
 
+#ifdef WRITE_FIRST_W_MAP
 layout (binding = 7, rgba32f) uniform image2D firstW;
+#endif
 
 #if !defined(USE_NANOVDB) && (defined(USE_RESIDUAL_RATIO_TRACKING) || defined(USE_DECOMPOSITION_TRACKING))
 layout (binding = 8) uniform sampler3D superVoxelGridImage;
@@ -111,12 +115,29 @@ layout (binding = 12, r32f) uniform image2DArray primaryRayAbsorptionMomentsImag
 layout (binding = 13, r32f) uniform image2DArray scatterRayAbsorptionMomentsImage;
 #endif
 
+#ifdef WRITE_CLOUDONLY_MAP
 layout (binding = 14, rgba32f) uniform image2D cloudOnlyImage;
+#endif
+
+#ifdef WRITE_DEPTH_MAP
 layout (binding = 15, rg32f) uniform image2D depthImage;
+#endif
+
+#ifdef WRITE_DENSITY_MAP
 layout (binding = 16, rg32f) uniform image2D densityImage;
+#endif
+
+#ifdef WRITE_BACKGROUND_MAP
 layout (binding = 17, rg32f) uniform image2D backgroundImage;
+#endif
+
+#ifdef WRITE_REPROJ_UV_MAP
 layout (binding = 18, rg32f) uniform image2D reprojUVImage;
+#endif
+
+#ifdef WRITE_NORMAL_MAP
 layout (binding = 19, rgba32f) uniform image2D normalImage;
+#endif
 
 
 

@@ -142,6 +142,10 @@ void VolumetricPathTracingModuleRenderer::setExtinctionBase(glm::vec3 extinction
     vptPass->setExtinctionBase(extinctionBase);
 }
 
+void VolumetricPathTracingModuleRenderer::setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& featureMapSet) {
+    vptPass->setUseFeatureMaps(featureMapSet);
+}
+
 void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt type) {
     vptPass->setFeatureMapType(type);
 }
@@ -519,7 +523,6 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
 #endif
 
 float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt featureMap) {
-
     sgl::vk::TexturePtr texture = vptPass->getFeatureMapTexture(featureMap);
     
     renderer->beginCommandBuffer();
@@ -569,10 +572,13 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt f
 
 
 float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt featureMap) {
-
     sgl::vk::TexturePtr texture = vptPass->getFeatureMapTexture(featureMap);
     
     cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+    // TODO
+    renderer->getDevice()->waitIdle();
+    cudaStreamSynchronize(stream);
 
     timelineValue++;
 
@@ -620,8 +626,10 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
     renderFinishedSemaphore->waitSemaphoreCuda(stream);
 #endif
 
-    //renderer->getDevice()->waitIdle();
-    //cudaStreamSynchronize(stream);
+    // TODO
+    cudaStreamSynchronize(stream);
+    renderer->getDevice()->waitIdle();
+
     return (float*)outputImageBufferCu->getCudaDevicePtr();
     
 }

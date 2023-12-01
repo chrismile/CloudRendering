@@ -281,6 +281,15 @@ vec3 deltaTracking(
                 }
 
                 if (lastScalarSign != currentScalarSign) {
+                    if (!firstEvent.hasValue) {
+                        firstEvent.x = x;
+                        firstEvent.pdf_x = 0;
+                        firstEvent.w = vec3(0.);
+                        firstEvent.pdf_w = 0;
+                        firstEvent.hasValue = true;
+                        firstEvent.density = parameters.extinction.x;
+                        firstEvent.depth = tMax - d + t;
+                    }
                     refineIsoSurfaceHit(x1, x0, currentScalarSign);
                     x = x1;
                     vec3 color = getIsoSurfaceHit(x, w);

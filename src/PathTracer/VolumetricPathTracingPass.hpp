@@ -25,12 +25,16 @@
 #ifndef CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP
 #define CLOUDRENDERING_VOLUMETRICPATHTRACINGPASS_HPP
 
+#include <unordered_set>
+
 #include <glm/vec3.hpp>
 #include <glm/mat4x4.hpp>
+
 #include <Graphics/Scene/Camera.hpp>
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
 #include <Graphics/Vulkan/Utils/Timer.hpp>
+
 #include "Denoiser/Denoiser.hpp"
 
 namespace sgl {
@@ -59,9 +63,51 @@ const char* const VPT_FEATURE_MAP_NAMES[] = {
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
+struct FeatureMapCorrespondence {
+public:
+    FeatureMapCorrespondence(const std::vector<std::pair<FeatureMapType, FeatureMapTypeVpt>>& correspondences) {
+        for (const auto& correspondence : correspondences) {
+            denoiserToVpt.insert(correspondence);
+            vptToDenoiser.insert(std::make_pair(correspondence.second, correspondence.first));
+        }
+    }
+    [[nodiscard]] FeatureMapTypeVpt getCorrespondenceVpt(FeatureMapType denoiserType) const {
+        auto it = denoiserToVpt.find(denoiserType);
+        if (it == denoiserToVpt.end()) {
+            return FeatureMapTypeVpt::RESULT;
+        }
+        return it->second;
+    }
+    [[nodiscard]] FeatureMapType getCorrespondenceDenoiser(FeatureMapTypeVpt vptType) const {
+        auto it = vptToDenoiser.find(vptType);
+        if (it == vptToDenoiser.end()) {
+            return FeatureMapType::COLOR;
+        }
+        return it->second;
+    }
+
+private:
+    std::map<FeatureMapType, FeatureMapTypeVpt> denoiserToVpt;
+    std::map<FeatureMapTypeVpt, FeatureMapType> vptToDenoiser;
+};
+
+const FeatureMapCorrespondence featureMapCorrespondence({
+        {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
+        {FeatureMapType::ALBEDO, FeatureMapTypeVpt::RESULT},
+        {FeatureMapType::FLOW, FeatureMapTypeVpt::RESULT}, // TODO
+        {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
+        {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
+        {FeatureMapType::CLOUDONLY, FeatureMapTypeVpt::CLOUD_ONLY},
+        {FeatureMapType::DEPTH, FeatureMapTypeVpt::DEPTH},
+        {FeatureMapType::DENSITY, FeatureMapTypeVpt::DENSITY},
+        {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
+        {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
+});
+
 enum class VptMode {
     DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING,
-    NEXT_EVENT_TRACKING, NEXT_EVENT_TRACKING_SPECTRAL
+    NEXT_EVENT_TRACKING, NEXT_EVENT_TRACKING_SPECTRAL,
+    ISOSURFACE_RENDERING
 };
 const char* const VPT_MODE_NAMES[] = {
         "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
@@ -130,6 +176,7 @@ public:
     void setPhaseG(double phaseG);
     void setExtinctionBase(glm::vec3 extinctionBase);
     void setFeatureMapType(FeatureMapTypeVpt type);
+    void setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& featureMapSet);
     void setPreviousViewProjMatrix(glm::mat4 previousViewProjMatrix);
 
     void setUseEmission(bool emission);
@@ -170,6 +217,7 @@ private:
     CloudDataPtr cloudData;
     CloudDataPtr emissionData;
     FeatureMapTypeVpt featureMapType = FeatureMapTypeVpt::RESULT;
+    std::unordered_set<FeatureMapTypeVpt> featureMapSet;
     std::string emissionGridFilenameGui;
 
     void updateVptMode();
@@ -196,6 +244,8 @@ private:
 
     uint32_t lastViewportWidth = 0, lastViewportHeight = 0;
 
+    void recreateFeatureMaps();
+    void checkRecreateFeatureMaps();
     sgl::vk::ImageViewPtr resultImageView;
     sgl::vk::TexturePtr resultImageTexture;
     sgl::vk::TexturePtr resultTexture;
@@ -207,8 +257,8 @@ private:
     sgl::vk::TexturePtr cloudOnlyTexture;
     sgl::vk::TexturePtr depthTexture;
     sgl::vk::TexturePtr densityTexture;
-    sgl::vk::TexturePtr  backgroundTexture;
-    sgl::vk::TexturePtr  reprojUVTexture;
+    sgl::vk::TexturePtr backgroundTexture;
+    sgl::vk::TexturePtr reprojUVTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;

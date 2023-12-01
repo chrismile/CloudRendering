@@ -72,7 +72,9 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_isosurface_type", setIsosurfaceType);
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
     m.def("vpt::set_seed_offset", setSeedOffset);
+    m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
+    m.def("vpt::get_feature_map_from_string", getFeatureMapFromString);
     m.def("vpt::set_phase_g", setPhaseG);
     m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
     m.def("vpt::set_use_emission", setUseEmission);
@@ -120,8 +122,31 @@ torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount) {
     return {};
 }
 
-torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
+void setUseFeatureMaps(std::vector<std::string> featureMapNames) {
+    std::unordered_set<FeatureMapTypeVpt> featureMaps;
+    for (const auto& featureMap : featureMapNames) {
+        for (int i = 0; i < IM_ARRAYSIZE(VPT_FEATURE_MAP_NAMES); i++) {
+            if (featureMap == VPT_FEATURE_MAP_NAMES[i]) {
+                featureMaps.insert(FeatureMapTypeVpt(i));
+                break;
+            }
+        }
+    }
+    vptRenderer->setUseFeatureMaps(featureMaps);
+}
 
+torch::Tensor getFeatureMapFromString(torch::Tensor inputTensor, const std::string& featureMap) {
+    int featureMapIdx = 0;
+    for (int i = 0; i < IM_ARRAYSIZE(VPT_FEATURE_MAP_NAMES); i++) {
+        if (featureMap == VPT_FEATURE_MAP_NAMES[i]) {
+            featureMapIdx = i;
+            break;
+        }
+    }
+    return getFeatureMap(inputTensor, featureMapIdx);
+}
+
+torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
     if (inputTensor.sizes().size() != 3) {
         std::cout << "err" << std::endl;
 

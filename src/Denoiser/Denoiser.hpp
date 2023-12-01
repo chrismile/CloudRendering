@@ -41,6 +41,7 @@ namespace sgl {
 class PropertyEditor;
 }
 
+
 enum class DenoiserType {
     NONE,
     EAW,
@@ -62,19 +63,44 @@ const char* const DENOISER_NAMES[] = {
 #endif
 };
 
+
+// enum type, name, num channels, num channels padded
+#define FEATURE_MAPS                                      \
+    FEATURE_MAP(COLOR,          "Color",            4, 4) \
+    FEATURE_MAP(ALBEDO,         "Albedo",           4, 4) \
+    FEATURE_MAP(FLOW,           "Flow",             2, 2) \
+    FEATURE_MAP(POSITION,       "Position",         3, 4) \
+    FEATURE_MAP(NORMAL,         "Normal",           3, 4) \
+    FEATURE_MAP(CLOUDONLY,      "CloudOnly",        4, 4) \
+    FEATURE_MAP(DEPTH,          "Depth",            2, 2) \
+    FEATURE_MAP(DENSITY,        "Density",          2, 2) \
+    FEATURE_MAP(BACKGROUND,     "Background",       4, 4) \
+    FEATURE_MAP(REPROJ_UV,      "Reproj_UV",        2, 2) \
+    FEATURE_MAP(UNUSED,         "Unused",           1, 1) \
+
 enum class FeatureMapType {
-    COLOR, ALBEDO, FLOW, POSITION, NORMAL, CLOUDONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV
+#define FEATURE_MAP(enum_name, _1, _2, _3) enum_name,
+    FEATURE_MAPS
+#undef FEATURE_MAP
 };
+
 const char* const FEATURE_MAP_NAMES[] = {
-        "Color", "Albedo", "Flow",  "Position", "Normal",
-        "CloudOnly", "Depth", "Density", "Background", "Reproj_UV"
+#define FEATURE_MAP(_1, string_name, _2, _3) string_name,
+        FEATURE_MAPS
+#undef FEATURE_MAP
 };
+
 const uint32_t FEATURE_MAP_NUM_CHANNELS[] = {
-        4, 4, 2, 3, 3, 4, 2, 2, 4, 2
+#define FEATURE_MAP(_1, _2, num_channels, _3) num_channels,
+        FEATURE_MAPS
+#undef FEATURE_MAP
 };
 const uint32_t FEATURE_MAP_NUM_CHANNELS_PADDED[] = {
-        4, 4, 2, 4, 4, 4, 2, 2, 4, 2
+#define FEATURE_MAP(_1, _2, _3, num_channels_padded) num_channels_padded,
+        FEATURE_MAPS
+#undef FEATURE_MAP
 };
+
 
 class Denoiser {
 public:
