@@ -39,6 +39,10 @@
 pnanovdb_readaccessor_t accessor;
 #endif
 
+#ifdef USE_ISOSURFACES
+vec3 cameraPosition;
+#endif
+
 #include "VptUtils.glsl"
 #include "VptMomentUtils.glsl"
 #include "DeltaTracking.glsl"
@@ -46,6 +50,7 @@ pnanovdb_readaccessor_t accessor;
 #include "ResidualRatioTracking.glsl"
 #include "DecompositionTracking.glsl"
 #include "NextEventTracking.glsl"
+#include "IsosurfaceRendering.glsl"
 
 void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     uint frame = frameInfo.frameCount + i;
@@ -64,6 +69,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     // Get ray direction and volume entry point
     vec3 x, w;
     createCameraRay(screenCoord, x, w);
+
+#ifdef USE_ISOSURFACES
+    cameraPosition = x;
+#endif
 
 #ifdef USE_NANOVDB
     accessor = createAccessor();
@@ -93,6 +102,8 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     vec3 result = nextEventTracking(x, w, firstEvent, onlyFirstEvent);
 #elif defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
     vec3 result = nextEventTrackingSpectral(x, w, firstEvent, onlyFirstEvent);
+#elif defined(USE_ISOSURFACE_RENDERING)
+    vec3 result = isosurfaceRendering(x, w, firstEvent);
 #endif
 
     if (!onlyFirstEvent) {

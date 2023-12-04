@@ -590,6 +590,7 @@ float avgComponent(vec3 v) {
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
 
+//#define DIFFERENCES_NEIGHBOR
 #define M_PI 3.14159265358979323846
 vec3 computeGradient(vec3 texCoords) {
 #ifdef DIFFERENCES_NEIGHBOR
@@ -606,9 +607,9 @@ vec3 computeGradient(vec3 texCoords) {
             (textureOffset(gridImage, texCoords, ivec3(0, 0, -1)).r
             - textureOffset(gridImage, texCoords, ivec3(0, 0, 1)).r) * 0.5 / dz;
 #else
-    const float dx = 1e-6;
-    const float dy = 1e-6;
-    const float dz = 1e-6;
+    const float dx = 1e-3;
+    const float dy = 1e-3;
+    const float dz = 1e-3;
     float gradX =
             (texture(gridImage, texCoords - vec3(dx, 0.0, 0.0)).r
             - texture(gridImage, texCoords + vec3(dx, 0.0, 0.0)).r) * 0.5 / dx;
@@ -719,6 +720,23 @@ vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
 #endif
 
     w = dirOut;
+    return color;
+}
+#endif
+
+
+#ifdef USE_ISOSURFACE_RENDERING
+#include "Lighting.glsl"
+
+// Direct illumination
+vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal) {
+    vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    surfaceNormal = computeGradient(texCoords);
+    if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
+        surfaceNormal = -surfaceNormal;
+    }
+    vec3 color = blinnPhongShadingSurface(parameters.isoSurfaceColor, currentPoint, surfaceNormal);
     return color;
 }
 #endif

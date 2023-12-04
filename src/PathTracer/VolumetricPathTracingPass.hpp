@@ -111,8 +111,8 @@ enum class VptMode {
 };
 const char* const VPT_MODE_NAMES[] = {
         "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
-        "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking",
-        "Next Event Tracking (Spectral)"
+        "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking", "Next Event Tracking (Spectral)",
+        "Isosurfaces"
 };
 
 enum class GridInterpolationType {
@@ -310,6 +310,7 @@ private:
     // Isosurface data.
     bool useIsosurfaces = false;
     float isoValue = 0.5f;
+    float isoStepWidth = 0.25f;
     glm::vec3 isoSurfaceColor = glm::vec3(0.8f, 0.8f, 0.8f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
@@ -350,6 +351,7 @@ private:
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;
         float isoValue = 0.5f;
+        float isoStepWidth = 0.25f;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

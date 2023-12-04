@@ -570,6 +570,9 @@ void VolumetricPathTracingPass::flipYZ(bool flip) {
 }
 
 void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
+    if (vptMode == VptMode::ISOSURFACE_RENDERING && !_useIsosurfaces) {
+        _useIsosurfaces = true;
+    }
     if (useIsosurfaces != _useIsosurfaces) {
         useIsosurfaces = _useIsosurfaces;
         if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
@@ -629,6 +632,9 @@ void VolumetricPathTracingPass::onHasMoved() {
 void VolumetricPathTracingPass::updateVptMode() {
     if (accumulationTimer && !reachedTarget) {
         createNewAccumulationTimer = true;
+    }
+    if (vptMode == VptMode::ISOSURFACE_RENDERING) {
+        useIsosurfaces = true;
     }
     if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING && cloudData && !useSparseGrid) {
         superVoxelGridDecompositionTracking = {};
@@ -843,6 +849,8 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING", "" });
     } else if (vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
         customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING_SPECTRAL", "" });
+    } else if (vptMode == VptMode::ISOSURFACE_RENDERING) {
+        customPreprocessorDefines.insert({ "USE_ISOSURFACE_RENDERING", "" });
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });
@@ -1129,6 +1137,7 @@ void VolumetricPathTracingPass::_render() {
         }
         uniformData.isoSurfaceColor = isoSurfaceColor;
         uniformData.isoValue = isoValue;
+        uniformData.isoStepWidth = isoStepWidth;
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
 
@@ -1543,7 +1552,8 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             setShaderDirty();
         }
 
-        if (propertyEditor.addCheckbox("Use Isosurfaces", &useIsosurfaces)) {
+        if (vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox(
+                "Use Isosurfaces", &useIsosurfaces)) {
             if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
                 gridInterpolationType = GridInterpolationType::TRILINEAR;
                 updateGridSampler();
@@ -1558,6 +1568,11 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             frameInfo.frameCount = 0;
         }
         if (useIsosurfaces && propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
+                "Step Width", &isoStepWidth, 0.1f, 1.0f)) {
             reRender = true;
             frameInfo.frameCount = 0;
         }

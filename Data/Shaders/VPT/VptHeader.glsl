@@ -80,6 +80,7 @@ layout (binding = 3) uniform Parameters {
     // Isosurfaces.
     vec3 isoSurfaceColor;
     float isoValue;
+    float isoStepWidth;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {
