@@ -1141,9 +1141,14 @@ void VolumetricPathTracingPass::_render() {
             uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
         }
 
-        auto settings = densityFieldTexture->getImage()->getImageSettings();
-        uniformData.voxelTexelSize =
-                glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
+        if (!useSparseGrid) {
+            auto settings = densityFieldTexture->getImage()->getImageSettings();
+            uniformData.voxelTexelSize =
+                    glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
+        } else {
+            // TODO
+            uniformData.voxelTexelSize = glm::vec3(1e-3);
+        }
 
         uniformData.isoSurfaceColor = isoSurfaceColor;
         uniformData.isoValue = isoValue;
