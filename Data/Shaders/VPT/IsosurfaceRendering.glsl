@@ -52,7 +52,7 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
         vec3 surfaceNormal;
         vec3 color = getIsoSurfaceHitDirect(x, w, surfaceNormal);
         weights *= color;
-        x += surfaceNormal * 1e-4;
+        x += surfaceNormal * 1e-3;
 
         vec3 surfaceTangent;
         vec3 surfaceBitangent;
@@ -67,7 +67,7 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                 x += w * tMin;
                 float d = tMax - tMin;
-                d = max(d, parameters.maxAoDist);
+                d = min(d, parameters.maxAoDist);
 #ifdef USE_AO_DIST
                 vec3 xStart = x;
 #endif

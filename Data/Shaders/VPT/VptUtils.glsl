@@ -590,7 +590,7 @@ float avgComponent(vec3 v) {
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
 
-//#define DIFFERENCES_NEIGHBOR
+#define DIFFERENCES_NEIGHBOR
 #define M_PI 3.14159265358979323846
 vec3 computeGradient(vec3 texCoords) {
 #ifdef DIFFERENCES_NEIGHBOR
@@ -687,6 +687,9 @@ vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
+    if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
+        surfaceNormal = -surfaceNormal;
+    }
 
     vec3 surfaceTangent;
     vec3 surfaceBitangent;
