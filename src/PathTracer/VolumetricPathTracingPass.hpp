@@ -311,6 +311,9 @@ private:
     bool useIsosurfaces = false;
     float isoValue = 0.5f;
     float isoStepWidth = 0.25f;
+    float maxAoDist = 0.05;
+    int numAoSamples = 4;
+    bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.8f, 0.8f, 0.8f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
@@ -348,10 +351,15 @@ private:
         glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize; int pad9;
 
+        glm::vec3 voxelTexelSize;
+        float padding;
+
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;
         float isoValue = 0.5f;
         float isoStepWidth = 0.25f;
+        float maxAoDist = 0.05;
+        int numAoSamples = 4;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

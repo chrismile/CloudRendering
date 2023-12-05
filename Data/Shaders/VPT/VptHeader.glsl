@@ -76,11 +76,14 @@ layout (binding = 3) uniform Parameters {
     ivec3 superVoxelGridSize;
 
     //ivec3 gridResolution;
+    vec3 voxelTexelSize;
 
     // Isosurfaces.
     vec3 isoSurfaceColor;
     float isoValue;
     float isoStepWidth;
+    float maxAoDist;
+    int numAoSamples;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {

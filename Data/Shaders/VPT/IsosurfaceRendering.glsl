@@ -59,17 +59,18 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
         ComputeDefaultBasis(surfaceNormal, surfaceTangent, surfaceBitangent);
         mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
 
-        const int numAoSamples = 4;
-        const float MAX_DIST = 0.05;
         float weight = 1.0;
 
-        for (int i = 0; i < numAoSamples; i++) {
+        for (int i = 0; i < parameters.numAoSamples; i++) {
             w = frame * sampleHemisphere(vec2(random(), random()));
 
             if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                 x += w * tMin;
                 float d = tMax - tMin;
-                d = max(d, MAX_DIST);
+                d = max(d, parameters.maxAoDist);
+#ifdef USE_AO_DIST
+                vec3 xStart = x;
+#endif
                 while (t <= d) {
                     vec3 xNew = x + w * t;
                     float scalarValue = sampleCloudDirect(xNew);
@@ -81,7 +82,12 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                     }
 
                     if (lastScalarSign != currentScalarSign) {
-                        weight -= 1.0 / float(numAoSamples);
+#ifdef USE_AO_DIST
+                        refineIsoSurfaceHit(xNew, x, currentScalarSign);
+                        weight -= (1.0 - length(xNew - xStart) / d) / float(parameters.numAoSamples);
+#else
+                        weight -= 1.0 / float(parameters.numAoSamples);
+#endif
                         break;
                     }
 

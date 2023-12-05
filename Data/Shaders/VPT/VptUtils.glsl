@@ -607,9 +607,9 @@ vec3 computeGradient(vec3 texCoords) {
             (textureOffset(gridImage, texCoords, ivec3(0, 0, -1)).r
             - textureOffset(gridImage, texCoords, ivec3(0, 0, 1)).r) * 0.5 / dz;
 #else
-    const float dx = 1e-3;
-    const float dy = 1e-3;
-    const float dz = 1e-3;
+    const float dx = parameters.voxelTexelSize.x * 0.01;
+    const float dy = parameters.voxelTexelSize.y * 0.01;
+    const float dz = parameters.voxelTexelSize.z * 0.01;
     float gradX =
             (texture(gridImage, texCoords - vec3(dx, 0.0, 0.0)).r
             - texture(gridImage, texCoords + vec3(dx, 0.0, 0.0)).r) * 0.5 / dx;

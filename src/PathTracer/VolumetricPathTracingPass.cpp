@@ -519,6 +519,9 @@ void VolumetricPathTracingPass::setEmissionData(const CloudDataPtr& data) {
 
 void VolumetricPathTracingPass::setVptMode(VptMode vptMode) {
     this->vptMode = vptMode;
+    if (vptMode == VptMode::ISOSURFACE_RENDERING && gridInterpolationType != GridInterpolationType::TRILINEAR) {
+        updateGridSampler();
+    }
     updateVptMode();
     setShaderDirty();
     setDataDirty();
@@ -583,7 +586,6 @@ void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
         reRender = true;
         frameInfo.frameCount = 0;
     }
-
 }
 
 void VolumetricPathTracingPass::setIsoValue(float _isoValue) {
@@ -683,7 +685,7 @@ void VolumetricPathTracingPass::setFeatureMapType(FeatureMapTypeVpt type) {
     if (lastViewportWidth != 0 && lastViewportHeight != 0) {
         checkRecreateFeatureMaps();
     }
-    loadShader();
+    setShaderDirty();
 }
 
 void VolumetricPathTracingPass::setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& _featureMapSet) {
@@ -691,7 +693,7 @@ void VolumetricPathTracingPass::setUseFeatureMaps(const std::unordered_set<Featu
     if (lastViewportWidth != 0 && lastViewportHeight != 0) {
         checkRecreateFeatureMaps();
     }
-    loadShader();
+    setShaderDirty();
 }
 
 
@@ -851,6 +853,9 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_NEXT_EVENT_TRACKING_SPECTRAL", "" });
     } else if (vptMode == VptMode::ISOSURFACE_RENDERING) {
         customPreprocessorDefines.insert({ "USE_ISOSURFACE_RENDERING", "" });
+        if (useAoDist) {
+            customPreprocessorDefines.insert({ "USE_AO_DIST", "" });
+        }
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });
@@ -1135,9 +1140,16 @@ void VolumetricPathTracingPass::_render() {
             uniformData.superVoxelSize = superVoxelGridDecompositionTracking->getSuperVoxelSize();
             uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
         }
+
+        auto settings = densityFieldTexture->getImage()->getImageSettings();
+        uniformData.voxelTexelSize =
+                glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
+
         uniformData.isoSurfaceColor = isoSurfaceColor;
         uniformData.isoValue = isoValue;
         uniformData.isoStepWidth = isoStepWidth;
+        uniformData.maxAoDist = maxAoDist;
+        uniformData.numAoSamples = numAoSamples;
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
 
@@ -1395,6 +1407,10 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 "VPT Mode", (int*)&vptMode, VPT_MODE_NAMES,
                 IM_ARRAYSIZE(VPT_MODE_NAMES))) {
             optionChanged = true;
+            if (vptMode == VptMode::ISOSURFACE_RENDERING && gridInterpolationType != GridInterpolationType::TRILINEAR) {
+                gridInterpolationType = GridInterpolationType::TRILINEAR;
+                updateGridSampler();
+            }
             updateVptMode();
             setShaderDirty();
             setDataDirty();
@@ -1573,6 +1589,21 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         }
         if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
                 "Step Width", &isoStepWidth, 0.1f, 1.0f)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
+                "AO Dist.", &maxAoDist, 0.01f, 0.1f)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
+                "#AO Samples", &numAoSamples, 1, 16)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox("Use AO Dist.", &useAoDist)) {
+            setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
         }
