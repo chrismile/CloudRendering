@@ -25,7 +25,6 @@
 // Pathtracing with Delta tracking and Spectral tracking.
 #if defined(USE_NEXT_EVENT_TRACKING) || defined(USE_NEXT_EVENT_TRACKING_SPECTRAL)
 float calculateTransmittance(vec3 x, vec3 w) {
-
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
@@ -34,6 +33,11 @@ float calculateTransmittance(vec3 x, vec3 w) {
 
     float transmittance = 1.0;
     float rr_factor = 1.;
+
+#ifdef USE_ISOSURFACES
+    float lastScalarSign, currentScalarSign;
+    bool isFirstPoint = true;
+#endif
 
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -59,14 +63,43 @@ float calculateTransmittance(vec3 x, vec3 w) {
                 }
             }*/
 
-            x += w * t;
+            vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-            vec4 densityEmission = sampleCloudDensityEmission(x);
+            vec4 densityEmission = sampleCloudDensityEmission(xNew);
             float density = densityEmission.a;
 #else
-            float density = sampleCloud(x);
+            float density = sampleCloud(xNew);
 #endif
+
+#ifdef USE_ISOSURFACES
+            //#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+            //            float scalarValue = density;
+            //#else
+            //            float scalarValue = sampleCloudDirect(xNew);
+            //#endif
+            const int isoSubdivs = 2;
+            bool foundHit = false;
+            for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
+                vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
+                vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
+                float scalarValue = sampleCloudDirect(x1);
+
+                currentScalarSign = sign(scalarValue - parameters.isoValue);
+                if (isFirstPoint) {
+                    isFirstPoint = false;
+                    lastScalarSign = currentScalarSign;
+                }
+
+                if (lastScalarSign != currentScalarSign) {
+                    refineIsoSurfaceHit(x1, x0, currentScalarSign);
+                    x = x1;
+                    return 0;
+                }
+            }
+#endif
+
+            x = xNew;
 
             float sigma_a = PA * density;
             float sigma_s = PS * density;
@@ -101,6 +134,10 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
     float majorant = maxComponent(parameters.extinction);
 
     vec3 weights = vec3(1, 1, 1);
+#ifdef USE_ISOSURFACES
+    float lastScalarSign, currentScalarSign;
+    bool isFirstPoint = true;
+#endif
 
     vec3 absorptionAlbedo = vec3(1, 1, 1) - parameters.scatteringAlbedo;
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
@@ -110,29 +147,74 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
     vec3 color = vec3(0);
     float bw_phase = 1.;
 
+    int i = 0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
         float d = tMax - tMin;
         while (true) {
+#ifdef USE_ISOSURFACES
+            i++;
+            if (i == 1000) {
+                return vec3(0.0, 1.0, 0.0);
+            }
+#endif
+
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
 
             if (t > d) {
                 break;
             }
 
-            x += w * t;
+            vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-            vec4 scatter_density = sampleCloudColorAndDensity(x);
-            float density = scatter_density.a;
-            scatteringAlbedo = scatter_density.rgb;
+            vec4 densityEmission = sampleCloudDensityEmission(x);
+            float density = densityEmission.a;
+            scatteringAlbedo = densityEmission.rgb;
             absorptionAlbedo = vec3(1) - scatteringAlbedo;
             float PA = maxComponent(absorptionAlbedo * parameters.extinction);
             float PS = maxComponent(scatteringAlbedo * parameters.extinction);
 #else
-            float density = sampleCloud(x);
+            float density = sampleCloud(xNew);
 #endif
+
+#ifdef USE_ISOSURFACES
+            //#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+            //            float scalarValue = density;
+            //#else
+            //            float scalarValue = sampleCloudDirect(xNew);
+            //#endif
+            const int isoSubdivs = 2;
+            bool foundHit = false;
+            for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
+                vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
+                vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
+                float scalarValue = sampleCloudDirect(x1);
+
+                currentScalarSign = sign(scalarValue - parameters.isoValue);
+                if (isFirstPoint) {
+                    isFirstPoint = false;
+                    lastScalarSign = currentScalarSign;
+                }
+
+                if (lastScalarSign != currentScalarSign) {
+                    refineIsoSurfaceHit(x1, x0, currentScalarSign);
+                    x = x1;
+                    vec3 color = getIsoSurfaceHit(x, w);
+                    weights *= color;
+                    x += w * 1e-4;
+                    isFirstPoint = true;
+                    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                        x += w * tMin;
+                        d = tMax - tMin;
+                    }
+                    continue;
+                }
+            }
+#endif
+
+            x = xNew;
 
             vec3 sigma_a = absorptionAlbedo * parameters.extinction * density;
             vec3 sigma_s = scatteringAlbedo * parameters.extinction * density;
@@ -171,11 +253,18 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
                 //return color;
 #ifdef USE_EMISSION
                 vec3 emission = sampleEmission(x);
+#ifdef USE_ISOSURFACES
+                return color + weights * emission;
+#else
                 return color + emission;
+#endif
 #else
 #ifdef USE_TRANSFER_FUNCTION
-                vec4 emission_density = sampleCloud(x);
-                return emission_density.rgb * parameters.emissionStrength;
+#ifdef USE_ISOSURFACES
+                return weights * densityEmission.rgb * parameters.emissionStrength;
+#else
+                return densityEmission.rgb * parameters.emissionStrength;
+#endif
 #endif
                 return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
 #endif
@@ -256,6 +345,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
     float bw_phase = 1.;
     vec3 color = vec3(0.);
 
+    int i = 0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
@@ -263,6 +353,13 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
         float pdf_x = 1;
 
         while (true) {
+#ifdef USE_ISOSURFACES
+            i++;
+            if (i == 1000) {
+                return vec3(0.0, 1.0, 0.0);
+            }
+#endif
+
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
 
             if (t > d) {
@@ -279,29 +376,40 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 #endif
 
 #ifdef USE_ISOSURFACES
-#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
-            float scalarValue = density;
-#else
-            float scalarValue = sampleCloudDirect(xNew);
-#endif
-            currentScalarSign = sign(scalarValue - parameters.isoValue);
-            if (isFirstPoint) {
-                isFirstPoint = false;
-                lastScalarSign = currentScalarSign;
-            }
+//#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
+//            float scalarValue = density;
+//#else
+//            float scalarValue = sampleCloudDirect(xNew);
+//#endif
+            const int isoSubdivs = 2;
+            bool foundHit = false;
+            for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
+                vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
+                vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
+                float scalarValue = sampleCloudDirect(x1);
 
-            if (lastScalarSign != currentScalarSign) {
-                vec3 isosurfaceHitPoint = xNew;
-                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
-                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
-                weights *= color;
-                x = isosurfaceHitPoint;
-                x += w * 1e-4;
-                isFirstPoint = true;
-                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
-                    x += w * tMin;
-                    d = tMax - tMin;
+                currentScalarSign = sign(scalarValue - parameters.isoValue);
+                if (isFirstPoint) {
+                    isFirstPoint = false;
+                    lastScalarSign = currentScalarSign;
                 }
+
+                if (lastScalarSign != currentScalarSign) {
+                    refineIsoSurfaceHit(x1, x0, currentScalarSign);
+                    x = x1;
+                    vec3 color = getIsoSurfaceHit(x, w);
+                    weights *= color;
+                    x += w * 1e-4;
+                    isFirstPoint = true;
+                    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
+                        x += w * tMin;
+                        d = tMax - tMin;
+                    }
+                    foundHit = true;
+                    break;
+                }
+            }
+            if (foundHit) {
                 continue;
             }
 #endif
@@ -341,9 +449,9 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 #else
 #ifdef USE_TRANSFER_FUNCTION
 #ifdef USE_ISOSURFACES
-                return weights * parameters.emissionStrength * densityEmission.rgb;
+                return color + weights * parameters.emissionStrength * densityEmission.rgb;
 #else
-                return parameters.emissionStrength * densityEmission.rgb;
+                return color + parameters.emissionStrength * densityEmission.rgb;
 #endif
 #endif
                 return color; // weights * sigma_a / (majorant * Pa) * L_e; // 0 - No emission
@@ -379,9 +487,10 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                 w = next_w;
                 //transmittance *= pdf_eval / pdf_w;
 
-                bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
+                bw_phase *= pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
                 float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
 
+                // pdf_nee**2  / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase) * pdf_nee_phase**2
                 vec3 colorNew = bw_nee * transmittance *
                     calculateTransmittance(x,nee_w) *
                     (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
@@ -407,7 +516,11 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
     if (!firstEvent.hasValue){
         //color += sampleSkybox(w) + sampleLight(w);
     }
+#ifdef USE_ISOSURFACES
+    return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+#else
     return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    return transmittance * (sampleSkybox(w) + sampleLight(w));
+#endif
+    //return transmittance * (sampleSkybox(w) + sampleLight(w));
 }
 #endif

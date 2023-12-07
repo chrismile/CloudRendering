@@ -46,11 +46,19 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
     float PA = maxComponent(absorptionAlbedo * parameters.extinction);
     float PS = maxComponent(scatteringAlbedo * parameters.extinction);
 
+    int i = 0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         x += w * tMin;
         float d = tMax - tMin;
         while (true) {
+#ifdef USE_ISOSURFACES
+            i++;
+            if (i == 1000) {
+                return vec3(0.0, 1.0, 0.0);
+            }
+#endif
+
             float t = -log(max(0.0000000001, 1 - random()))/majorant;
 
             if (t > d) {
@@ -214,11 +222,12 @@ vec3 deltaTracking(
         float transmittance = 1.0;
 
         while (true) {
+#ifdef USE_ISOSURFACES
             i++;
             if (i == 1000) {
-                //debugPrintfEXT("HERE");
                 return vec3(0.0, 1.0, 0.0);
             }
+#endif
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
             float absorbance = -log(transmittance);
             if (absorbance > ABSORBANCE_MAX_VALUE) {
