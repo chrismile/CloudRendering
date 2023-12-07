@@ -166,6 +166,8 @@ public:
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
+    void setDenoiserType(DenoiserType denoiserType);
+    inline void setIsIntermediatePass(bool _isIntermediatePass) { isIntermediatePass = _isIntermediatePass; }
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
@@ -303,6 +305,7 @@ private:
     void checkResetDenoiserFeatureMaps();
     DenoiserType denoiserType = DenoiserType::EAW;
     bool useDenoiser = true;
+    bool isIntermediatePass = false; //< Whether this rendering pass should not yet use the denoiser.
     bool denoiserChanged = false;
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;

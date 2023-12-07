@@ -627,6 +627,14 @@ void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDial
     this->fileDialogInstance = _fileDialogInstance;
 }
 
+void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
+    if (denoiserType != _denoiserType) {
+        denoiserType = _denoiserType;
+        denoiserChanged = true;
+        reRender = true;
+    }
+}
+
 void VolumetricPathTracingPass::onHasMoved() {
     frameInfo.frameCount = 0;
 }
@@ -1055,7 +1063,7 @@ void VolumetricPathTracingPass::_render() {
     if (createNewAccumulationTimer) {
         accumulationTimer = {};
         accumulationTimer = std::make_shared<sgl::vk::Timer>(renderer);
-        denoiseTimer= std::make_shared<sgl::vk::Timer>(renderer);
+        denoiseTimer = std::make_shared<sgl::vk::Timer>(renderer);
         createNewAccumulationTimer = false;
     }
 
@@ -1221,7 +1229,7 @@ void VolumetricPathTracingPass::_render() {
     timerStopped = false;
 
     if (featureMapType == FeatureMapTypeVpt::RESULT) {
-        if (useDenoiser && denoiser && denoiser->getIsEnabled()) {
+        if (useDenoiser && denoiser && denoiser->getIsEnabled() && !isIntermediatePass) {
             if (!reachedTarget){
                 denoiseTimer->startGPU("denoise");
                 accumulationTimer->startGPU("denoise");

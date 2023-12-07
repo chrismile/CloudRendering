@@ -489,6 +489,8 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 
                 bw_phase *= pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
                 float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
+                //bw_phase *= pdf_w / (pdf_w + pdf_phase_nee);
+                //float bw_nee = pdf_nee / (pdf_nee + pdf_nee_phase);
 
                 // pdf_nee**2  / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase) * pdf_nee_phase**2
                 vec3 colorNew = bw_nee * transmittance *

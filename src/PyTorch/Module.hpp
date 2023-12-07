@@ -60,6 +60,7 @@ MODULE_OP_API void setCameraFOVy(double FOVy);
 
 MODULE_OP_API void setVPTMode(int64_t mode);
 MODULE_OP_API void setVPTModeFromName(const std::string& modeName);
+MODULE_OP_API void setDenoiser(const std::string& denoiserName);
 MODULE_OP_API void setFeatureMapType(int64_t type);
 
 MODULE_OP_API void setUseIsosurfaces(bool _useIsosurfaces);

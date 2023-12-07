@@ -56,6 +56,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_extinction_scale", setExtinctionScale);
     m.def("vpt::set_vpt_mode", setVPTMode);
     m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
+    m.def("vpt::set_denoiser", setDenoiser);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
     m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
     m.def("vpt::get_camera_position", getCameraPosition);
@@ -183,6 +184,7 @@ torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
         vptRenderer->setRenderingResolution(
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
+    vptRenderer->checkDenoiser();
 
     if (inputTensor.device().type() == torch::DeviceType::CPU) {
         void* imageDataPtr = vptRenderer->getFeatureMapCpu(FeatureMapTypeVpt(featureMap));
@@ -231,6 +233,7 @@ torch::Tensor renderFrameCpu(torch::Tensor inputTensor, int64_t frameCount) {
         vptRenderer->setRenderingResolution(
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
+    vptRenderer->checkDenoiser();
 
     void* imageDataPtr = vptRenderer->renderFrameCpu(frameCount);
 
@@ -259,6 +262,7 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount) {
         vptRenderer->setRenderingResolution(
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
+    vptRenderer->checkDenoiser();
 
     // TODO: Add support for not going the GPU->CPU->GPU route.
     void* imageDataPtr = vptRenderer->renderFrameCpu(frameCount);
@@ -284,11 +288,12 @@ torch::Tensor renderFrameCuda(torch::Tensor inputTensor, int64_t frameCount) {
     }
     //inputTensor.data_ptr();
 
-    if (true || vptRenderer->settingsDiffer(
+    if (vptRenderer->settingsDiffer(
             width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype())) {
         vptRenderer->setRenderingResolution(
                 width, height, uint32_t(channels), inputTensor.device(), inputTensor.dtype());
     }
+    vptRenderer->checkDenoiser();
 
     void* imageDataDevicePtr = vptRenderer->renderFrameCuda(frameCount);
 
@@ -454,6 +459,17 @@ void setVPTModeFromName(const std::string& modeName) {
         if (modeName == VPT_MODE_NAMES[mode]) {
             std::cout << "setVPTMode to " << VPT_MODE_NAMES[mode] << std::endl;
             vptRenderer->setVptMode(VptMode(mode));
+            break;
+        }
+    }
+}
+
+void setDenoiser(const std::string& denoiserName) {
+    for (int mode = 0; mode < IM_ARRAYSIZE(DENOISER_NAMES); mode++) {
+        std::cout << "CHECK " << mode << std::endl;
+        if (denoiserName == DENOISER_NAMES[mode]) {
+            std::cout << "setDenoiser to " << DENOISER_NAMES[mode] << std::endl;
+            vptRenderer->setDenoiserType(DenoiserType(mode));
             break;
         }
     }

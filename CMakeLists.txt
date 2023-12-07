@@ -67,6 +67,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
 )
 
 if (${USE_GTEST})
@@ -202,6 +203,11 @@ if (NOT SUPPORT_OPENEXR)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.hpp)
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
+endif()
+
+if (NOT SUPPORT_OPTIX)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.hpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp)
 endif()
 
 if (NOT ${SUPPORT_PYTORCH_DENOISER} OR NOT Torch_FOUND)
@@ -345,14 +351,22 @@ if (${SUPPORT_OPTIX})
     if (OptiX_FOUND OR OptiX_INCLUDE)
         target_compile_definitions(CloudRendering PRIVATE SUPPORT_OPTIX)
         target_include_directories(CloudRendering PRIVATE ${OptiX_INCLUDE})
+        target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_OPTIX)
+        target_include_directories(CloudRendering_test PRIVATE ${OptiX_INCLUDE})
+        target_compile_definitions(vpt PRIVATE SUPPORT_OPTIX)
+        target_include_directories(vpt PRIVATE ${OptiX_INCLUDE})
         if(UNIX AND NOT APPLE)
             target_link_libraries(CloudRendering PRIVATE dl)
+            target_link_libraries(CloudRendering_test PRIVATE dl)
+            target_link_libraries(vpt PRIVATE dl)
         endif()
 		if (MSYS)
 		    # GetProcAddress in optix_stubs.h performs no function pointer conversion.
 		    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 			# Compensate for "#pragma comment(lib, "Cfgmgr32.lib")" not working with MinGW.
-            target_link_libraries(LineVis PRIVATE cfgmgr32)
+            target_link_libraries(CloudRendering PRIVATE cfgmgr32)
+            target_link_libraries(CloudRendering_test PRIVATE cfgmgr32)
+            target_link_libraries(vpt PRIVATE cfgmgr32)
 		endif()
     endif()
 endif()

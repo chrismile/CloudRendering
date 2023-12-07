@@ -49,6 +49,10 @@
 #endif
 #endif
 
+#ifdef SUPPORT_OPTIX
+#include "Denoiser/OptixVptDenoiser.hpp"
+#endif
+
 VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer)
         : renderer(renderer) {
     camera = std::make_shared<sgl::Camera>();
@@ -79,6 +83,18 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
         cudaStreamSynchronize(stream);
     }
     renderer->getDevice()->waitIdle();
+
+#ifdef SUPPORT_OPTIX
+    if (optixInitialized) {
+        OptixVptDenoiser::freeGlobal();
+        optixInitialized = false;
+    }
+#endif
+#ifdef SUPPORT_CUDA_INTEROP
+    if (sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+        sgl::vk::freeCudaDeviceApiFunctionTable();
+    }
+#endif
 
     delete transferFunctionWindow;
     renderer->getDevice()->waitIdle();
@@ -148,6 +164,20 @@ void VolumetricPathTracingModuleRenderer::setUseFeatureMaps(const std::unordered
 
 void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt type) {
     vptPass->setFeatureMapType(type);
+}
+
+void VolumetricPathTracingModuleRenderer::setDenoiserType(DenoiserType _denoiserType) {
+    if (denoiserType != _denoiserType) {
+        denoiserType = _denoiserType;
+        isDenoiserDirty = true;
+    }
+}
+
+void VolumetricPathTracingModuleRenderer::checkDenoiser() {
+    if (isDenoiserDirty) {
+        vptPass->setDenoiserType(denoiserType);
+        isDenoiserDirty = false;
+    }
 }
 
 void VolumetricPathTracingModuleRenderer::setEmissionCap(double emissionCap) {
@@ -269,6 +299,18 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
                         "Error in VolumetricPathTracingModuleRenderer::setRenderingResolution: "
                         "sgl::vk::initializeCudaDeviceApiFunctionTable() failed.", false);
             }
+#ifdef SUPPORT_OPTIX
+            if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY
+                    && sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+                CUcontext cuContext = {};
+                CUdevice cuDevice = {};
+                sgl::vk::checkCUresult(sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxGetCurrent(
+                        &cuContext), "Error in cuCtxGetCurrent: ");
+                sgl::vk::checkCUresult(sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxGetDevice(
+                        &cuDevice), "Error in cuCtxGetDevice: ");
+                optixInitialized = OptixVptDenoiser::initGlobal(cuContext, cuDevice);
+            }
+#endif
         }
 
         outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(
@@ -379,6 +421,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
     for (uint32_t i = 0; i < numFrames; i++) {
         vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
         renderer->beginCommandBuffer();
+        vptPass->setIsIntermediatePass(i != numFrames - 1);
         vptPass->render();
         if (i == numFrames - 1) {
             renderImageView->getImage()->transitionImageLayout(
@@ -496,6 +539,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
 
         vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
 
+        vptPass->setIsIntermediatePass(frameIndex != numFrames - 1);
         vptPass->render();
 
         if (frameIndex == numFrames - 1) {

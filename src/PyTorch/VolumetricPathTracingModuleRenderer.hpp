@@ -70,6 +70,8 @@ public:
     void setPhaseG(double phaseG);
     void setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& featureMapSet);
     void setFeatureMapType(FeatureMapTypeVpt type);
+    void setDenoiserType(DenoiserType _denoiserType);
+    void checkDenoiser();
 
     void setEmissionCap(double emissionCap);
     void setEmissionStrength(double emissionStrength);
@@ -148,6 +150,9 @@ private:
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;
 
+    DenoiserType denoiserType = DenoiserType::NONE;
+    bool isDenoiserDirty = false;
+
     sgl::vk::ImageViewPtr renderImageView;
     uint32_t numChannels = 0;
     caffe2::TypeMeta dtype;
@@ -173,6 +178,9 @@ private:
     sgl::vk::SemaphoreVkCudaDriverApiInteropPtr renderFinishedSemaphore;
     std::vector<sgl::vk::SemaphorePtr> interFrameSemaphores;
     uint64_t timelineValue = 0;
+#ifdef SUPPORT_OPTIX
+    bool optixInitialized = false;
+#endif
 #endif
 };
 
