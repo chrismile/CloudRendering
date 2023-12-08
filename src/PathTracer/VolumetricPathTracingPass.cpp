@@ -558,18 +558,22 @@ void VolumetricPathTracingPass::setPreviousViewProjMatrix(glm::mat4 previousView
 
 void VolumetricPathTracingPass::setUseEmission(bool emission){
     useEmission = emission;
+    frameInfo.frameCount = 0;
 }
 
 void VolumetricPathTracingPass::setEmissionStrength(float emissionStrength){
     this->emissionStrength = emissionStrength;
+    frameInfo.frameCount = 0;
 }
 
 void VolumetricPathTracingPass::setEmissionCap(float emissionCap){
     this->emissionCap = emissionCap;
+    frameInfo.frameCount = 0;
 }
 
 void VolumetricPathTracingPass::flipYZ(bool flip) {
     this->flipYZCoordinates = flip;
+    frameInfo.frameCount = 0;
 }
 
 void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
@@ -1129,7 +1133,6 @@ void VolumetricPathTracingPass::_render() {
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
-        uniformData.emissionStrength = emissionStrength;
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;

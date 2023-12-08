@@ -208,15 +208,18 @@ void VolumetricPathTracingModuleRenderer::setCameraPosition(const glm::vec3& cam
     this->cameraPosition = cameraPosition;
     camera->setPosition(cameraPosition);
     camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
+    vptPass->onHasMoved();
 }
 
 void VolumetricPathTracingModuleRenderer::setCameraTarget(const glm::vec3& cameraTarget) {
     this->cameraTarget = cameraTarget;
     camera->setLookAtViewMatrix(cameraPosition, cameraTarget, camera->getCameraUp());
+    vptPass->onHasMoved();
 }
 
 void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
     camera->setFOVy(FOVy);
+    vptPass->onHasMoved();
 }
 
 void VolumetricPathTracingModuleRenderer::rememberNextBounds() {

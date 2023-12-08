@@ -566,6 +566,7 @@ void overwriteCameraViewMatrix(std::vector<double> viewMatrixData) {
         viewMatrix[i / 4][i % 4] = viewMatrixData[i];
     }
     vptRenderer->getCamera()->overwriteViewMatrix(viewMatrix);
+    vptRenderer->getVptPass()->onHasMoved();
 }
 
 void setCameraFOVy(double FOVy){
