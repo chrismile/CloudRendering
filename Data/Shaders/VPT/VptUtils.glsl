@@ -702,11 +702,11 @@ vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
 #ifdef UNIFORM_SAMPLING
     // Sampling PDF: 1/(2pi)
     vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 color = parameters.isoSurfaceColor * dot(surfaceNormal, dirOut);
+    vec3 color = 2.0 * parameters.isoSurfaceColor * dot(surfaceNormal, dirOut);
 #else
     // Sampling PDF: cos(theta) / pi
     vec3 dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
-    vec3 color = parameters.isoSurfaceColor * 0.5;
+    vec3 color = parameters.isoSurfaceColor;
 #endif
 #endif
 
