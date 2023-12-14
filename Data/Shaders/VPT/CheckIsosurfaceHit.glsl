@@ -24,8 +24,12 @@
                     firstEvent.depth = tMax - d + distance(x1, x);
                 }
                 x = x1;
-                vec3 color = getIsoSurfaceHit(x, w);
-                weights *= color;
+#if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
+                getIsoSurfaceHit(x, w, weights, color);
+#else
+                getIsoSurfaceHit(x, w, weights);
+#endif
+                //weights *= colorOut;
                 x += w * 1e-4;
                 isFirstPoint = true;
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {

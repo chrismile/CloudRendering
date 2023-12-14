@@ -595,7 +595,6 @@ void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
 void VolumetricPathTracingPass::setIsoValue(float _isoValue) {
     if (isoValue != _isoValue) {
         isoValue = _isoValue;
-        setShaderDirty();
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -624,6 +623,17 @@ void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
         setShaderDirty();
         reRender = true;
         frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setUseIsosurfaceNee(bool _isosurfaceNee) {
+    if (useIsosurfaceNee != _isosurfaceNee) {
+        useIsosurfaceNee = _isosurfaceNee;
+        if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
     }
 }
 
@@ -965,6 +975,9 @@ void VolumetricPathTracingPass::loadShader() {
             customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_DENSITY", "" });
         } else if (isosurfaceType == IsosurfaceType::GRADIENT) {
             customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_GRADIENT", "" });
+        }
+        if (useIsosurfaceNee) {
+            customPreprocessorDefines.insert({ "USE_ISOSURFACE_NEE", "" });
         }
     }
 
@@ -1636,6 +1649,13 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             reRender = true;
             frameInfo.frameCount = 0;
         }
+        if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+                && useIsosurfaces && propertyEditor.addCheckbox("Use Isosurface NEE", &useIsosurfaceNee)) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+
 
         propertyEditor.endNode();
     }

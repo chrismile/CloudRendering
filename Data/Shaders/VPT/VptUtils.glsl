@@ -644,8 +644,11 @@ void refineIsoSurfaceHit(inout vec3 currentPoint, vec3 lastPoint, float stepSign
         }
     }
 }
+#endif
 
+#include "NeeTransmittance.glsl"
 
+#ifdef USE_ISOSURFACES
 /**
  * Uniformly samples a direction on the upper hemisphere for the surface normal vector n = (0, 0, 1)^T.
  * For more details see:
@@ -683,7 +686,12 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
 
 //#define UNIFORM_SAMPLING
 
-vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
+void getIsoSurfaceHit(
+        vec3 currentPoint, inout vec3 w, inout vec3 weights
+#if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
+        , inout vec3 colorNee
+#endif
+) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
@@ -697,33 +705,96 @@ vec3 getIsoSurfaceHit(vec3 currentPoint, inout vec3 w) {
     mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
     //mat3 frame = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
 
+    vec3 colorOut;
+
 #ifdef SURFACE_BRDF_LAMBERTIAN
     // Lambertian BRDF is: R / pi
 #ifdef UNIFORM_SAMPLING
     // Sampling PDF: 1/(2pi)
     vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 color = 2.0 * parameters.isoSurfaceColor * dot(surfaceNormal, dirOut);
 #else
     // Sampling PDF: cos(theta) / pi
     vec3 dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
-    vec3 color = parameters.isoSurfaceColor;
 #endif
+    float thetaOut = dot(surfaceNormal, dirOut);
 #endif
 
 #ifdef SURFACE_BRDF_BLINN_PHONG
     // http://www.thetenthplanet.de/archives/255
     const float n = 10.0;
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 halfwayVector = normalize(-w + dirOut);
-    float rdf = pow(max(dot(surfaceNormal, halfwayVector), 0.0), n);
     float norm = clamp(
             (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
             (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-    vec3 color = parameters.isoSurfaceColor * (rdf / norm);
+    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+    vec3 halfwayVectorOut = normalize(-w + dirOut);
+#endif
+
+#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
+    float pdfSkyboxNee;
+    vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
+    if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
+        float thetaNee = dot(surfaceNormal, dirSkyboxNee);
+        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+#ifdef SURFACE_BRDF_LAMBERTIAN
+#ifdef UNIFORM_SAMPLING
+        float pdfSamplingNee = thetaNee / M_PI;
+        float pdfSamplingOut = thetaOut / M_PI;
+#else
+        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
+#endif
+#endif
+#ifdef SURFACE_BRDF_BLINN_PHONG
+        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
+#endif
+        float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+#ifdef SURFACE_BRDF_LAMBERTIAN
+        //vec3 brdfOut = parameters.isoSurfaceColor / M_PI;
+        //vec3 brdfNee = parameters.isoSurfaceColor / M_PI;
+        vec3 rdfOut = parameters.isoSurfaceColor / M_PI * thetaOut;
+        vec3 rdfNee = parameters.isoSurfaceColor / M_PI * thetaNee;
+#endif
+#ifdef SURFACE_BRDF_BLINN_PHONG
+        // http://www.thetenthplanet.de/archives/255
+        vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
+        vec3 rdfOut = 0.125 * parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
+        vec3 rdfNee = 0.125 * parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
+#endif
+
+        colorOut = rdfOut * weightOut / pdfSamplingOut;
+        colorNee +=
+                weights * rdfNee * weightOut / pdfSkyboxNee
+                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
+                * calculateTransmittance(currentPoint, dirSkyboxNee);
+    } else {
+#endif
+
+#if defined(SURFACE_BRDF_LAMBERTIAN)
+        // Lambertian BRDF is: R / pi
+#ifdef UNIFORM_SAMPLING
+        // Sampling PDF: 1/(2pi)
+        colorOut = 2.0 * parameters.isoSurfaceColor * thetaOut;
+#else
+        // Sampling PDF: cos(theta) / pi
+        colorOut = parameters.isoSurfaceColor;
+#endif
+#endif
+
+#ifdef SURFACE_BRDF_BLINN_PHONG
+        // http://www.thetenthplanet.de/archives/255
+        float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
+        colorOut = parameters.isoSurfaceColor * (rdf / norm);
+#endif
+
+#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
+    }
 #endif
 
     w = dirOut;
-    return color;
+    weights *= colorOut;
+    //return colorOut;
 }
 #endif
 

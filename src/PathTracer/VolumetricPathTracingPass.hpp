@@ -192,6 +192,7 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+    void setUseIsosurfaceNee(bool _isosurfaceNee);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -317,9 +318,10 @@ private:
     float maxAoDist = 0.05;
     int numAoSamples = 4;
     bool useAoDist = false;
-    glm::vec3 isoSurfaceColor = glm::vec3(0.8f, 0.8f, 0.8f);
+    glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
+    bool useIsosurfaceNee = false;
 
     glm::mat4 previousViewProjMatrix;
 
