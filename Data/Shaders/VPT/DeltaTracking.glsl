@@ -74,33 +74,7 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
             float density = sampleCloud(xNew);
 #endif
 
-#ifdef USE_ISOSURFACES
-#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
-            float scalarValue = density;
-#else
-            float scalarValue = sampleCloudDirect(xNew);
-#endif
-            currentScalarSign = sign(scalarValue - parameters.isoValue);
-            if (isFirstPoint) {
-                isFirstPoint = false;
-                lastScalarSign = currentScalarSign;
-            }
-
-            if (lastScalarSign != currentScalarSign) {
-                vec3 isosurfaceHitPoint = xNew;
-                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
-                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
-                weights *= color;
-                x = isosurfaceHitPoint;
-                x += w * 1e-4;
-                isFirstPoint = true;
-                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
-                    x += w * tMin;
-                    d = tMax - tMin;
-                }
-                continue;
-            }
-#endif
+#include "CheckIsosurfaceHit.glsl"
 
             x = xNew;
 
@@ -270,73 +244,7 @@ vec3 deltaTracking(
             float density = sampleCloud(xNew);
 #endif
 
-#ifdef USE_ISOSURFACES
-//#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
-//            float scalarValue = density;
-//#else
-//            float scalarValue = sampleCloudDirect(xNew);
-//#endif
-            const int isoSubdivs = 2;
-            bool foundHit = false;
-            for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
-                vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
-                vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
-                float scalarValue = sampleCloudDirect(x1);
-
-                currentScalarSign = sign(scalarValue - parameters.isoValue);
-                if (isFirstPoint) {
-                    isFirstPoint = false;
-                    lastScalarSign = currentScalarSign;
-                }
-
-                if (lastScalarSign != currentScalarSign) {
-                    if (!firstEvent.hasValue) {
-                        firstEvent.x = x;
-                        firstEvent.pdf_x = 0;
-                        firstEvent.w = vec3(0.);
-                        firstEvent.pdf_w = 0;
-                        firstEvent.hasValue = true;
-                        firstEvent.density = parameters.extinction.x;
-                        firstEvent.depth = tMax - d + t;
-                    }
-                    refineIsoSurfaceHit(x1, x0, currentScalarSign);
-                    x = x1;
-                    vec3 color = getIsoSurfaceHit(x, w);
-                    weights *= color;
-                    x += w * 1e-4;
-                    isFirstPoint = true;
-                    if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
-                        x += w * tMin;
-                        d = tMax - tMin;
-                    }
-                    foundHit = true;
-                    break;
-                }
-            }
-            if (foundHit) {
-                continue;
-            }
-            /*currentScalarSign = sign(scalarValue - parameters.isoValue);
-            if (isFirstPoint) {
-                isFirstPoint = false;
-                lastScalarSign = currentScalarSign;
-            }
-
-            if (lastScalarSign != currentScalarSign) {
-                vec3 isosurfaceHitPoint = xNew;
-                refineIsoSurfaceHit(isosurfaceHitPoint, x, currentScalarSign);
-                vec3 color = getIsoSurfaceHit(isosurfaceHitPoint, w);
-                weights *= color;
-                x = isosurfaceHitPoint;
-                x += w * 1e-4;
-                isFirstPoint = true;
-                if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
-                    x += w * tMin;
-                    d = tMax - tMin;
-                }
-                continue;
-            }*/
-#endif
+#include "CheckIsosurfaceHit.glsl"
 
             x = xNew;
             transmittance *= 1.0 - density;
