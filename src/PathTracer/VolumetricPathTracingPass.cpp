@@ -22,6 +22,7 @@
  * SOFTWARE.
  */
 
+#include <iostream>
 #include <memory>
 #include <utility>
 #include <glm/vec3.hpp>
@@ -97,7 +98,7 @@ VolumetricPathTracingPass::~VolumetricPathTracingPass() {
 }
 
 void VolumetricPathTracingPass::createDenoiser() {
-    denoiser = createDenoiserObject(denoiserType, renderer, DenoisingMode::VOLUMETRIC_PATH_TRACING);
+    denoiser = createDenoiserObject(denoiserType, renderer, DenoisingMode::VOLUMETRIC_PATH_TRACING, denoiseAlpha);
     if (denoiser) {
         denoiser->setFileDialogInstance(fileDialogInstance);
     }
@@ -649,6 +650,21 @@ void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
     }
 }
 
+void VolumetricPathTracingPass::setOutputForegroundMap(bool _shallOutputForegroundMap) {
+    if (shallOutputForegroundMap != _shallOutputForegroundMap) {
+        shallOutputForegroundMap = _shallOutputForegroundMap;
+        denoiseAlpha = _shallOutputForegroundMap;
+        setShaderDirty();
+#ifdef SUPPORT_OPTIX
+        if (denoiserType == DenoiserType::OPTIX) {
+            denoiserChanged = true;
+        }
+#endif
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::onHasMoved() {
     frameInfo.frameCount = 0;
 }
@@ -918,6 +934,10 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert(std::make_pair("WRITE_REPROJ_UV_MAP", ""));
     }
 
+    if (shallOutputForegroundMap) {
+        customPreprocessorDefines.insert(std::make_pair("OUTPUT_FOREGROUND_MAP", ""));
+    }
+
     if (blitPrimaryRayMomentTexturePass->getMomentType() != BlitMomentTexturePass::MomentType::NONE) {
         customPreprocessorDefines.insert({ "COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS", "" });
         customPreprocessorDefines.insert(
@@ -1070,11 +1090,15 @@ std::string VolumetricPathTracingPass::getCurrentEventName() {
     return std::string() + VPT_MODE_NAMES[int(vptMode)] + " " + std::to_string(targetNumSamples) + "spp";
 }
 
-void VolumetricPathTracingPass::_render() {
+void VolumetricPathTracingPass::checkRecreateDenoiser() {
     if (denoiserChanged) {
         createDenoiser();
         denoiserChanged = false;
     }
+}
+
+void VolumetricPathTracingPass::_render() {
+    checkRecreateDenoiser();
 
     std::string eventName = getCurrentEventName();
     if (createNewAccumulationTimer) {
@@ -1109,7 +1133,7 @@ void VolumetricPathTracingPass::_render() {
         accumulationTimer->startGPU(eventName);
     }
 
-    if (!changedDenoiserSettings && !timerStopped) {
+    if (frameInfo.frameCount == 0 || (!changedDenoiserSettings && !timerStopped)) {
         uniformData.inverseViewProjMatrix = glm::inverse(
                 (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix());
 
@@ -1234,6 +1258,7 @@ void VolumetricPathTracingPass::_render() {
                     blitScatterRayMomentTexturePass->getMomentTexture()->getImage(),
                     VK_IMAGE_LAYOUT_GENERAL);
         }
+
         auto& imageSettings = resultImageView->getImage()->getImageSettings();
         renderer->dispatch(
                 computeData,
@@ -1425,7 +1450,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 "Feature Map", (int*)&featureMapType, VPT_FEATURE_MAP_NAMES,
                 IM_ARRAYSIZE(VPT_FEATURE_MAP_NAMES))) {
             checkRecreateFeatureMaps();
-            loadShader();
+            setShaderDirty();
             optionChanged = true;
             //blitPrimaryRayMomentTexturePass->setVisualizeMomentTexture(
             //        featureMapType == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS);

@@ -127,6 +127,6 @@ enum class DenoisingMode {
 };
 
 std::shared_ptr<Denoiser> createDenoiserObject(
-        DenoiserType denoiserType, sgl::vk::Renderer* renderer, DenoisingMode mode);
+        DenoiserType denoiserType, sgl::vk::Renderer* renderer, DenoisingMode mode, bool denoiseAlpha);
 
 #endif //CLOUDRENDERING_DENOISER_HPP

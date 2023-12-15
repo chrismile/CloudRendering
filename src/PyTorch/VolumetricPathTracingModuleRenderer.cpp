@@ -84,6 +84,8 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
     }
     renderer->getDevice()->waitIdle();
 
+    vptPass = {};
+
 #ifdef SUPPORT_OPTIX
     if (optixInitialized) {
         OptixVptDenoiser::freeGlobal();
@@ -425,6 +427,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
         vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
         renderer->beginCommandBuffer();
         vptPass->setIsIntermediatePass(i != numFrames - 1);
+        // Needs to be called here as we re-render in the same frame a new denoiser was set.
+        vptPass->checkRecreateDenoiser();
         vptPass->render();
         if (i == numFrames - 1) {
             renderImageView->getImage()->transitionImageLayout(
@@ -543,6 +547,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
         vptPass->setPreviousViewProjMatrix(previousViewProjectionMatrix);
 
         vptPass->setIsIntermediatePass(frameIndex != numFrames - 1);
+        // Needs to be called here as we re-render in the same frame a new denoiser was set.
+        vptPass->checkRecreateDenoiser();
         vptPass->render();
 
         if (frameIndex == numFrames - 1) {
@@ -563,8 +569,10 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
     renderFinishedSemaphore->waitSemaphoreCuda(stream);
 #endif
 
-    //renderer->getDevice()->waitIdle();
-    //cudaStreamSynchronize(stream);
+    // TODO
+    renderer->getDevice()->waitIdle();
+    cudaStreamSynchronize(stream);
+    
     return (float*)outputImageBufferCu->getCudaDevicePtr();
 }
 #endif

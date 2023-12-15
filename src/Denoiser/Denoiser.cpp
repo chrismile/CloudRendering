@@ -37,7 +37,7 @@
 #include "Denoiser.hpp"
 
 std::shared_ptr<Denoiser> createDenoiserObject(
-        DenoiserType denoiserType, sgl::vk::Renderer* renderer, DenoisingMode mode) {
+        DenoiserType denoiserType, sgl::vk::Renderer* renderer, DenoisingMode mode, bool denoiseAlpha) {
     std::shared_ptr<Denoiser> denoiser;
     if (denoiserType == DenoiserType::NONE) {
         denoiser = {};
@@ -60,7 +60,7 @@ std::shared_ptr<Denoiser> createDenoiserObject(
 #endif
 #ifdef SUPPORT_OPTIX
     else if (denoiserType == DenoiserType::OPTIX && OptixVptDenoiser::isOptixEnabled()) {
-        denoiser = std::shared_ptr<Denoiser>(new OptixVptDenoiser(renderer));
+        denoiser = std::shared_ptr<Denoiser>(new OptixVptDenoiser(renderer, denoiseAlpha));
         if (mode == DenoisingMode::VOLUMETRIC_PATH_TRACING) {
             denoiser->setTemporalDenoisingEnabled(false);
         }

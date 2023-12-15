@@ -138,7 +138,8 @@ bool OptixVptDenoiser::isOptixEnabled() {
 }
 
 
-OptixVptDenoiser::OptixVptDenoiser(sgl::vk::Renderer* renderer) : renderer(renderer) {
+OptixVptDenoiser::OptixVptDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha)
+        : renderer(renderer), denoiseAlpha(_denoiseAlpha) {
     CUresult cuResult = sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamCreate(&stream, CU_STREAM_DEFAULT);
     sgl::vk::checkCUresult(cuResult, "Error in cuStreamCreate: ");
 

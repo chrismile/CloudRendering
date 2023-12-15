@@ -56,7 +56,7 @@ public:
     static void freeGlobal();
     static bool isOptixEnabled();
 
-    explicit OptixVptDenoiser(sgl::vk::Renderer* renderer);
+    explicit OptixVptDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha);
     ~OptixVptDenoiser() override;
 
     DenoiserType getDenoiserType() override { return DenoiserType::OPTIX; }

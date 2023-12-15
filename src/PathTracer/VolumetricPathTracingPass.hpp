@@ -167,6 +167,8 @@ public:
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
     void setDenoiserType(DenoiserType denoiserType);
+    void checkRecreateDenoiser();
+    void setOutputForegroundMap(bool _shallOutputForegroundMap);
     inline void setIsIntermediatePass(bool _isIntermediatePass) { isIntermediatePass = _isIntermediatePass; }
 
     void loadEnvironmentMapImage(const std::string& filename);
@@ -308,6 +310,8 @@ private:
     bool useDenoiser = true;
     bool isIntermediatePass = false; //< Whether this rendering pass should not yet use the denoiser.
     bool denoiserChanged = false;
+    bool denoiseAlpha = false;
+    bool shallOutputForegroundMap = false;
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
 

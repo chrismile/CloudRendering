@@ -124,10 +124,18 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #endif
 
         // Accumulate result
+#ifndef OUTPUT_FOREGROUND_MAP
         vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
         result = mix(resultOld, result, 1.0 / float(frame + 1));
         imageStore(accImage, imageCoord, vec4(result, 1));
         imageStore(resultImage, imageCoord, vec4(result, 1));
+#else
+        vec4 resultOld = frame == 0 ? vec4(0) : imageLoad(accImage, imageCoord);
+        vec4 resultRgba = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+        resultRgba = mix(resultOld, resultRgba, 1.0 / float(frame + 1));
+        imageStore(accImage, imageCoord, resultRgba);
+        imageStore(resultImage, imageCoord, resultRgba);
+#endif
     }
 
 #ifdef WRITE_POSITION_MAP
