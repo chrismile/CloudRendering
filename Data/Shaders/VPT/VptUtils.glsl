@@ -687,9 +687,9 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
 #define UNIFORM_SAMPLING
 
 void getIsoSurfaceHit(
-        vec3 currentPoint, inout vec3 w, inout vec3 weights
+        vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
-        , inout vec3 colorNee, out bool rejected, inout float testW
+        , inout vec3 colorNee
 #endif
 ) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
@@ -703,7 +703,6 @@ void getIsoSurfaceHit(
     vec3 surfaceBitangent;
     ComputeDefaultBasis(surfaceNormal, surfaceTangent, surfaceBitangent);
     mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
-    //mat3 frame = mat3(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, 1.0));
 
     vec3 colorOut;
 
@@ -733,7 +732,6 @@ void getIsoSurfaceHit(
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
-        rejected = false;
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
         float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
 #ifdef SURFACE_BRDF_LAMBERTIAN
@@ -749,20 +747,12 @@ void getIsoSurfaceHit(
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
-        //pdfSkyboxNee *= (calculateTransmittance(currentPoint, dirSkyboxNee) + 1e-5);
-        //pdfSkyboxOut *= (calculateTransmittance(currentPoint, dirOut) + 1e-5);
-        //pdfSkyboxOut = 0;
-        //pdfSkyboxNee *= 2.0;
-        //pdfSkyboxOut *= 2.0;
-        //pdfSkyboxNee /= 200.0;
-        //pdfSkyboxOut /= 200.0;
-        float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
-        float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
         //float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
         //float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
-        weightNee = 1.0;
-        weightOut = 1.0;
-        testW *= weightOut / (weightOut + weightNee);
+        //weightNee = 1.0;
+        //weightOut = 1.0;
 #ifdef SURFACE_BRDF_LAMBERTIAN
         //vec3 brdfOut = parameters.isoSurfaceColor / M_PI;
         //vec3 brdfNee = parameters.isoSurfaceColor / M_PI;
@@ -776,17 +766,16 @@ void getIsoSurfaceHit(
         vec3 rdfNee = parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
 #endif
 
-        //weightOut = 0.0;
-        //weightNee = 1.0;
-
         //colorOut = rdfOut * weightOut / pdfSamplingOut;
-        colorOut = rdfOut * weightOut / pdfSamplingOut;
+        //colorNee +=
+        //        throughput * rdfNee * weightNee / pdfSkyboxNee
+        //        * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
+        //        * calculateTransmittance(currentPoint, dirSkyboxNee);
+        colorOut = rdfOut * pdfSamplingOut;
         colorNee +=
-                weights * rdfNee * weightNee / pdfSkyboxNee
-                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
-                * calculateTransmittance(currentPoint, dirSkyboxNee);
+                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
+                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
     } else {
-        rejected = true;
 #endif
 
 #if defined(SURFACE_BRDF_LAMBERTIAN)
@@ -811,8 +800,7 @@ void getIsoSurfaceHit(
 #endif
 
     w = dirOut;
-    weights *= colorOut; // TODO: Rename to throughput
-    //return colorOut;
+    throughput *= colorOut;
 }
 #endif
 

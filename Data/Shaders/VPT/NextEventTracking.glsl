@@ -138,10 +138,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
             }
 
             if (xi < Pa + Ps) { // scattering event
-                //float pdf_w;
-                //w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
-
-                float pdf_w, pdf_nee;
+                float pdf_w;
                 vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
                 if (!firstEvent.hasValue) {
@@ -157,21 +154,15 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
                     return vec3(0);
                 }
 
-                vec3 nee_w = importanceSampleSkybox(pdf_nee);
-
+                float pdf_nee_sky;
+                vec3 nee_w = importanceSampleSkybox(pdf_nee_sky);
                 float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
-                float pdf_phase_nee = evaluateSkyboxPDF(next_w);
                 w = next_w;
 
-                //bw_phase = pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
-                //float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
-                bw_phase = pdf_w  / (pdf_w + pdf_phase_nee);
-                float bw_nee = pdf_nee / (pdf_nee + pdf_nee_phase);
-
                 weights *= sigma_s / (majorant * Ps);
-                color += bw_nee * min(weights, vec3(100000, 100000, 100000)) *
-                    calculateTransmittance(x,nee_w) *
-                    (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+                color +=
+                        (pdf_nee_phase / pdf_nee_sky * calculateTransmittance(x, nee_w))
+                        * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(nee_w) + sampleLight(nee_w));
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
@@ -201,18 +192,13 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
     float PA = absorptionAlbedo * parameters.extinction.x;
     float PS = scatteringAlbedo * parameters.extinction.x;
 
-    float transmittance = 1.0;
-
 #ifdef USE_ISOSURFACES
     vec3 weights = vec3(1, 1, 1);
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
 
-    float bw_phase = 1.;
     vec3 color = vec3(0.);
-    bool rejected = true;
-    float testW = 1.0;
 
     int i = 0;
     float tMin, tMax;
@@ -258,12 +244,9 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 
             float xi = random();
 
-            //transmittance *= 1.0 - Pa;
             if (xi < Pa) {
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;
-                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
-                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
                     firstEvent.pdf_x = sigma_s * pdf_x;
                     firstEvent.w = w;
                     firstEvent.pdf_w = 0;
@@ -292,13 +275,11 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 
             if (xi < 1 - Pn)// scattering event
             {
-                float pdf_w, pdf_nee;
+                float pdf_w;
                 vec3 next_w = importanceSamplePhase(parameters.phaseG, w, pdf_w);
 
                 if (!firstEvent.hasValue) {
                     firstEvent.x = x;
-                    //firstEvent.x = calculateTransmittance(x, sky_sample) * sampleSkybox(sky_sample) * pdf_eval / pdf_skybox;
-                    //firstEvent.x = calculateTransmittance(x, w) * sampleSkybox(w);
                     firstEvent.pdf_x = sigma_s * pdf_x;
                     firstEvent.w = next_w;
                     firstEvent.pdf_w = pdf_w;
@@ -310,31 +291,22 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                     return vec3(0);
                 }
 
-                vec3 nee_w = importanceSampleSkybox(pdf_nee);
-
-                //next_w = importanceSamplePhase(0.5, w, pdf_w);
-                //next_w = importanceSampleSkybox(pdf_w);
+                float pdf_nee_sky;
+                vec3 nee_w = importanceSampleSkybox(pdf_nee_sky);
                 float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
-                float pdf_phase_nee = evaluateSkyboxPDF(next_w);
                 w = next_w;
-                //transmittance *= pdf_eval / pdf_w;
 
-                bw_phase *= pdf_w * pdf_w / (pdf_w * pdf_w + pdf_phase_nee * pdf_phase_nee);
-                float bw_nee = pdf_nee * pdf_nee / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase);
-                //bw_phase *= pdf_w / (pdf_w + pdf_phase_nee);
-                //float bw_nee = pdf_nee / (pdf_nee + pdf_nee_phase);
-
-                // pdf_nee**2  / (pdf_nee * pdf_nee + pdf_nee_phase * pdf_nee_phase) * pdf_nee_phase**2
-                vec3 colorNew = bw_nee * transmittance *
-                    calculateTransmittance(x,nee_w) *
-                    (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee;
+                //float bw_nee = pdf_nee_sky * pdf_nee_sky / (pdf_nee_sky * pdf_nee_sky + pdf_nee_phase * pdf_nee_phase);
+                //vec3 colorNew =
+                //        bw_nee * calculateTransmittance(x, nee_w)
+                //        * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee_sky;
+                vec3 colorNew =
+                        (pdf_nee_phase / pdf_nee_sky * calculateTransmittance(x, nee_w))
+                        * (sampleSkybox(nee_w) + sampleLight(nee_w));
 #ifdef USE_ISOSURFACES
                 colorNew *= weights;
 #endif
                 color += colorNew;
-                //color += bw_phase * transmittance * calculateTransmittance(x,next_w) * (sampleSkybox(next_w) + sampleLight(next_w));
-
-                //return color;
                 pdf_x *= exp(-majorant * t) * majorant * density;
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -347,33 +319,10 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
             }
         }
     }
+
     if (!firstEvent.hasValue){
-        //color += sampleSkybox(w) + sampleLight(w);
+        color += sampleSkybox(w) + sampleLight(w);
     }
-#ifdef USE_ISOSURFACE_NEE
-    float factorPrimary = firstEvent.hasValue ? 0.0 : 1.0;
-    //float factorPrimary = 0.0;
-    //float factorPrimary = rejected ? 1.0 : 0.0;
-    //float factorPrimary = 1.0;
-    #ifdef USE_ISOSURFACES
-    /*if (rejected) {
-        color = color + factorPrimary * weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    } else {
-        color = color / (1.0 - testW);
-    }
-    return color;*/
-    return color + factorPrimary * weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    #else
-    //return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    #endif
-    //return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-#else
-    #ifdef USE_ISOSURFACES
-    return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    #else
-    return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
-    #endif
-#endif
-    //return transmittance * (sampleSkybox(w) + sampleLight(w));
+    return color;
 }
 #endif

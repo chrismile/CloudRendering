@@ -641,17 +641,6 @@ void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
     }
 }
 
-void VolumetricPathTracingPass::setUseIsosurfaceNee(bool _isosurfaceNee) {
-    if (useIsosurfaceNee != _isosurfaceNee) {
-        useIsosurfaceNee = _isosurfaceNee;
-        if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-    }
-}
-
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -1013,7 +1002,7 @@ void VolumetricPathTracingPass::loadShader() {
         } else if (isosurfaceType == IsosurfaceType::GRADIENT) {
             customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_GRADIENT", "" });
         }
-        if (useIsosurfaceNee) {
+        if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
             customPreprocessorDefines.insert({ "USE_ISOSURFACE_NEE", "" });
         }
     }
@@ -1703,13 +1692,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             reRender = true;
             frameInfo.frameCount = 0;
         }
-        if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
-                && useIsosurfaces && propertyEditor.addCheckbox("Use Isosurface NEE", &useIsosurfaceNee)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-
 
         propertyEditor.endNode();
     }
