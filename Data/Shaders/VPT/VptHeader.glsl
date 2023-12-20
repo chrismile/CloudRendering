@@ -143,6 +143,10 @@ layout (binding = 18, rg32f) uniform image2D reprojUVImage;
 layout (binding = 19, rgba32f) uniform image2D normalImage;
 #endif
 
+#ifdef WRITE_DEPTH_BLENDED_MAP
+layout (binding = 20, rg32f) uniform image2D depthBlendedImage;
+#endif
+
 
 
 /**
@@ -153,7 +157,7 @@ layout (binding = 19, rgba32f) uniform image2D normalImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 20) uniform MomentUniformData {
+layout(std140, binding = 21) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;
@@ -161,7 +165,7 @@ layout(std140, binding = 20) uniform MomentUniformData {
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 21) uniform sampler1D transferFunctionTexture;
+layout(binding = 22) uniform sampler1D transferFunctionTexture;
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {

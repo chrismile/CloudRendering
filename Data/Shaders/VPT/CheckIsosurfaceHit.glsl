@@ -25,7 +25,7 @@
                 }
                 x = x1;
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
-                getIsoSurfaceHit(x, w, weights, color);
+                getIsoSurfaceHit(x, w, weights, color, rejected, testW);
 #else
                 getIsoSurfaceHit(x, w, weights);
 #endif

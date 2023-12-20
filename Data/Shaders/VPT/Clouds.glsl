@@ -52,6 +52,10 @@ vec3 cameraPosition;
 #include "NextEventTracking.glsl"
 #include "IsosurfaceRendering.glsl"
 
+#ifdef WRITE_DEPTH_BLENDED_MAP
+#include "DepthBlended.glsl"
+#endif
+
 void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     uint frame = frameInfo.frameCount + i;
 
@@ -195,6 +199,13 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         imageStore(firstW, imageCoord, vec4(0));
 #endif
     }
+
+#ifdef WRITE_DEPTH_BLENDED_MAP
+    vec2 depthBlended = computeDepthBlended(x, w);
+    vec2 depthBlendedOld = frame == 0 ? vec2(0) : imageLoad(depthBlendedImage, imageCoord).xy;
+    depthBlended = mix(depthBlendedOld, depthBlended, 1.0 / float(frame + 1));
+    imageStore(depthBlendedImage, imageCoord, vec4(depthBlended, 0.0, 1.0));
+#endif
 
 #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS
     float primaryRayAbsorptionMoments[NUM_PRIMARY_RAY_ABSORPTION_MOMENTS + 1];

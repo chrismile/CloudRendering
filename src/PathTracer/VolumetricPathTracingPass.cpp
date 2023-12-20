@@ -198,6 +198,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::REPROJ_UV)) {
             denoiser->setFeatureMap(FeatureMapType::REPROJ_UV, reprojUVTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_BLENDED)) {
+            denoiser->setFeatureMap(FeatureMapType::DEPTH_BLENDED, depthBlendedTexture);
+        }
 
         denoiser->setOutputImage(denoisedImageView);
 
@@ -278,6 +281,14 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         reprojUVTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
+    depthBlendedTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_BLENDED)))
+            || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        depthBlendedTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
     /*albedoTexture = {};
     if (denoiser && denoiser->getUseFeatureMap(FeatureMapType::ALBEDO)) {
         imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -312,6 +323,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useDepthRenderer = depthTexture.get() != nullptr;
     bool useDensityRenderer = densityTexture.get() != nullptr;
     bool useReprojUVRenderer = reprojUVTexture.get() != nullptr;
+    bool useDepthBlendedRenderer = depthBlendedTexture.get() != nullptr;
     //bool useAlbedoRenderer = albedoTexture.get() != nullptr;
     //bool useFlowRenderer = flowMapTexture.get() != nullptr;
 
@@ -332,13 +344,15 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useDensityRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DENSITY))
                     || featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end())
                 || useReprojUVRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::REPROJ_UV))
-                    || featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())) {
+                    || featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
+                || useDepthBlendedRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_BLENDED))
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())) {
             shallRecreateFeatureMaps = true;
         }
     } else {
         if (useFirstXRenderer || useFirstWRenderer || useNormalRenderer
                 || useCloudOnlyRenderer || useBackgroundRenderer || useDepthRenderer
-                || useDensityRenderer || useReprojUVRenderer) {
+                || useDensityRenderer || useReprojUVRenderer || useDepthBlendedRenderer) {
             shallRecreateFeatureMaps = true;
         }
     }
@@ -933,6 +947,9 @@ void VolumetricPathTracingPass::loadShader() {
     if (reprojUVTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_REPROJ_UV_MAP", ""));
     }
+    if (depthBlendedTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_BLENDED_MAP", ""));
+    }
 
     if (shallOutputForegroundMap) {
         customPreprocessorDefines.insert(std::make_pair("OUTPUT_FOREGROUND_MAP", ""));
@@ -1061,6 +1078,9 @@ void VolumetricPathTracingPass::createComputeData(
     }
     if (reprojUVTexture) {
         computeData->setStaticImageView(reprojUVTexture->getImageView(), "reprojUVImage");
+    }
+    if (depthBlendedTexture) {
+        computeData->setStaticImageView(depthBlendedTexture->getImageView(), "depthBlendedImage");
     }
 
     if (useEnvironmentMapImage) {
@@ -1244,6 +1264,9 @@ void VolumetricPathTracingPass::_render() {
         if (densityTexture) {
             renderer->transitionImageLayout(densityTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
+        if (depthBlendedTexture) {
+            renderer->transitionImageLayout(depthBlendedTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        }
         //renderer->transitionImageLayout(
         //        blitPrimaryRayMomentTexturePass->getMomentTexture()->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         //renderer->transitionImageLayout(
@@ -1329,6 +1352,10 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(reprojUVTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         reprojUVTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED) {
+        renderer->transitionImageLayout(depthBlendedTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthBlendedTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
         blitPrimaryRayMomentTexturePass->renderOptional();
     } else if (featureMapType == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
@@ -1367,10 +1394,12 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return depthTexture;
     } else if (type == FeatureMapTypeVpt::DENSITY) {
         return densityTexture;
-    }else if (type == FeatureMapTypeVpt::BACKGROUND) {
+    } else if (type == FeatureMapTypeVpt::BACKGROUND) {
         return backgroundTexture;
-    }else if (type == FeatureMapTypeVpt::REPROJ_UV) {
+    } else if (type == FeatureMapTypeVpt::REPROJ_UV) {
         return reprojUVTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_BLENDED) {
+        return depthBlendedTexture;
     }
     return nullptr;
 }

@@ -684,12 +684,12 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
     return vec3(d.x, d.y, z);
 }
 
-//#define UNIFORM_SAMPLING
+#define UNIFORM_SAMPLING
 
 void getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 weights
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
-        , inout vec3 colorNee
+        , inout vec3 colorNee, out bool rejected, inout float testW
 #endif
 ) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
@@ -733,23 +733,36 @@ void getIsoSurfaceHit(
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
+        rejected = false;
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
         float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
-        float pdfSamplingNee = thetaNee / M_PI;
-        float pdfSamplingOut = thetaOut / M_PI;
-#else
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
+#else
+        float pdfSamplingNee = thetaNee / M_PI;
+        float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
 #ifdef SURFACE_BRDF_BLINN_PHONG
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
+        //pdfSkyboxNee *= (calculateTransmittance(currentPoint, dirSkyboxNee) + 1e-5);
+        //pdfSkyboxOut *= (calculateTransmittance(currentPoint, dirOut) + 1e-5);
+        //pdfSkyboxOut = 0;
+        //pdfSkyboxNee *= 2.0;
+        //pdfSkyboxOut *= 2.0;
+        //pdfSkyboxNee /= 200.0;
+        //pdfSkyboxOut /= 200.0;
         float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
         float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+        //float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
+        //float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
+        weightNee = 1.0;
+        weightOut = 1.0;
+        testW *= weightOut / (weightOut + weightNee);
 #ifdef SURFACE_BRDF_LAMBERTIAN
         //vec3 brdfOut = parameters.isoSurfaceColor / M_PI;
         //vec3 brdfNee = parameters.isoSurfaceColor / M_PI;
@@ -759,16 +772,21 @@ void getIsoSurfaceHit(
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
         vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
-        vec3 rdfOut = 0.125 * parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
-        vec3 rdfNee = 0.125 * parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
+        vec3 rdfOut = parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
+        vec3 rdfNee = parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
 #endif
 
+        //weightOut = 0.0;
+        //weightNee = 1.0;
+
+        //colorOut = rdfOut * weightOut / pdfSamplingOut;
         colorOut = rdfOut * weightOut / pdfSamplingOut;
         colorNee +=
-                weights * rdfNee * weightOut / pdfSkyboxNee
+                weights * rdfNee * weightNee / pdfSkyboxNee
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
                 * calculateTransmittance(currentPoint, dirSkyboxNee);
     } else {
+        rejected = true;
 #endif
 
 #if defined(SURFACE_BRDF_LAMBERTIAN)
@@ -785,7 +803,7 @@ void getIsoSurfaceHit(
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
         float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
-        colorOut = parameters.isoSurfaceColor * (rdf / norm);
+        colorOut = 2.0 * M_PI * parameters.isoSurfaceColor * (rdf / norm);
 #endif
 
 #if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
@@ -793,7 +811,7 @@ void getIsoSurfaceHit(
 #endif
 
     w = dirOut;
-    weights *= colorOut;
+    weights *= colorOut; // TODO: Rename to throughput
     //return colorOut;
 }
 #endif

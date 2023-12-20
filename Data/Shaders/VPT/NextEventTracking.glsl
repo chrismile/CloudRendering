@@ -211,6 +211,8 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 
     float bw_phase = 1.;
     vec3 color = vec3(0.);
+    bool rejected = true;
+    float testW = 1.0;
 
     int i = 0;
     float tMin, tMax;
@@ -348,10 +350,29 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
     if (!firstEvent.hasValue){
         //color += sampleSkybox(w) + sampleLight(w);
     }
-#ifdef USE_ISOSURFACES
-    return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+#ifdef USE_ISOSURFACE_NEE
+    float factorPrimary = firstEvent.hasValue ? 0.0 : 1.0;
+    //float factorPrimary = 0.0;
+    //float factorPrimary = rejected ? 1.0 : 0.0;
+    //float factorPrimary = 1.0;
+    #ifdef USE_ISOSURFACES
+    /*if (rejected) {
+        color = color + factorPrimary * weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    } else {
+        color = color / (1.0 - testW);
+    }
+    return color;*/
+    return color + factorPrimary * weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    #else
+    //return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    #endif
+    //return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
 #else
+    #ifdef USE_ISOSURFACES
+    return color + weights * bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    #else
     return color + bw_phase * transmittance * (sampleSkybox(w) + sampleLight(w));
+    #endif
 #endif
     //return transmittance * (sampleSkybox(w) + sampleLight(w));
 }

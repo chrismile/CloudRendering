@@ -56,10 +56,12 @@ typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
     RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV,
+    DEPTH_BLENDED,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
         "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV",
+        "Depth Blended",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -102,6 +104,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::DENSITY, FeatureMapTypeVpt::DENSITY},
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
+        {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
 });
 
 enum class VptMode {
@@ -264,6 +267,7 @@ private:
     sgl::vk::TexturePtr densityTexture;
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
+    sgl::vk::TexturePtr depthBlendedTexture;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
