@@ -224,7 +224,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
             vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
-            vec4 densityEmission = sampleCloudDensityEmission(x);
+            vec4 densityEmission = sampleCloudDensityEmission(xNew);
             float density = densityEmission.a;
 #else
             float density = sampleCloud(xNew);

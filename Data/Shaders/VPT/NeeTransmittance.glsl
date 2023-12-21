@@ -85,11 +85,12 @@ float calculateTransmittance(vec3 x, vec3 w) {
             float Ps = sigma_s / majorant;
             float Pn = sigma_n / majorant;
 
-            if (random() > Pn) {
+            //if (random() > Pn) {
                 // switches between ratio and delta tracking
-                return 0;
-            }
-            //transmittance *= 1.0 - Pa - Ps;
+                //return 0; // TODO
+                // 1. - Pa / (Pa + Ps) == 1. - Pa / (1 - Pn)
+                transmittance *= Pn;
+            //}
 
             d -= t;
         }

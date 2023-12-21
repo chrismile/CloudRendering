@@ -587,11 +587,12 @@ float avgComponent(vec3 v) {
 }
 
 
+#define M_PI 3.14159265358979323846
+
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
 
 #define DIFFERENCES_NEIGHBOR
-#define M_PI 3.14159265358979323846
 vec3 computeGradient(vec3 texCoords) {
 #ifdef DIFFERENCES_NEIGHBOR
     const float dx = 1.0;
