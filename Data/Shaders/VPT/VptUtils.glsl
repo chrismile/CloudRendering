@@ -772,7 +772,7 @@ void getIsoSurfaceHit(
         //        throughput * rdfNee * weightNee / pdfSkyboxNee
         //        * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
         //        * calculateTransmittance(currentPoint, dirSkyboxNee);
-        colorOut = rdfOut * pdfSamplingOut;
+        colorOut = rdfOut / pdfSamplingOut;
         colorNee +=
                 throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
