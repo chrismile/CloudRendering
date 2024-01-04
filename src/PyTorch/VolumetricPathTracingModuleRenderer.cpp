@@ -572,7 +572,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
     // TODO
     renderer->getDevice()->waitIdle();
     cudaStreamSynchronize(stream);
-    
+
     return (float*)outputImageBufferCu->getCudaDevicePtr();
 }
 #endif
