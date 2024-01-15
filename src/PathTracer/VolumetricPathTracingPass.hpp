@@ -55,13 +55,13 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV,
-    DEPTH_BLENDED,
+    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DEPTH_NABLA, DEPTH_FWIDTH,
+    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV",
-        "Depth Blended",
+        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Depth (nabla)", "Depth (fwidth)",
+        "Density", "Background", "Reprojected UV", "Depth Blended",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -105,6 +105,8 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
         {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
+        {FeatureMapType::DEPTH_NABLA, FeatureMapTypeVpt::DEPTH_NABLA},
+        {FeatureMapType::DEPTH_FWIDTH, FeatureMapTypeVpt::DEPTH_FWIDTH},
 });
 
 enum class VptMode {
@@ -267,6 +269,11 @@ private:
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
     sgl::vk::TexturePtr depthBlendedTexture;
+    sgl::vk::TexturePtr depthNablaTexture;
+    sgl::vk::TexturePtr depthFwidthTexture;
+    bool accumulateInputs = true;
+    bool useGlobalFrameNumber = false;
+    uint32_t globalFrameNumber = 0;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
@@ -377,7 +384,8 @@ private:
 
     struct FrameInfo {
         uint32_t frameCount;
-        glm::uvec3 padding;
+        uint32_t globalFrameNumber;
+        glm::uvec2 padding;
     };
     FrameInfo frameInfo{};
     sgl::vk::BufferPtr frameInfoBuffer;
