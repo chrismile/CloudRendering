@@ -88,7 +88,9 @@ layout (binding = 3) uniform Parameters {
 
 layout (binding = 4) uniform FrameInfo {
     uint frameCount;
-    uvec3 other;
+    // Either equivalent to frameNumber or a global frame ID not reset together with accumulation.
+    uint globalFrameNumber;
+    uvec2 other;
 } frameInfo;
 
 layout (binding = 5, rgba32f) uniform image2D accImage;
@@ -145,6 +147,14 @@ layout (binding = 19, rgba32f) uniform image2D normalImage;
 
 #ifdef WRITE_DEPTH_BLENDED_MAP
 layout (binding = 20, rg32f) uniform image2D depthBlendedImage;
+#endif
+
+#ifdef WRITE_DEPTH_BLENDED_MAP
+layout (binding = 21, rg32f) uniform image2D depthNablaImage;
+#endif
+
+#ifdef WRITE_DEPTH_BLENDED_MAP
+layout (binding = 22, r32f) uniform image2D depthFwidthImage;
 #endif
 
 

@@ -58,11 +58,12 @@ vec3 cameraPosition;
 
 void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     uint frame = frameInfo.frameCount + i;
+    uint frameGlobal = frameInfo.globalFrameNumber + i;
 
     ivec2 dim = imageSize(resultImage);
     ivec2 imageCoord = ivec2(gl_GlobalInvocationID.xy);
 
-    uint seed = frame * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
+    uint seed = frameGlobal * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
 #ifdef CUSTOM_SEED_OFFSET
     seed += CUSTOM_SEED_OFFSET;
 #endif
@@ -174,6 +175,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     imageStore(reprojUVImage, imageCoord, vec4(reprojUV, 0, 0));
 #endif
 
+#if defined(WRITE_DEPTH_NABLA_MAP) || defined(WRITE_DEPTH_FWIDTH_MAP)
+    vec2 nabla = vec2(0.0, 0.0);
+#endif
+
     // Saving the first scatter position and direction
     if (firstEvent.hasValue) {
         //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
@@ -188,6 +193,15 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #ifdef WRITE_FIRST_W_MAP
         imageStore(firstW, imageCoord, vec4(firstEvent.w, firstEvent.pdf_w));
 #endif
+
+#if defined(WRITE_DEPTH_NABLA_MAP) || defined(WRITE_DEPTH_FWIDTH_MAP)
+        vec3 camNormalFlat = (inverseTransposedViewMatrix * vec4(surfaceNormalFlat, 0.0)).xyz;
+        // A = cos(camNormalFlat, camX)
+        // cot(acos(A)) = cos(acos(A)) / sin(acos(A)) = A / sin(acos(A)) = A / sqrt(1 - A^2)
+        float A = dot(camNormalFlat, vec3(1.0, 0.0, 0.0));
+        float B = dot(camNormalFlat, vec3(0.0, 1.0, 0.0));
+        nabla = vec2(A / sqrt(1.0 - A * A), B / sqrt(1.0 - B * B));
+#endif
     } else {
         //imageStore(firstX, imageCoord, vec4(0));
 
@@ -199,6 +213,27 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         imageStore(firstW, imageCoord, vec4(0));
 #endif
     }
+
+#ifdef WRITE_DEPTH_NABLA_MAP
+#ifndef DISABLE_ACCUMULATION
+    if (frame != 0) {
+        vec2 nablaOld = imageLoad(depthNablaImage, writePos).xy;
+        nabla = mix(nablaOld, nabla, 1.0 / float(frame + 1));
+    }
+#endif
+    imageStore(depthNablaImage, writePos, vec4(nabla, 0.0, 0.0));
+#endif
+
+#ifdef WRITE_DEPTH_FWIDTH_MAP
+    float fwidthValue = abs(nabla.x) + abs(nabla.y);
+#ifndef DISABLE_ACCUMULATION
+    if (frame != 0) {
+        float fwidthValueOld = imageLoad(depthFwidthImage, writePos).x;
+        fwidthValue = mix(fwidthValueOld, fwidthValue, 1.0 / float(frame + 1));
+    }
+#endif
+    imageStore(depthFwidthImage, writePos, vec4(fwidthValue));
+#endif
 
 #ifdef WRITE_DEPTH_BLENDED_MAP
     vec2 depthBlended = computeDepthBlended(x, w);

@@ -103,6 +103,7 @@ void VolumetricPathTracingPass::createDenoiser() {
         denoiser->setFileDialogInstance(fileDialogInstance);
     }
 
+    globalFrameNumber = 0;
     if (resultImageTexture) {
         checkRecreateFeatureMaps();
         setDenoiserFeatureMaps();
@@ -201,6 +202,12 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_BLENDED)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH_BLENDED, depthBlendedTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_NABLA)) {
+            denoiser->setFeatureMap(FeatureMapType::DEPTH_NABLA, depthNablaTexture);
+        }
+        if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_FWIDTH)) {
+            denoiser->setFeatureMap(FeatureMapType::DEPTH_FWIDTH, depthFwidthTexture);
+        }
 
         denoiser->setOutputImage(denoisedImageView);
 
@@ -289,6 +296,22 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         depthBlendedTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
+    depthNablaTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_NABLA)))
+            || featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        depthNablaTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
+    depthFwidthTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FWIDTH)))
+            || featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        depthFwidthTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
     /*albedoTexture = {};
     if (denoiser && denoiser->getUseFeatureMap(FeatureMapType::ALBEDO)) {
         imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
@@ -324,6 +347,8 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useDensityRenderer = densityTexture.get() != nullptr;
     bool useReprojUVRenderer = reprojUVTexture.get() != nullptr;
     bool useDepthBlendedRenderer = depthBlendedTexture.get() != nullptr;
+    bool useDepthNablaRenderer = depthNablaTexture.get() != nullptr;
+    bool useDepthFwidthRenderer = depthFwidthTexture.get() != nullptr;
     //bool useAlbedoRenderer = albedoTexture.get() != nullptr;
     //bool useFlowRenderer = flowMapTexture.get() != nullptr;
 
@@ -346,7 +371,12 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useReprojUVRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::REPROJ_UV))
                     || featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
                 || useDepthBlendedRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_BLENDED))
-                    || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())) {
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())
+                || useDepthNablaRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_NABLA))
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end())
+                || useDepthFwidthRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FWIDTH))
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end())
+        ) {
             shallRecreateFeatureMaps = true;
         }
     } else {
@@ -358,8 +388,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     }
 
     // Check if inputs should be accumulated.
-    // TODO
-    /*if (denoiser) {
+    if (denoiser) {
         if (accumulateInputs != denoiser->getWantsAccumulatedInput()) {
             accumulateInputs = denoiser->getWantsAccumulatedInput();
             shallRecreateFeatureMaps = true;
@@ -371,7 +400,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
             shallRecreateFeatureMaps = true;
         }
         useGlobalFrameNumber = false;
-    }*/
+    }
 
     if (shallRecreateFeatureMaps) {
         setShaderDirty();
@@ -517,6 +546,7 @@ const CloudDataPtr& VolumetricPathTracingPass::getCloudData() {
 void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     cloudData = data;
     frameInfo.frameCount = 0;
+    globalFrameNumber = 0;
 
     setGridData();
     setDataDirty();
@@ -939,6 +969,15 @@ void VolumetricPathTracingPass::loadShader() {
     if (depthBlendedTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_BLENDED_MAP", ""));
     }
+    if (depthNablaTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_NABLA_MAP", ""));
+    }
+    if (depthFwidthTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_FWIDTH_MAP", ""));
+    }
+    if (denoiser && !denoiser->getWantsAccumulatedInput()) {
+        customPreprocessorDefines.insert(std::make_pair("DISABLE_ACCUMULATION", ""));
+    }
 
     if (shallOutputForegroundMap) {
         customPreprocessorDefines.insert(std::make_pair("OUTPUT_FOREGROUND_MAP", ""));
@@ -1070,6 +1109,12 @@ void VolumetricPathTracingPass::createComputeData(
     }
     if (depthBlendedTexture) {
         computeData->setStaticImageView(depthBlendedTexture->getImageView(), "depthBlendedImage");
+    }
+    if (depthNablaTexture) {
+        computeData->setStaticImageView(depthNablaTexture->getImageView(), "depthNablaImage");
+    }
+    if (depthFwidthTexture) {
+        computeData->setStaticImageView(depthFwidthTexture->getImageView(), "depthFwidthImage");
     }
 
     if (useEnvironmentMapImage) {
@@ -1215,9 +1260,15 @@ void VolumetricPathTracingPass::_render() {
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
 
+        if (useGlobalFrameNumber) {
+            frameInfo.globalFrameNumber = globalFrameNumber;
+        } else {
+            frameInfo.globalFrameNumber = frameInfo.frameCount;
+        }
         frameInfoBuffer->updateData(
                 sizeof(FrameInfo), &frameInfo, renderer->getVkCommandBuffer());
         frameInfo.frameCount++;
+        globalFrameNumber++;
 
         renderer->insertMemoryBarrier(
                 VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_UNIFORM_READ_BIT,
@@ -1345,6 +1396,14 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(depthBlendedTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         depthBlendedTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_NABLA) {
+        renderer->transitionImageLayout(depthNablaTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthNablaTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH) {
+        renderer->transitionImageLayout(depthFwidthTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthFwidthTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
         blitPrimaryRayMomentTexturePass->renderOptional();
     } else if (featureMapType == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
@@ -1389,6 +1448,10 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return reprojUVTexture;
     } else if (type == FeatureMapTypeVpt::DEPTH_BLENDED) {
         return depthBlendedTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_NABLA) {
+        return depthNablaTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_FWIDTH) {
+        return depthFwidthTexture;
     }
     return nullptr;
 }

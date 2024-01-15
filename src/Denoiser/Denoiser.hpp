@@ -49,8 +49,9 @@ enum class DenoiserType {
     PYTORCH_DENOISER,
 #endif
 #ifdef SUPPORT_OPTIX
-    OPTIX
+    OPTIX,
 #endif
+    SVGF
 };
 const char* const DENOISER_NAMES[] = {
         "None",
@@ -77,6 +78,8 @@ const char* const DENOISER_NAMES[] = {
     FEATURE_MAP(BACKGROUND,     "Background",       4, 4) \
     FEATURE_MAP(REPROJ_UV,      "Reproj_UV",        2, 2) \
     FEATURE_MAP(DEPTH_BLENDED,  "Depth Blended",    1, 1) \
+    FEATURE_MAP(DEPTH_NABLA,    "nabla(z)",         2, 2)    \
+    FEATURE_MAP(DEPTH_FWIDTH,   "fwidth(z)",        1, 1)    \
     FEATURE_MAP(UNUSED,         "Unused",           2, 2) \
 
 enum class FeatureMapType {
@@ -106,12 +109,14 @@ const uint32_t FEATURE_MAP_NUM_CHANNELS_PADDED[] = {
 class Denoiser {
 public:
     virtual ~Denoiser() = default;
-    virtual DenoiserType getDenoiserType() = 0;
+    virtual DenoiserType getDenoiserType() const = 0;
     [[nodiscard]] virtual const char* getDenoiserName() const = 0;
     [[nodiscard]] virtual bool getIsEnabled() const { return true; }
     virtual void setOutputImage(sgl::vk::ImageViewPtr& outputImage) = 0;
     virtual void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) = 0;
     [[nodiscard]] virtual bool getUseFeatureMap(FeatureMapType featureMapType) const = 0;
+    [[nodiscard]] virtual bool getWantsAccumulatedInput() const { return true; }
+    [[nodiscard]] virtual bool getWantsGlobalFrameNumber() const { return false; }
     virtual void setUseFeatureMap(FeatureMapType featureMapType, bool useNormals) = 0;
     virtual void setTemporalDenoisingEnabled(bool enabled) = 0;
     virtual void resetFrameNumber() = 0; // For temporal denoisers to indicate reset of temporal accumulation.
