@@ -46,6 +46,7 @@ layout (binding = 3) uniform Parameters {
     // Transform from normalized device coordinates to world space.
     mat4 inverseViewProjMatrix;
     mat4 previousViewProjMatrix;
+    mat4 inverseTransposedViewMatrix;
 
     // Cloud properties.
     vec3 boxMin;
@@ -149,12 +150,16 @@ layout (binding = 19, rgba32f) uniform image2D normalImage;
 layout (binding = 20, rg32f) uniform image2D depthBlendedImage;
 #endif
 
-#ifdef WRITE_DEPTH_BLENDED_MAP
-layout (binding = 21, rg32f) uniform image2D depthNablaImage;
+#ifdef WRITE_FLOW_MAP
+layout(binding = 21, rg32f) uniform image2D flowImage;
 #endif
 
-#ifdef WRITE_DEPTH_BLENDED_MAP
-layout (binding = 22, r32f) uniform image2D depthFwidthImage;
+#ifdef WRITE_DEPTH_NABLA_MAP
+layout (binding = 22, rg32f) uniform image2D depthNablaImage;
+#endif
+
+#ifdef WRITE_DEPTH_FWIDTH_MAP
+layout (binding = 23, r32f) uniform image2D depthFwidthImage;
 #endif
 
 
@@ -167,7 +172,7 @@ layout (binding = 22, r32f) uniform image2D depthFwidthImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 21) uniform MomentUniformData {
+layout(std140, binding = 24) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;
@@ -175,7 +180,7 @@ layout(std140, binding = 21) uniform MomentUniformData {
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 22) uniform sampler1D transferFunctionTexture;
+layout(binding = 25) uniform sampler1D transferFunctionTexture;
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {

@@ -69,6 +69,7 @@ struct SVGF_Texture_Pack {
 };
 
 class SVGFDenoiser : public Denoiser {
+    void setDataDirty();
     SVGF_Texture_Pack textures;
     sgl::vk::Renderer* renderer;
 
@@ -82,6 +83,7 @@ public:
 
     explicit SVGFDenoiser(sgl::vk::Renderer* renderer);
     DenoiserType getDenoiserType() const override { return DenoiserType::SVGF; }
+    [[nodiscard]] const char* getDenoiserName() const override { return "SVGF"; }
     [[nodiscard]] bool getIsEnabled() const override;
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
     void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;

@@ -67,6 +67,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/SVGF.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
 )
 

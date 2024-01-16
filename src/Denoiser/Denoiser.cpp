@@ -28,6 +28,7 @@
 
 #include <Utils/File/Logfile.hpp>
 #include "EAWDenoiser.hpp"
+#include "SVGF.hpp"
 #ifdef SUPPORT_PYTORCH_DENOISER
 #include "PyTorchDenoiser.hpp"
 #endif
@@ -66,7 +67,9 @@ std::shared_ptr<Denoiser> createDenoiserObject(
         }
     }
 #endif
-    else {
+    else if (denoiserType == DenoiserType::SVGF) {
+        denoiser = std::shared_ptr<Denoiser>(new SVGFDenoiser(renderer));
+    } else {
         denoiser = {};
         sgl::Logfile::get()->writeError(
                 "Error in VolumetricPathTracingPass::createDenoiser: Invalid denoiser type selected.");

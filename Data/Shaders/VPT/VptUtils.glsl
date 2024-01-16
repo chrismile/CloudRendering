@@ -545,6 +545,10 @@ vec3 getCloudFiniteDifference(in vec3 pos) {
         texture(gridImage, coord - vec3(0, 1, 0) / dim).x - texture(gridImage, coord + vec3(0, 1, 0) / dim).x,
         texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
     ) / dim * 100;
+    const float l = length(dFdpos);
+    if (l > 1e-5) {
+        dFdpos /= l;
+    }
     return dFdpos;
 #endif
 }
