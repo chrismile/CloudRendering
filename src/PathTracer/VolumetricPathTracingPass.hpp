@@ -55,12 +55,12 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DEPTH_NABLA, DEPTH_FWIDTH,
+    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
     DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Depth (nabla)", "Depth (fwidth)",
+        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
         "Density", "Background", "Reprojected UV", "Depth Blended",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
@@ -96,7 +96,7 @@ private:
 const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
         {FeatureMapType::ALBEDO, FeatureMapTypeVpt::RESULT},
-        {FeatureMapType::FLOW, FeatureMapTypeVpt::RESULT}, // TODO
+        {FeatureMapType::FLOW, FeatureMapTypeVpt::FLOW},
         {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
         {FeatureMapType::CLOUDONLY, FeatureMapTypeVpt::CLOUD_ONLY},
@@ -269,6 +269,7 @@ private:
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
     sgl::vk::TexturePtr depthBlendedTexture;
+    sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
     bool accumulateInputs = true;
@@ -342,6 +343,7 @@ private:
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
         glm::mat4 previousViewProjMatrix;
+        glm::mat4 inverseTransposedViewMatrix;
 
         // Cloud properties
         glm::vec3 boxMin; float pad0;

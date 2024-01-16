@@ -79,14 +79,20 @@ void SVGFDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
     textures.denoised_image = outputImage;
 }
 
+void SVGFDenoiser::setDataDirty() {
+    svgf_atrous_pass->setDataDirty();
+    svgf_filter_moments_pass->setDataDirty();
+    svgf_reproj_pass->setDataDirty();
+}
+
 void SVGFDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& feature_map) {
     switch (featureMapType) {
-        case FeatureMapType::COLOR:        textures.current_frame.noisy_texture  = feature_map; return;
-        case FeatureMapType::NORMAL:       textures.current_frame.normal_texture = feature_map; return;
-        case FeatureMapType::DEPTH:        textures.current_frame.depth_texture  = feature_map; return;
-        case FeatureMapType::DEPTH_FWIDTH: textures.current_frame.depth_fwidth_texture = feature_map; return;
-        //case FeatureMapType::DEPTH_NABLA:  textures.current_frame.depth_nabla_texture = feature_map; return;
-        case FeatureMapType::FLOW:         textures.current_frame.motion_texture = feature_map; return;
+        case FeatureMapType::COLOR:        textures.current_frame.noisy_texture  = feature_map; setDataDirty(); return;
+        case FeatureMapType::NORMAL:       textures.current_frame.normal_texture = feature_map; setDataDirty(); return;
+        case FeatureMapType::DEPTH:        textures.current_frame.depth_texture  = feature_map; setDataDirty(); return;
+        case FeatureMapType::DEPTH_FWIDTH: textures.current_frame.depth_fwidth_texture = feature_map; setDataDirty(); return;
+        //case FeatureMapType::DEPTH_NABLA:  textures.current_frame.depth_nabla_texture = feature_map; setDataDirty(); return;
+        case FeatureMapType::FLOW:         textures.current_frame.motion_texture = feature_map; setDataDirty(); return;
         default: return;
     }
 }
@@ -482,8 +488,9 @@ void SVGF_Reproj_Pass::_render() {
         textures->previous_frame.normal_texture,
         textures->previous_frame.moments_history_texture
     };
-    for (auto& tex : to_read) {
-            renderer->transitionImageLayout(tex->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    for (size_t i = 0; i < IM_ARRAYSIZE(to_read); i++) {
+        auto& tex = to_read[i];
+        renderer->transitionImageLayout(tex->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     renderer->pushConstants(

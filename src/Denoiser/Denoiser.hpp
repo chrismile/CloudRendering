@@ -60,8 +60,9 @@ const char* const DENOISER_NAMES[] = {
         "PyTorch Denoiser Module",
 #endif
 #ifdef SUPPORT_OPTIX
-        "OptiX Denoiser"
+        "OptiX Denoiser",
 #endif
+        "SVGF"
 };
 
 
