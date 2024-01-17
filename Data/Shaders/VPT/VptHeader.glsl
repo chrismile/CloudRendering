@@ -78,6 +78,7 @@ layout (binding = 3) uniform Parameters {
 
     //ivec3 gridResolution;
     vec3 voxelTexelSize;
+    float farDistance;
 
     // Isosurfaces.
     vec3 isoSurfaceColor;

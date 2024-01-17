@@ -161,11 +161,13 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #endif
 
 #ifdef WRITE_DEPTH_MAP
-    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
 #ifndef DISABLE_ACCUMULATION
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
     vec2 depthOld = frame == 0 ? vec2(0) : imageLoad(depthImage, imageCoord).xy;
     depthOld.y = depthOld.y * depthOld.y + depthOld.x * depthOld.x;
     depth = mix(depthOld, depth, 1.0 / float(frame + 1));
+#else
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(parameters.farDistance,0);
 #endif
     imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(max(0.,depth.y - depth.x * depth.x)),0,0));
 #endif
