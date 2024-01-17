@@ -1207,6 +1207,7 @@ void VolumetricPathTracingPass::_render() {
             uniformData.previousViewProjMatrix = (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix();
         }
         uniformData.inverseTransposedViewMatrix = glm::transpose(glm::inverse((*camera)->getViewMatrix()));
+        uniformData.farDistance = (*camera)->getFarClipDistance();
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
         uniformData.boxMax = cloudData->getWorldSpaceBoxMax();
         if (emissionData){

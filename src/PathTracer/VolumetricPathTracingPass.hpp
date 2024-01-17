@@ -372,7 +372,7 @@ private:
         glm::ivec3 superVoxelGridSize; int pad9;
 
         glm::vec3 voxelTexelSize;
-        float padding;
+        float farDistance;
 
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;
