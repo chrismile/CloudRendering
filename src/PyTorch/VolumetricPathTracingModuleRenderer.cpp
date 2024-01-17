@@ -40,12 +40,18 @@
 
 #ifdef SUPPORT_CUDA_INTEROP
 #include <cuda.h>
-#include <torch/cuda.h>
 #include <c10/cuda/CUDAStream.h>
 #if CUDA_VERSION >= 11020
 #define USE_TIMELINE_SEMAPHORES
 #elif defined(_WIN32)
 #error Binary semaphore sharing is broken on Windows. Please install CUDA >= 11.2 for timeline semaphore support.
+#endif
+#endif
+
+#ifdef SUPPORT_HIP_INTEROP
+#if __has_include(<c10/hip/HIPStream.h>)
+#define PYTORCH_HIP_AVAILABLE
+#include <c10/hip/HIPStream.h>
 #endif
 #endif
 
