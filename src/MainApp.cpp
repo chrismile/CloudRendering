@@ -26,14 +26,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define GLM_ENABLE_EXPERIMENTAL
 #include <algorithm>
 #include <stack>
 #include <csignal>
 
-#include <glm/gtx/color_space.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/rotate_vector.hpp>
 #include <boost/algorithm/string.hpp>
 
 #ifdef USE_ZEROMQ
