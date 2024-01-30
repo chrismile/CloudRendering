@@ -121,6 +121,9 @@ built using the C++11 ABI.
 If necessary, PyTorch can be built manually using the commands below (assuming the CUDA Toolkit version 11.5 and
 [Miniconda](https://docs.conda.io/en/latest/miniconda.html) are installed on the system).
 
+IMPORTANT: `python setup.py install` (the last command below) may use a lot of memory, depending on the number of
+available CPU threads. `MAX_JOBS=4` can be prepended to reduce the number of build threads if this causes problems.
+
 ```shell
 sudo apt install g++ git libgflags-dev libgoogle-glog-dev libopenmpi-dev protobuf-compiler python3 python3-pip \
 python3-setuptools python3-yaml wget intel-mkl libcudnn8-dev
