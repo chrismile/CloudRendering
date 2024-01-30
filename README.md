@@ -132,6 +132,9 @@ be necessary to follow the manual installation instructions on the webpage.
 IMPORTANT: `python setup.py install` (the last command below) may use a lot of memory, depending on the number of
 available CPU threads. `MAX_JOBS=4` can be prepended to reduce the number of build threads if this causes problems.
 
+IMPORTANT: `python setup.py install` (the last command below) may use a lot of memory, depending on the number of
+available CPU threads. `MAX_JOBS=4` can be prepended to reduce the number of build threads if this causes problems.
+
 ```shell
 sudo apt install g++ git libgflags-dev libgoogle-glog-dev libopenmpi-dev protobuf-compiler python3 python3-pip \
 python3-setuptools python3-yaml wget intel-mkl libcudnn8-dev
