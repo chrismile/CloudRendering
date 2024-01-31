@@ -119,7 +119,9 @@ The command `python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"` c
 built using the C++11 ABI.
 
 If necessary, PyTorch can be built manually using the commands below (assuming the CUDA Toolkit version 11.5 and
-[Miniconda](https://docs.conda.io/en/latest/miniconda.html) are installed on the system).
+[Miniconda](https://docs.conda.io/en/latest/miniconda.html) are installed on the system). `libcudnn8-dev` is not available by default, and the repository may need
+to be added from the [cuDNN webpage](https://developer.nvidia.com/cudnn). On other operating systems than Ubuntu, it may
+be necessary to follow the manual installation instructions on the webpage.
 
 IMPORTANT: `python setup.py install` (the last command below) may use a lot of memory, depending on the number of
 available CPU threads. `MAX_JOBS=4` can be prepended to reduce the number of build threads if this causes problems.
@@ -132,12 +134,18 @@ python3-setuptools python3-yaml wget intel-mkl libcudnn8-dev
 conda create --name cloud_rendering python=3.8
 conda activate cloud_rendering
 
-conda install astunparse numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing typing_extensions future \
-six requests dataclasses
+conda install numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing typing-extensions
 conda install -c pytorch magma-cuda115
 
 git clone --recursive https://github.com/pytorch/pytorch
 cd pytorch
+# Optional: Use a stable version of PyTorch
+#git checkout v2.2.0
+#git submodule sync
+#git submodule update --init --recursive
+# Optional: Build for different GPU architectures.
+#export TORCH_CUDA_ARCH_LIST="6.1 7.5 8.6"
+#export TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
 export CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"}
 export TORCH_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=1"
 export USE_MKLDNN=1
