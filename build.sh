@@ -52,6 +52,8 @@ build_dir_release=".build_release"
 use_vcpkg=false
 link_dynamic=false
 custom_glslang=false
+use_pytorch=false
+install_module=false
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -70,6 +72,19 @@ do
         link_dynamic=true
     elif [ ${!i} = "--custom-glslang" ]; then
         custom_glslang=true
+    elif [ ${!i} = "--use-pytorch" ]; then
+      pytorch_is_cxx11="$(python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
+      if [[ "$pytorch_is_cxx11" == "True" ]]; then
+          use_pytorch=true
+          pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
+      else
+          echo "Error: PyTorch was not found or is not built with CXX11 ABI." 1>&2
+          exit 1
+      fi
+    elif [ ${!i} = "--install-dir" ]; then
+        install_module=true
+         ((i++))
+        install_dir=${!i}
     fi
 done
 
@@ -429,6 +444,14 @@ if $glibcxx_debug; then
     params+=(-DUSE_GLIBCXX_DEBUG=On)
 fi
 
+if [ $use_pytorch = true ]; then
+    params+=(-DCMAKE_PREFIX_PATH="$pytorch_cmake_path")
+    params+=(-DBUILD_PYTORCH_MODULE=On -DSUPPORT_PYTORCH_DENOISER=On -DBUILD_KPN_MODULE=On)
+    if [ $install_module = true ]; then
+        params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
+    fi
+fi
+
 use_vulkan=false
 vulkan_sdk_env_set=true
 use_vulkan=true
@@ -717,6 +740,15 @@ else
     pushd "$build_dir" >/dev/null
     make -j $(nproc)
     popd >/dev/null
+fi
+if [ $use_pytorch = true ] && [ $install_module = true ]; then
+    if [ $use_macos = true ] || [ $use_vcpkg = true ]; then
+        cmake --build $build_dir --target install
+    else
+        pushd "$build_dir" >/dev/null
+        make install
+        popd >/dev/null
+    fi
 fi
 
 echo "------------------------"
