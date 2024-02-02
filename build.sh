@@ -83,7 +83,7 @@ do
       fi
     elif [ ${!i} = "--install-dir" ]; then
         install_module=true
-         ((i++))
+        ((i++))
         install_dir=${!i}
     fi
 done
@@ -748,6 +748,11 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         pushd "$build_dir" >/dev/null
         make install
         popd >/dev/null
+    fi
+    if [ $debug = true ] ; then
+        cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
+    else
+        cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
     fi
 fi
 
