@@ -57,8 +57,9 @@ else()
 endif()
 
 
-cmake_policy(SET CMP0012 NEW)
-find_package(Torch REQUIRED)
+# https://github.com/pytorch/pytorch/issues/118862
+#cmake_policy(SET CMP0012 NEW)
+#find_package(Torch REQUIRED)
 
 target_link_libraries(kpn_module ${TORCH_LIBRARIES})
 target_include_directories(kpn_module PUBLIC ${TORCH_INCLUDE_DIR})
