@@ -50,10 +50,10 @@ endif()
 if (WIN32)
     set(DLLIMPORT "__declspec(dllimport)")
     set(DLLEXPORT "__declspec(dllexport)")
-    target_compile_definitions(kpn_module INTERFACE MODULE_OP_API=${DLLIMPORT})
-    target_compile_definitions(kpn_module PRIVATE MODULE_OP_API=${DLLEXPORT})
+    target_compile_definitions(kpn_module INTERFACE KPN_MODULE_OP_API=${DLLIMPORT})
+    target_compile_definitions(kpn_module PRIVATE KPN_MODULE_OP_API=${DLLEXPORT})
 else()
-    target_compile_definitions(kpn_module PUBLIC MODULE_OP_API=)
+    target_compile_definitions(kpn_module PUBLIC KPN_MODULE_OP_API=)
 endif()
 
 
