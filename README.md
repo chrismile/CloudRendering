@@ -112,6 +112,12 @@ specified using, e.g.:
 -DCMAKE_PREFIX_PATH=~/miniconda3/envs/cloud_rendering/lib/python3.8/site-packages/torch/share/cmake
 ```
 
+When using the script `build.sh`, the following command can be used to build the program with PyTorch support and to
+install the Python module:
+
+```shell
+./build.sh --use-pytorch --install-dir /path/to/dir
+```
 
 Additionally, if using the module on Linux, PyTorch must have been build using the C++11 ABI.
 This is not the case for pre-built PyTorch packages as of 2022-02-14.

@@ -50,15 +50,16 @@ endif()
 if (WIN32)
     set(DLLIMPORT "__declspec(dllimport)")
     set(DLLEXPORT "__declspec(dllexport)")
-    target_compile_definitions(kpn_module INTERFACE MODULE_OP_API=${DLLIMPORT})
-    target_compile_definitions(kpn_module PRIVATE MODULE_OP_API=${DLLEXPORT})
+    target_compile_definitions(kpn_module INTERFACE KPN_MODULE_OP_API=${DLLIMPORT})
+    target_compile_definitions(kpn_module PRIVATE KPN_MODULE_OP_API=${DLLEXPORT})
 else()
-    target_compile_definitions(kpn_module PUBLIC MODULE_OP_API=)
+    target_compile_definitions(kpn_module PUBLIC KPN_MODULE_OP_API=)
 endif()
 
 
-cmake_policy(SET CMP0012 NEW)
-find_package(Torch REQUIRED)
+# https://github.com/pytorch/pytorch/issues/118862
+#cmake_policy(SET CMP0012 NEW)
+#find_package(Torch REQUIRED)
 
 target_link_libraries(kpn_module ${TORCH_LIBRARIES})
 target_include_directories(kpn_module PUBLIC ${TORCH_INCLUDE_DIR})

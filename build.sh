@@ -26,7 +26,8 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-set -euo pipefail
+# Conda crashes with "set -euo pipefail".
+set -eo pipefail
 
 scriptpath="$( cd "$(dirname "$0")" ; pwd -P )"
 projectpath="$scriptpath"
@@ -50,8 +51,12 @@ glibcxx_debug=false
 build_dir_debug=".build_debug"
 build_dir_release=".build_release"
 use_vcpkg=false
+use_conda=false
+conda_env_name="cloudrendering"
 link_dynamic=false
 custom_glslang=false
+use_pytorch=false
+install_module=false
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -62,14 +67,32 @@ do
         debug=true
     elif [ ${!i} = "--glibcxx-debug" ]; then
         glibcxx_debug=true
-    elif [ ${!i} = "--vcpkg" ]; then
+    elif [ ${!i} = "--vcpkg" ] || [ ${!i} = "--use-vcpkg" ]; then
         use_vcpkg=true
+    elif [ ${!i} = "--conda" ] || [ ${!i} = "--use-conda" ]; then
+        use_conda=true
+    elif [ ${!i} = "--conda-env-name" ]; then
+        ((i++))
+        conda_env_name=${!i}
     elif [ ${!i} = "--link-static" ]; then
         link_dynamic=false
     elif [ ${!i} = "--link-dynamic" ]; then
         link_dynamic=true
     elif [ ${!i} = "--custom-glslang" ]; then
         custom_glslang=true
+    elif [ ${!i} = "--use-pytorch" ]; then
+      pytorch_is_cxx11="$(python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
+      if [[ "$pytorch_is_cxx11" == "True" ]]; then
+          use_pytorch=true
+          pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
+      else
+          echo "Error: PyTorch was not found or is not built with CXX11 ABI." 1>&2
+          exit 1
+      fi
+    elif [ ${!i} = "--install-dir" ]; then
+        install_module=true
+        ((i++))
+        install_dir=${!i}
     fi
 done
 
@@ -160,6 +183,15 @@ is_installed_brew() {
     fi
 }
 
+# https://stackoverflow.com/questions/8063228/check-if-a-variable-exists-in-a-list-in-bash
+list_contains() {
+    if [[ "$1" =~ (^|[[:space:]])"$2"($|[[:space:]]) ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [ ! -d $build_dir_release ]; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v rsync &> /dev/null \
             || ! command -v curl &> /dev/null || ! command -v wget &> /dev/null \
@@ -194,6 +226,8 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
         mingw64/mingw-w64-x86_64-opencl-headers mingw64/mingw-w64-x86_64-opencl-icd mingw64/mingw-w64-x86_64-jsoncpp \
         mingw64/mingw-w64-x86_64-openexr
     fi
+elif $use_msys && command -v pacman &> /dev/null; then
+    :
 elif $use_macos && command -v brew &> /dev/null && [ ! -d $build_dir_debug ] && [ ! -d $build_dir_release ]; then
     if ! is_installed_brew "git"; then
         brew install git
@@ -267,7 +301,9 @@ elif $use_macos && command -v brew &> /dev/null && [ ! -d $build_dir_debug ] && 
             brew install openexr
         fi
     fi
-elif command -v apt &> /dev/null; then
+elif $use_macos && command -v brew &> /dev/null; then
+    :
+elif command -v apt &> /dev/null && ! $use_conda; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
             || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null \
             || ! command -v patchelf &> /dev/null; then
@@ -304,7 +340,7 @@ elif command -v apt &> /dev/null; then
             libsdl2-image-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev
         fi
     fi
-elif command -v pacman &> /dev/null; then
+elif command -v pacman &> /dev/null && ! $use_conda; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
             || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null \
             || ! command -v patchelf &> /dev/null; then
@@ -337,7 +373,7 @@ elif command -v pacman &> /dev/null; then
             ocl-icd jsoncpp openexr
         fi
     fi
-elif command -v yum &> /dev/null; then
+elif command -v yum &> /dev/null && ! $use_conda; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v curl &> /dev/null \
             || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null \
             || ! command -v patchelf &> /dev/null; then
@@ -375,6 +411,63 @@ elif command -v yum &> /dev/null; then
             SDL2_image-devel glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel \
             openexr-devel
         fi
+    fi
+elif $use_conda && ! $use_macos; then
+    if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+        . "$HOME/miniconda3/etc/profile.d/conda.sh" shell.bash hook
+    elif [ -f "/opt/anaconda3/etc/profile.d/conda.sh" ]; then
+        . "/opt/anaconda3/etc/profile.d/conda.sh" shell.bash hook
+    elif [ ! -z "${CONDA_PREFIX+x}" ]; then
+        . "$CONDA_PREFIX/etc/profile.d/conda.sh" shell.bash hook
+    fi
+
+    if ! command -v conda &> /dev/null; then
+        echo "------------------------"
+        echo "  installing Miniconda  "
+        echo "------------------------"
+        wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+        chmod +x Miniconda3-latest-Linux-x86_64.sh
+        bash ./Miniconda3-latest-Linux-x86_64.sh
+        . "$HOME/miniconda3/etc/profile.d/conda.sh" shell.bash hook
+        rm ./Miniconda3-latest-Linux-x86_64.sh
+    fi
+
+    if ! conda env list | grep ".*${conda_env_name}.*" >/dev/null 2>&1; then
+        echo "------------------------"
+        echo "creating conda environment"
+        echo "------------------------"
+        conda create -n "${conda_env_name}" -y
+        conda activate "${conda_env_name}"
+    elif [ "${var+CONDA_DEFAULT_ENV}" != "${conda_env_name}" ]; then
+        conda activate "${conda_env_name}"
+    fi
+
+    conda_pkg_list="$(conda list)"
+    if ! list_contains "$conda_pkg_list" "boost" || ! list_contains "$conda_pkg_list" "glm" \
+            || ! list_contains "$conda_pkg_list" "libarchive" || ! list_contains "$conda_pkg_list" "tinyxml2" \
+            || ! list_contains "$conda_pkg_list" "libpng" || ! list_contains "$conda_pkg_list" "sdl2" \
+            || ! list_contains "$conda_pkg_list" "sdl2" || ! list_contains "$conda_pkg_list" "glew" \
+            || ! list_contains "$conda_pkg_list" "cxx-compiler" || ! list_contains "$conda_pkg_list" "make" \
+            || ! list_contains "$conda_pkg_list" "cmake" || ! list_contains "$conda_pkg_list" "pkg-config" \
+            || ! list_contains "$conda_pkg_list" "gdb" || ! list_contains "$conda_pkg_list" "git" \
+            || ! list_contains "$conda_pkg_list" "mesa-libgl-devel-cos7-x86_64" \
+            || ! list_contains "$conda_pkg_list" "mesa-dri-drivers-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "libxau-devel-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "libselinux-devel-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "libxdamage-devel-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "libxxf86vm-devel-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "libxext-devel-cos7-aarch64" \
+            || ! list_contains "$conda_pkg_list" "xorg-libxfixes" || ! list_contains "$conda_pkg_list" "xorg-libxau" \
+            || ! list_contains "$conda_pkg_list" "patchelf" || ! list_contains "$conda_pkg_list" "libvulkan-headers" \
+            || ! list_contains "$conda_pkg_list" "shaderc" || ! list_contains "$conda_pkg_list" "jsoncpp" \
+            || ! list_contains "$conda_pkg_list" "openexr"; then
+        echo "------------------------"
+        echo "installing dependencies "
+        echo "------------------------"
+        conda install -y -c conda-forge boost glm libarchive tinyxml2 libpng sdl2 sdl2 glew cxx-compiler make cmake \
+        pkg-config gdb git mesa-libgl-devel-cos7-x86_64 mesa-dri-drivers-cos7-aarch64 libxau-devel-cos7-aarch64 \
+        libselinux-devel-cos7-aarch64 libxdamage-devel-cos7-aarch64 libxxf86vm-devel-cos7-aarch64 \
+        libxext-devel-cos7-aarch64 xorg-libxfixes xorg-libxau patchelf libvulkan-headers shaderc jsoncpp openexr
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2
@@ -429,6 +522,14 @@ if $glibcxx_debug; then
     params+=(-DUSE_GLIBCXX_DEBUG=On)
 fi
 
+if [ $use_pytorch = true ]; then
+    params+=(-DCMAKE_PREFIX_PATH="$pytorch_cmake_path")
+    params+=(-DBUILD_PYTORCH_MODULE=On -DSUPPORT_PYTORCH_DENOISER=On -DBUILD_KPN_MODULE=On)
+    if [ $install_module = true ]; then
+        params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
+    fi
+fi
+
 use_vulkan=false
 vulkan_sdk_env_set=true
 use_vulkan=true
@@ -444,11 +545,13 @@ if [ $search_for_vulkan_sdk = true ]; then
     echo "------------------------"
 
     found_vulkan=false
+    use_local_vulkan_sdk=false
 
     if [ $use_macos = false ]; then
         if [ -d "VulkanSDK" ]; then
             VK_LAYER_PATH=""
             source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+            use_local_vulkan_sdk=true
             pkgconfig_dir="$(realpath "VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig")"
             if [ -d "$pkgconfig_dir" ]; then
                 export PKG_CONFIG_PATH="$pkgconfig_dir"
@@ -456,7 +559,7 @@ if [ $search_for_vulkan_sdk = true ]; then
             found_vulkan=true
         fi
 
-        if ! $found_vulkan && (lsb_release -a 2> /dev/null | grep -q 'Ubuntu' || lsb_release -a 2> /dev/null | grep -q 'Mint'); then
+        if ! $found_vulkan && (lsb_release -a 2> /dev/null | grep -q 'Ubuntu' || lsb_release -a 2> /dev/null | grep -q 'Mint') && ! $use_conda; then
             if lsb_release -a 2> /dev/null | grep -q 'Ubuntu'; then
                 distro_code_name=$(lsb_release -cs)
             else
@@ -486,8 +589,14 @@ if [ $search_for_vulkan_sdk = true ]; then
             curl --silent --show-error --fail -O https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.gz
             mkdir -p VulkanSDK
             tar -xf vulkan-sdk.tar.gz -C VulkanSDK
+            if [ "$os_arch" != "x86_64" ]; then
+                pushd VulkanSDK >/dev/null
+                ./vulkansdk -j $(nproc)
+                popd >/dev/null
+            fi
             VK_LAYER_PATH=""
             source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
+            use_local_vulkan_sdk=true
 
             # Fix pkgconfig file.
             shaderc_pkgconfig_file="VulkanSDK/$(ls VulkanSDK)/$os_arch/lib/pkgconfig/shaderc.pc"
@@ -530,6 +639,18 @@ if [ $search_for_vulkan_sdk = true ]; then
         echo "The environment variable VULKAN_SDK is not set but is required in the installation process."
         echo "Please refer to https://vulkan.lunarg.com/sdk/home#${os_name} for instructions on how to install the Vulkan SDK."
         exit 1
+    fi
+
+    # On RHEL 8.6, I got the following errors when using the libvulkan.so provided by the SDK:
+    # dlopen failed: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /home/u12458/Correrender/third_party/VulkanSDK/1.3.275.0/x86_64/lib/libvulkan.so)
+    # Thus, we should remove it from the path if necessary.
+    if $use_local_vulkan_sdk; then
+        pushd VulkanSDK/$(ls VulkanSDK)/$os_arch/lib >/dev/null
+        if ldd -r libvulkan.so | grep "undefined symbol"; then
+            echo "Removing Vulkan SDK libvulkan.so from path..."
+            export LD_LIBRARY_PATH=$(echo ${LD_LIBRARY_PATH} | awk -v RS=: -v ORS=: '/VulkanSDK/ {next} {print}' | sed 's/:*$//') && echo $OUTPATH
+        fi
+        popd >/dev/null
     fi
 fi
 
@@ -717,6 +838,20 @@ else
     pushd "$build_dir" >/dev/null
     make -j $(nproc)
     popd >/dev/null
+fi
+if [ $use_pytorch = true ] && [ $install_module = true ]; then
+    if [ $use_macos = true ] || [ $use_vcpkg = true ]; then
+        cmake --build $build_dir --target install
+    else
+        pushd "$build_dir" >/dev/null
+        make install
+        popd >/dev/null
+    fi
+    if [ $debug = true ] ; then
+        cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
+    else
+        cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
+    fi
 fi
 
 echo "------------------------"
