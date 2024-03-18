@@ -49,8 +49,8 @@ layout (binding = 3) uniform Parameters {
     mat4 inverseTransposedViewMatrix;
 
     // Cloud properties.
-    vec3 boxMin;
-    vec3 boxMax;
+    vec3 boxMin; float voxelValueMin;
+    vec3 boxMax; float voxelValueMax;
     vec3 gridMin;
     vec3 gridMax;
     vec3 emissionBoxMin;

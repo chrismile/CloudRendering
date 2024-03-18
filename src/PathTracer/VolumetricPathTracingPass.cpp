@@ -477,7 +477,7 @@ void VolumetricPathTracingPass::setGridData() {
         imageSettings.height = cloudData->getGridSizeY();
         imageSettings.depth = cloudData->getGridSizeZ();
         imageSettings.imageType = VK_IMAGE_TYPE_3D;
-        imageSettings.format = VK_FORMAT_R32_SFLOAT;
+        imageSettings.format = cloudData->getDenseDensityField()->getEntryVulkanFormat();
         imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 
         sgl::vk::ImageSamplerSettings samplerSettings;
@@ -500,8 +500,9 @@ void VolumetricPathTracingPass::setGridData() {
 
         densityFieldTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
         densityFieldTexture->getImage()->uploadData(
-                cloudData->getGridSizeX() * cloudData->getGridSizeY() * cloudData->getGridSizeZ() * sizeof(float),
-                cloudData->getDenseDensityField());
+                cloudData->getGridSizeX() * cloudData->getGridSizeY() * cloudData->getGridSizeZ()
+                * cloudData->getDenseDensityField()->getEntrySizeInBytes(),
+                cloudData->getDenseDensityField()->getDataNative());
 
         if (emissionData && useEmission) {
             sgl::vk::ImageSettings emissionImageSettings;
@@ -509,12 +510,13 @@ void VolumetricPathTracingPass::setGridData() {
             emissionImageSettings.height = emissionData->getGridSizeY();
             emissionImageSettings.depth = emissionData->getGridSizeZ();
             emissionImageSettings.imageType = VK_IMAGE_TYPE_3D;
-            emissionImageSettings.format = VK_FORMAT_R32_SFLOAT;
+            emissionImageSettings.format = emissionData->getDenseDensityField()->getEntryVulkanFormat();
             emissionImageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             emissionFieldTexture = std::make_shared<sgl::vk::Texture>(device, emissionImageSettings, samplerSettings);
             emissionFieldTexture->getImage()->uploadData(
-                    emissionData->getGridSizeX() * emissionData->getGridSizeY() * emissionData->getGridSizeZ() * sizeof(float),
-                    emissionData->getDenseDensityField());
+                    emissionData->getGridSizeX() * emissionData->getGridSizeY() * emissionData->getGridSizeZ()
+                    * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
+                    emissionData->getDenseDensityField()->getDataNative());
         }
     }
 }
@@ -787,6 +789,7 @@ void VolumetricPathTracingPass::createEnvironmentMapOctahedralTexture(uint32_t m
     imageSettings.format = VK_FORMAT_R32_SFLOAT;
 
     sgl::vk::ImageSamplerSettings samplerSettings;
+    samplerSettings.addressModeU = samplerSettings.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
     environmentMapOctahedralTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
 
@@ -1008,7 +1011,7 @@ void VolumetricPathTracingPass::loadShader() {
             customPreprocessorDefines.insert({ "USE_POWER_MOMENTS_SCATTER_RAY", "" });
         }
     }
-    if (useEnvironmentMapImage) {
+    if (useEnvironmentMapImage && isEnvironmentMapLoaded) {
         customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
     }
     if (uniformData.useLinearRGB) {
@@ -1127,7 +1130,7 @@ void VolumetricPathTracingPass::createComputeData(
         computeData->setStaticImageView(depthFwidthTexture->getImageView(), "depthFwidthImage");
     }
 
-    if (useEnvironmentMapImage) {
+    if (useEnvironmentMapImage && isEnvironmentMapLoaded) {
         computeData->setStaticTexture(environmentMapTexture, "environmentMapTexture");
         computeData->setStaticTexture(environmentMapOctahedralTexture, "environmentMapOctahedralTexture");
     }
@@ -1229,8 +1232,17 @@ void VolumetricPathTracingPass::_render() {
         uniformData.gridMin = cloudData->getWorldSpaceGridMin();
         uniformData.gridMax = cloudData->getWorldSpaceGridMax();
         if (!useSparseGrid){
-            uniformData.gridMin = glm::vec3 (0,0,0);
-            uniformData.gridMax = glm::vec3 (1,1,1);
+            uniformData.gridMin = glm::vec3(0,0,0);
+            uniformData.gridMax = glm::vec3(1,1,1);
+        }
+
+        if (!useSparseGrid) {
+            auto densityField = cloudData->getDenseDensityField();
+            uniformData.voxelValueMin = densityField->getMinValue();
+            uniformData.voxelValueMax = densityField->getMaxValue();
+        } else {
+            uniformData.voxelValueMin = 0.0f;
+            uniformData.voxelValueMax = 1.0f;
         }
 
         uniformData.emissionCap = emissionCap;
@@ -1642,7 +1654,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                         ".*,.png,.exr",
                         sgl::AppSettings::get()->getDataDirectory().c_str(),
                         "", 1, nullptr,
-                        ImGuiFileDialogFlags_ConfirmOverwrite);
+                        ImGuiFileDialogFlags_None);
             }
             if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
                     "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
@@ -1705,7 +1717,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     ".*",
                     sgl::AppSettings::get()->getDataDirectory().c_str(),
                     "", 1, nullptr,
-                    ImGuiFileDialogFlags_ConfirmOverwrite);
+                    ImGuiFileDialogFlags_None);
         }
 
         bool shallRecreateMomentTextureA = false;

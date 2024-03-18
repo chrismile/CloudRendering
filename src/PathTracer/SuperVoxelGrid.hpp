@@ -30,8 +30,11 @@
 #define CLOUDRENDERING_SUPERVOXELGRID_HPP
 
 #include <glm/vec3.hpp>
+
 #include <Graphics/Vulkan/Buffers/Buffer.hpp>
 #include <Graphics/Vulkan/Image/Image.hpp>
+
+#include "DensityField.hpp"
 
 enum class GridInterpolationType;
 
@@ -55,7 +58,7 @@ class SuperVoxelGridResidualRatioTracking {
 public:
     SuperVoxelGridResidualRatioTracking(
             sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
-            const float* voxelGridData, int superVoxelSize1D,
+            const DensityFieldPtr& voxelGridData, int superVoxelSize1D,
             bool clampToZeroBorder, GridInterpolationType gridInterpolationType);
     ~SuperVoxelGridResidualRatioTracking();
 
@@ -70,7 +73,7 @@ public:
     void recomputeSuperVoxels();
 
 private:
-    void computeSuperVoxels(const float* voxelGridData);
+    void computeSuperVoxels(const DensityFieldPtr& voxelGridData);
 
     glm::ivec3 superVoxelSize = glm::ivec3(8);
 
@@ -103,7 +106,7 @@ class SuperVoxelGridDecompositionTracking {
 public:
     SuperVoxelGridDecompositionTracking(
             sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
-            const float* voxelGridData, int superVoxelSize1D,
+            const DensityFieldPtr& voxelGridData, int superVoxelSize1D,
             bool clampToZeroBorder, GridInterpolationType gridInterpolationType);
     ~SuperVoxelGridDecompositionTracking();
 

@@ -35,6 +35,8 @@
 
 #include "nanovdb/util/GridHandle.h"
 
+#include "DensityField.hpp"
+
 namespace sgl {
 class TransferFunctionWindow;
 }
@@ -90,7 +92,7 @@ public:
      * @return An array of size gridSizeX * gridSizeY * gridSizeZ containing the dense data field.
      * If the object was loaded using a .nvdb file, the dense field is created when calling this function.
      */
-    float* getDenseDensityField();
+    DensityFieldPtr getDenseDensityField();
     [[nodiscard]] inline bool hasDenseData() const { return densityField != nullptr; }
 
     /**
@@ -153,7 +155,14 @@ private:
      * Timestep: <float> (optional)
      */
     bool loadFromDatRawFile(const std::string& filename);
-    float* densityField = nullptr;
+    /**
+     * Loading function for pairs of .mhd and .raw files.
+     * .mhd files store metadata about the grid, while .raw files store the data.
+     * @param filename The filename of the .mhd file to load.
+     * @return Whether the file was loaded successfully.
+     */
+    bool loadFromMhdRawFile(const std::string& filename);
+    DensityFieldPtr densityField{};
 
     // --- Sparse field. ---
     /**

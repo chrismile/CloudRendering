@@ -316,7 +316,8 @@ void MainApp::renderGui() {
             if (!boost::ends_with(filenameLower, ".xyz")
                     && !boost::ends_with(filenameLower, ".nvdb")
                     && !boost::ends_with(filenameLower, ".dat")
-                    && !boost::ends_with(filenameLower, ".raw")) {
+                    && !boost::ends_with(filenameLower, ".raw")
+                    && !boost::ends_with(filenameLower, ".mhd")) {
                 sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
             }
             customDataSetFileName = filename;
@@ -547,10 +548,10 @@ void MainApp::openFileDialog() {
     IGFD_OpenModal(
             fileDialogInstance,
             "ChooseDataSetFile", "Choose a File",
-            ".*,.xyz,.nvdb,.dat,.raw",
+            ".*,.xyz,.nvdb,.dat,.raw,.mhd",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
-            ImGuiFileDialogFlags_ConfirmOverwrite);
+            ImGuiFileDialogFlags_None);
 }
 
 void MainApp::renderGuiMenuBar() {

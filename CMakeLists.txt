@@ -61,6 +61,7 @@ add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
 set(
         VPT_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudData.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/DensityField.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/SuperVoxelGrid.cpp
@@ -306,7 +307,7 @@ if (${BUILD_PYTORCH_MODULE} AND Torch_FOUND)
             TARGETS vpt
             ARCHIVE DESTINATION modules
             LIBRARY DESTINATION modules
-            RUNTIME DESTINATION bin
+            RUNTIME DESTINATION modules
     )
 endif()
 

@@ -39,7 +39,7 @@
 
 SuperVoxelGridResidualRatioTracking::SuperVoxelGridResidualRatioTracking(
         sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
-        const float* voxelGridData, int superVoxelSize1D,
+        const DensityFieldPtr& voxelGridData, int superVoxelSize1D,
         bool clampToZeroBorder, GridInterpolationType gridInterpolationType)
         : voxelGridSizeX(voxelGridSizeX), voxelGridSizeY(voxelGridSizeY), voxelGridSizeZ(voxelGridSizeZ),
           clampToZeroBorder(clampToZeroBorder), interpolationType(gridInterpolationType) {
@@ -98,7 +98,7 @@ SuperVoxelGridResidualRatioTracking::~SuperVoxelGridResidualRatioTracking() {
     delete[] superVoxelGridAvgDensity;
 }
 
-void SuperVoxelGridResidualRatioTracking::computeSuperVoxels(const float* voxelGridData) {
+void SuperVoxelGridResidualRatioTracking::computeSuperVoxels(const DensityFieldPtr& voxelGridData) {
     int superVoxelGridSize = superVoxelGridSizeX * superVoxelGridSizeY * superVoxelGridSizeZ;
 
 #ifdef USE_TBB
@@ -132,7 +132,7 @@ void SuperVoxelGridResidualRatioTracking::computeSuperVoxels(const float* voxelG
                         if (voxelIdxX >= 0 && voxelIdxY >= 0 && voxelIdxZ >= 0
                             && voxelIdxX < voxelGridSizeX && voxelIdxY < voxelGridSizeY && voxelIdxZ < voxelGridSizeZ) {
                             int voxelIdx = voxelIdxX + (voxelIdxY + voxelIdxZ * voxelGridSizeY) * voxelGridSizeX;
-                            value = voxelGridData[voxelIdx];
+                            value = voxelGridData->getDataFloatAtNorm(voxelIdx);
                         } else {
                             if (!clampToZeroBorder) {
                                 continue;
@@ -165,7 +165,7 @@ void SuperVoxelGridResidualRatioTracking::computeSuperVoxels(const float* voxelG
                         if (voxelIdxX >= 0 && voxelIdxY >= 0 && voxelIdxZ >= 0
                             && voxelIdxX < voxelGridSizeX && voxelIdxY < voxelGridSizeY && voxelIdxZ < voxelGridSizeZ) {
                             int voxelIdx = voxelIdxX + (voxelIdxY + voxelIdxZ * voxelGridSizeY) * voxelGridSizeX;
-                            value = voxelGridData[voxelIdx];
+                            value = voxelGridData->getDataFloatAtNorm(voxelIdx);
                         } else {
                             if (!clampToZeroBorder) {
                                 continue;
@@ -268,7 +268,7 @@ void SuperVoxelGridResidualRatioTracking::recomputeSuperVoxels() {
 
 SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
         sgl::vk::Device* device, int voxelGridSizeX, int voxelGridSizeY, int voxelGridSizeZ,
-        const float* voxelGridData, int superVoxelSize1D,
+        const DensityFieldPtr& voxelGridData, int superVoxelSize1D,
         bool clampToZeroBorder, GridInterpolationType gridInterpolationType)
         : voxelGridSizeX(voxelGridSizeX), voxelGridSizeY(voxelGridSizeY), voxelGridSizeZ(voxelGridSizeZ),
           clampToZeroBorder(clampToZeroBorder), interpolationType(gridInterpolationType) {
@@ -340,7 +340,7 @@ SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
                         if (voxelIdxX >= 0 && voxelIdxY >= 0 && voxelIdxZ >= 0
                                 && voxelIdxX < voxelGridSizeX && voxelIdxY < voxelGridSizeY && voxelIdxZ < voxelGridSizeZ) {
                             int voxelIdx = voxelIdxX + (voxelIdxY + voxelIdxZ * voxelGridSizeY) * voxelGridSizeX;
-                            value = voxelGridData[voxelIdx];
+                            value = voxelGridData->getDataFloatAtNorm(voxelIdx);
                         } else {
                             if (!clampToZeroBorder) {
                                 continue;
@@ -369,7 +369,7 @@ SuperVoxelGridDecompositionTracking::SuperVoxelGridDecompositionTracking(
                         if (voxelIdxX >= 0 && voxelIdxY >= 0 && voxelIdxZ >= 0
                                 && voxelIdxX < voxelGridSizeX && voxelIdxY < voxelGridSizeY && voxelIdxZ < voxelGridSizeZ) {
                             int voxelIdx = voxelIdxX + (voxelIdxY + voxelIdxZ * voxelGridSizeY) * voxelGridSizeX;
-                            value = voxelGridData[voxelIdx];
+                            value = voxelGridData->getDataFloatAtNorm(voxelIdx);
                         } else {
                             if (!clampToZeroBorder) {
                                 continue;

@@ -56,8 +56,7 @@ CloudData::CloudData(sgl::TransferFunctionWindow* transferFunctionWindow)
 
 CloudData::~CloudData() {
     if (densityField) {
-        delete[] densityField;
-        densityField = nullptr;
+        densityField = {};
     }
     sparseGridHandle = {};
 }
@@ -73,8 +72,7 @@ void CloudData::computeGridBounds() {
 
 void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
     if (densityField) {
-        delete[] densityField;
-        densityField = nullptr;
+        densityField = {};
     }
     sparseGridHandle = {};
 
@@ -84,7 +82,8 @@ void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32
 
     computeGridBounds();
 
-    densityField = _densityField;
+    auto numEntries = size_t(_gridSizeX) * size_t(_gridSizeZ) * size_t(_gridSizeZ);
+    densityField = std::make_shared<DensityField>(numEntries, _densityField);
     gridFilename = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/clouds/tmp.xyz";
     gridName = "tmp";
 }
@@ -128,8 +127,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
             sgl::FileUtils::get()->getPureFilename(gridFilename)));
 
     if (densityField) {
-        delete[] densityField;
-        densityField = nullptr;
+        densityField = {};
     }
     sparseGridHandle = {};
 
@@ -140,6 +138,8 @@ bool CloudData::loadFromFile(const std::string& filename) {
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".dat")
             || sgl::FileUtils::get()->hasExtension(filename.c_str(), ".raw")) {
         return loadFromDatRawFile(filename);
+    } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".mhd")) {
+        return loadFromMhdRawFile(filename);
     } else {
         sgl::Logfile::get()->writeError(
                 "Error in CloudData::loadFromFile: The file \"" + filename + "\" has an unknown extension!");
@@ -173,7 +173,7 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 
     computeGridBounds();
 
-    densityField = new float[gridSizeX * gridSizeY * gridSizeZ];
+    auto* densityFieldFloat = new float[gridSizeX * gridSizeY * gridSizeZ];
     auto* densityFieldTransposed = new float[gridSizeX * gridSizeY * gridSizeZ];
     binaryReadStream.read(densityFieldTransposed, gridSizeX * gridSizeY * gridSizeZ * sizeof(float));
 
@@ -183,14 +183,14 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
         for (auto z = r.begin(); z != r.end(); z++) {
 #else
 #if _OPENMP >= 201107
-    #pragma omp parallel for shared(densityField, densityFieldTransposed, gridSizeX, gridSizeY, gridSizeZ) \
+    #pragma omp parallel for shared(densityFieldFloat, densityFieldTransposed, gridSizeX, gridSizeY, gridSizeZ) \
     default(none)
 #endif
     for (uint32_t z = 0; z < gridSizeZ; z++) {
 #endif
         for (uint32_t y = 0; y < gridSizeY; y++) {
             for (uint32_t x = 0; x < gridSizeX; x++) {
-                densityField[x + (y + z * gridSizeY) * gridSizeX] =
+                densityFieldFloat[x + (y + z * gridSizeY) * gridSizeX] =
                         densityFieldTransposed[z + (y + x * gridSizeY) * gridSizeZ];
             }
         }
@@ -202,22 +202,24 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 
     size_t totalSize = gridSizeX * gridSizeY * gridSizeZ;
     auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
-            densityField, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
+            densityFieldFloat, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
 
 #ifdef USE_TBB
     tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
         for (auto i = r.begin(); i != r.end(); i++) {
 #else
 #if _OPENMP >= 201107
-    #pragma omp parallel for default(none) shared(densityField, totalSize, minVal, maxVal)
+    #pragma omp parallel for default(none) shared(densityFieldFloat, totalSize, minVal, maxVal)
 #endif
     for (size_t i = 0; i < totalSize; i++) {
 #endif
-        densityField[i] = (densityField[i] - minVal) / (maxVal - minVal);
+        densityFieldFloat[i] = (densityFieldFloat[i] - minVal) / (maxVal - minVal);
     }
 #ifdef USE_TBB
     });
 #endif
+
+    densityField = std::make_shared<DensityField>(gridSizeX * gridSizeY * gridSizeZ, densityFieldFloat);
 
     return true;
 }
@@ -379,44 +381,21 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
 
     computeGridBounds();
 
-    densityField = new float[totalSize];
     if (formatString == "float") {
-        memcpy(densityField, bufferRaw, sizeof(float) * totalSize);
+        auto* densityFieldFloat = new float[totalSize];
+        memcpy(densityFieldFloat, bufferRaw, sizeof(float) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldFloat);
     } else if (formatString == "uchar") {
-        auto* dataField = bufferRaw;
-#ifdef USE_TBB
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
-            for (auto i = r.begin(); i != r.end(); i++) {
-#else
-#if _OPENMP >= 201107
-        #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
-#endif
-        for (size_t i = 0; i < totalSize; i++) {
-#endif
-            densityField[i] = float(dataField[i]) / 255.0f;
-        }
-#ifdef USE_TBB
-        });
-#endif
+        auto* densityFieldUchar = new uint8_t[totalSize];
+        memcpy(densityFieldUchar, bufferRaw, sizeof(uint8_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUchar);
     } else if (formatString == "ushort") {
-        auto* dataField = reinterpret_cast<uint16_t*>(bufferRaw);
-#ifdef USE_TBB
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
-            for (auto i = r.begin(); i != r.end(); i++) {
-#else
-#if _OPENMP >= 201107
-        #pragma omp parallel for default(none) shared(densityField, dataField, totalSize)
-#endif
-        for (size_t i = 0; i < totalSize; i++) {
-#endif
-            densityField[i] = float(dataField[i]) / 65535.0f;
-        }
-#ifdef USE_TBB
-        });
-#endif
+        auto* densityFieldUshort = new uint16_t[totalSize];
+        memcpy(densityFieldUshort, bufferRaw, sizeof(uint16_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
     }
 
-    auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
+    /*auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
             densityField, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
 
 #ifdef USE_TBB
@@ -432,18 +411,242 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
     }
 #ifdef USE_TBB
     });
-#endif
+#endif*/
 
     return true;
 }
 
-float* CloudData::getDenseDensityField() {
+inline void existsAndEqual(
+        const std::string& mhdFilePath, const std::map<std::string, std::string>& mhdDict,
+        const std::string& key, const std::string& value) {
+    auto it = mhdDict.find(key);
+    if (it == mhdDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry '" + key + "' missing in \"" + mhdFilePath + "\".");
+    }
+    if (it->second != value) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry '" + key + "' is not equal to \"" + value + "\".");
+    }
+}
+
+bool CloudData::loadFromMhdRawFile(const std::string& filename) {
+    std::string mhdFilePath;
+    std::string rawFilePath;
+
+    if (boost::ends_with(filename, ".mhd")) {
+        mhdFilePath = filename;
+    }
+    if (boost::ends_with(filename, ".raw")) {
+        rawFilePath = filename;
+
+        // We need to find the corresponding .mhd file.
+        std::string rawFileDirectory = sgl::FileUtils::get()->getPathToFile(rawFilePath);
+        std::vector<std::string> filesInDir = sgl::FileUtils::get()->getFilesInDirectoryVector(rawFileDirectory);
+        for (const std::string& filePath : filesInDir) {
+            if (boost::ends_with(filePath, ".mhd")) {
+                mhdFilePath = filePath;
+                break;
+            }
+        }
+        if (mhdFilePath.empty()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromMhdRawFile::load: No .mhd file found for \"" + rawFilePath + "\".");
+        }
+    }
+
+    // Load the .mhd metadata file.
+    uint8_t* bufferMhd = nullptr;
+    size_t lengthMhd = 0;
+    bool loadedMhd = sgl::loadFileFromSource(mhdFilePath, bufferMhd, lengthMhd, false);
+    if (!loadedMhd) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Couldn't open file \"" + mhdFilePath + "\".");
+    }
+    char* fileBuffer = reinterpret_cast<char*>(bufferMhd);
+
+    std::string lineBuffer;
+    std::string stringBuffer;
+    std::vector<std::string> splitLineString;
+    std::map<std::string, std::string> mhdDict;
+    for (size_t charPtr = 0; charPtr < lengthMhd; ) {
+        lineBuffer.clear();
+        while (charPtr < lengthMhd) {
+            char currentChar = fileBuffer[charPtr];
+            if (currentChar == '\n' || currentChar == '\r') {
+                charPtr++;
+                break;
+            }
+            lineBuffer.push_back(currentChar);
+            charPtr++;
+        }
+
+        if (lineBuffer.empty()) {
+            continue;
+        }
+
+        splitLineString.clear();
+        sgl::splitString(lineBuffer, '=', splitLineString);
+        if (splitLineString.empty()) {
+            continue;
+        }
+        if (splitLineString.size() != 2) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromMhdRawFile::load: Invalid entry in file \"" + mhdFilePath + "\".");
+        }
+
+        std::string mhdKey = splitLineString.at(0);
+        std::string mhdValue = splitLineString.at(1);
+        boost::trim(mhdKey);
+        //boost::to_lower(mhdKey);
+        boost::trim(mhdValue);
+        mhdDict.insert(std::make_pair(mhdKey, mhdValue));
+    }
+    delete[] bufferMhd;
+
+    // Next, process the metadata.
+    if (rawFilePath.empty()) {
+        auto it = mhdDict.find("ElementDataFile");
+        if (it == mhdDict.end()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromMhdRawFile::load: Entry 'ObjectFileName' missing in \""
+                    + mhdFilePath + "\".");
+        }
+        rawFilePath = it->second;
+        bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(rawFilePath);
+        if (!isAbsolutePath) {
+            rawFilePath = sgl::FileUtils::get()->getPathToFile(mhdFilePath) + rawFilePath;
+        }
+    }
+
+    existsAndEqual(mhdFilePath, mhdDict, "ObjectType", "Image");
+    existsAndEqual(mhdFilePath, mhdDict, "NDims", "3");
+    existsAndEqual(mhdFilePath, mhdDict, "Offset", "0 0 0");
+    existsAndEqual(mhdFilePath, mhdDict, "TransformMatrix", "1 0 0 0 1 0 0 0 1");
+    existsAndEqual(mhdFilePath, mhdDict, "CenterOfRotation", "0 0 0");
+    existsAndEqual(mhdFilePath, mhdDict, "AnatomicalOrientation", "RAI");
+    existsAndEqual(mhdFilePath, mhdDict, "BinaryData", "True");
+    existsAndEqual(mhdFilePath, mhdDict, "BinaryDataByteOrderMSB", "False");
+    existsAndEqual(mhdFilePath, mhdDict, "InterceptSlope", "0 1");
+    existsAndEqual(mhdFilePath, mhdDict, "Modality", "MET_MOD_OTHER");
+    existsAndEqual(mhdFilePath, mhdDict, "SegmentationType", "UNKNOWN");
+
+    auto itResolution = mhdDict.find("DimSize");
+    if (itResolution == mhdDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'DimSize' missing in \"" + mhdFilePath + "\".");
+    }
+    std::vector<std::string> resolutionSplit;
+    sgl::splitStringWhitespace(itResolution->second, resolutionSplit);
+    if (resolutionSplit.size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'DimSize' in \"" + mhdFilePath
+                + "\" does not have three values.");
+    }
+    auto xs = sgl::fromString<uint32_t>(resolutionSplit.at(0));
+    auto ys = sgl::fromString<uint32_t>(resolutionSplit.at(1));
+    auto zs = sgl::fromString<uint32_t>(resolutionSplit.at(2));
+
+    // TODO: Add support for ElementSpacing storing dx/dy/dz ratio as floats.
+    /*auto itSpacing = mhdDict.find("ElementSpacing");
+    if (itSpacing == mhdDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'ElementSpacing' missing in \"" + mhdFilePath + "\".");
+    }
+    std::vector<std::string> spacingSplit;
+    sgl::splitStringWhitespace(itSpacing->second, spacingSplit);
+    if (spacingSplit.size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'ElementSpacing' in \"" + mhdFilePath
+                + "\" does not have three values.");
+    }
+    auto dx = sgl::fromString<float>(spacingSplit.at(0));
+    auto dy = sgl::fromString<float>(spacingSplit.at(1));
+    auto dz = sgl::fromString<float>(spacingSplit.at(2));*/
+
+    float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
+    float cellStep = 1.0f / maxDimension;
+
+    auto itFormat = mhdDict.find("ElementType");
+    if (itFormat == mhdDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'ElementType' missing in \"" + mhdFilePath + "\".");
+    }
+    std::string formatString = itFormat->second;
+    size_t bytesPerEntry = 0;
+    if (formatString == "MET_FLOAT") {
+        bytesPerEntry = 4;
+    } else if (formatString == "MET_UCHAR") {
+        bytesPerEntry = 1;
+    } else if (formatString == "MET_USHORT") {
+        bytesPerEntry = 2;
+    } else {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Unsupported format '" + formatString + "' in file \""
+                + mhdFilePath + "\".");
+    }
+
+    auto itBitsStored = mhdDict.find("BitsStored");
+    if (itBitsStored == mhdDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Entry 'BitsStored' missing in \"" + mhdFilePath + "\".");
+    }
+    int numBitsStored = sgl::fromString<int>(itBitsStored->second);
+    if (size_t(numBitsStored) != bytesPerEntry * 8) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Mismatched 'BitsStored' entry in \"" + mhdFilePath + "\".");
+    }
+
+    // Finally, load the data from the .raw file.
+    uint8_t* bufferRaw = nullptr;
+    size_t lengthRaw = 0;
+    bool loadedRaw = sgl::loadFileFromSource(rawFilePath, bufferRaw, lengthRaw, true);
+    if (!loadedRaw) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Couldn't open file \"" + rawFilePath + "\".");
+    }
+
+    gridSizeX = xs;
+    gridSizeY = ys;
+    gridSizeZ = zs;
+    voxelSizeX = cellStep;
+    voxelSizeY = cellStep;
+    voxelSizeZ = cellStep;
+
+    size_t numBytesData = lengthRaw;
+    size_t totalSize = size_t(xs) * size_t(ys) * size_t(zs);
+    if (numBytesData != totalSize * bytesPerEntry) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromMhdRawFile::load: Invalid number of entries for file \""
+                + rawFilePath + "\".");
+    }
+
+    computeGridBounds();
+
+    if (formatString == "MET_FLOAT") {
+        auto* densityFieldFloat = new float[totalSize];
+        memcpy(densityFieldFloat, bufferRaw, sizeof(float) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldFloat);
+    } else if (formatString == "MET_UCHAR") {
+        auto* densityFieldUchar = new uint8_t[totalSize];
+        memcpy(densityFieldUchar, bufferRaw, sizeof(uint8_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUchar);
+    } else if (formatString == "MET_USHORT") {
+        auto* densityFieldUshort = new uint16_t[totalSize];
+        memcpy(densityFieldUshort, bufferRaw, sizeof(uint16_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
+    }
+
+    return true;
+}
+
+DensityFieldPtr CloudData::getDenseDensityField() {
     if (!hasDenseData()) {
         if (sparseGridHandle.empty()) {
             sgl::Logfile::get()->throwError(
                     "Fatal error in CloudData::getDenseDensityField: Neither a dense nor a sparse field are "
                     "loaded!");
-            return nullptr;
+            return {};
         }
 
         auto* grid = sparseGridHandle.grid<float>();
@@ -451,20 +654,21 @@ float* CloudData::getDenseDensityField() {
             sgl::Logfile::get()->throwError(
                     "Fatal error in CloudData::getDenseDensityField: The sparse grid data from \"" + gridFilename
                     + "\" does not contain floating point data!");
-            return nullptr;
+            return {};
         }
 
         auto& tree = grid->tree();
         auto minGridVal = grid->indexBBox().min();
-        densityField = new float[gridSizeX * gridSizeY * gridSizeZ];
+        auto* densityFieldFloat = new float[gridSizeX * gridSizeY * gridSizeZ];
         for (uint32_t z = 0; z < gridSizeZ; z++) {
             for (uint32_t y = 0; y < gridSizeY; y++) {
                 for (uint32_t x = 0; x < gridSizeX; x++) {
-                    densityField[x + y * gridSizeX + z * gridSizeX * gridSizeY] = tree.getValue(nanovdb::Coord(
+                    densityFieldFloat[x + y * gridSizeX + z * gridSizeX * gridSizeY] = tree.getValue(nanovdb::Coord(
                             minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
                 }
             }
         }
+        densityField = std::make_shared<DensityField>(gridSizeX * gridSizeY * gridSizeZ, densityFieldFloat);
     }
 
     return densityField;
@@ -574,7 +778,7 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
                 auto x = uint32_t(ijk.x());
                 auto y = uint32_t(ijk.y());
                 auto z = uint32_t(ijk.z());
-                return densityField[x + (y + z * gridSizeY) * gridSizeX];
+                return densityField->getDataFloatAtNorm(x + (y + z * gridSizeY) * gridSizeX);
             };
             auto maxIdxX = int32_t(gridSizeX - 1);
             auto maxIdxY = int32_t(gridSizeY - 1);

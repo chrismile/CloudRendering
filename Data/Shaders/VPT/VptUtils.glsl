@@ -440,12 +440,14 @@ float sampleCloudRaw(in vec3 pos) {
 }
 #endif
 #else
+#define sampleGridImage(coord) (texture(gridImage, coord).x - parameters.voxelValueMin) / (parameters.voxelValueMax - parameters.voxelValueMin)
+#define sampleGridImageOffset(coord, offset) (textureOffset(gridImage, coord, offset).x - parameters.voxelValueMin) / (parameters.voxelValueMax - parameters.voxelValueMin)
 float sampleCloudRaw(in vec3 coord) {
 #if defined(GRID_INTERPOLATION_STOCHASTIC)
     ivec3 dim = textureSize(gridImage, 0);
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
 #endif
-    return texture(gridImage, coord).x;
+    return sampleGridImage(coord);
 }
 #endif
 
@@ -541,9 +543,9 @@ vec3 getCloudFiniteDifference(in vec3 pos) {
 #endif
     float density = texture(gridImage, coord).x;
     vec3 dFdpos = vec3(
-        texture(gridImage, coord - vec3(1, 0, 0) / dim).x - texture(gridImage, coord + vec3(1, 0, 0) / dim).x,
-        texture(gridImage, coord - vec3(0, 1, 0) / dim).x - texture(gridImage, coord + vec3(0, 1, 0) / dim).x,
-        texture(gridImage, coord - vec3(0, 0, 1) / dim).x - texture(gridImage, coord + vec3(0, 0, 1) / dim).x
+        sampleGridImage(coord - vec3(1, 0, 0) / dim) - sampleGridImage(coord + vec3(1, 0, 0) / dim),
+        sampleGridImage(coord - vec3(0, 1, 0) / dim) - sampleGridImage(coord + vec3(0, 1, 0) / dim),
+        sampleGridImage(coord - vec3(0, 0, 1) / dim) - sampleGridImage(coord + vec3(0, 0, 1) / dim)
     ) / dim * 100;
     const float l = length(dFdpos);
     if (l > 1e-5) {
@@ -603,27 +605,27 @@ vec3 computeGradient(vec3 texCoords) {
     const float dy = 1.0;
     const float dz = 1.0;
     float gradX =
-            (textureOffset(gridImage, texCoords, ivec3(-1, 0, 0)).r
-            - textureOffset(gridImage, texCoords, ivec3(1, 0, 0)).r) * 0.5 / dx;
+            (sampleGridImageOffset(texCoords, ivec3(-1, 0, 0))
+            - sampleGridImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
     float gradY =
-            (textureOffset(gridImage, texCoords, ivec3(0, -1, 0)).r
-            - textureOffset(gridImage, texCoords, ivec3(0, 1, 0)).r) * 0.5 / dy;
+            (sampleGridImageOffset(texCoords, ivec3(0, -1, 0))
+            - sampleGridImageOffset(texCoords, ivec3(0, 1, 0))) * 0.5 / dy;
     float gradZ =
-            (textureOffset(gridImage, texCoords, ivec3(0, 0, -1)).r
-            - textureOffset(gridImage, texCoords, ivec3(0, 0, 1)).r) * 0.5 / dz;
+            (sampleGridImageOffset(texCoords, ivec3(0, 0, -1))
+            - sampleGridImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
 #else
     const float dx = parameters.voxelTexelSize.x * 1;
     const float dy = parameters.voxelTexelSize.y * 1;
     const float dz = parameters.voxelTexelSize.z * 1;
     float gradX =
-            (texture(gridImage, texCoords - vec3(dx, 0.0, 0.0)).r
-            - texture(gridImage, texCoords + vec3(dx, 0.0, 0.0)).r) * 0.5;
+            (sampleGridImage(texCoords - vec3(dx, 0.0, 0.0))
+            - sampleGridImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
     float gradY =
-            (texture(gridImage, texCoords - vec3(0.0, dy, 0.0)).r
-            - texture(gridImage, texCoords + vec3(0.0, dy, 0.0)).r) * 0.5;
+            (sampleGridImage(texCoords - vec3(0.0, dy, 0.0))
+            - sampleGridImage(texCoords + vec3(0.0, dy, 0.0))) * 0.5;
     float gradZ =
-            (texture(gridImage, texCoords - vec3(0.0, 0.0, dz)).r
-            - texture(gridImage, texCoords + vec3(0.0, 0.0, dz)).r) * 0.5;
+            (sampleGridImage(texCoords - vec3(0.0, 0.0, dz))
+            - sampleGidImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
 #endif
 
     vec3 grad = vec3(gradX, gradY, gradZ);

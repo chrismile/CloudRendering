@@ -346,8 +346,8 @@ private:
         glm::mat4 inverseTransposedViewMatrix;
 
         // Cloud properties
-        glm::vec3 boxMin; float pad0;
-        glm::vec3 boxMax; float pad1;
+        glm::vec3 boxMin; float voxelValueMin;
+        glm::vec3 boxMax; float voxelValueMax;
         glm::vec3 gridMin; float pad2;
         glm::vec3 gridMax; float pad3;
         glm::vec3 emissionBoxMin; float pad4;
