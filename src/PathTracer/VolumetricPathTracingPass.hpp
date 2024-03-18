@@ -55,13 +55,13 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, DENSITY, BACKGROUND, REPROJ_UV,
-    DEPTH_BLENDED,
+    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
+    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Density", "Background", "Reprojected UV",
-        "Depth Blended",
+        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
+        "Density", "Background", "Reprojected UV", "Depth Blended",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -96,7 +96,7 @@ private:
 const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
         {FeatureMapType::ALBEDO, FeatureMapTypeVpt::RESULT},
-        {FeatureMapType::FLOW, FeatureMapTypeVpt::RESULT}, // TODO
+        {FeatureMapType::FLOW, FeatureMapTypeVpt::FLOW},
         {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
         {FeatureMapType::CLOUDONLY, FeatureMapTypeVpt::CLOUD_ONLY},
@@ -105,6 +105,8 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
         {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
+        {FeatureMapType::DEPTH_NABLA, FeatureMapTypeVpt::DEPTH_NABLA},
+        {FeatureMapType::DEPTH_FWIDTH, FeatureMapTypeVpt::DEPTH_FWIDTH},
 });
 
 enum class VptMode {
@@ -267,6 +269,12 @@ private:
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
     sgl::vk::TexturePtr depthBlendedTexture;
+    sgl::vk::TexturePtr flowTexture;
+    sgl::vk::TexturePtr depthNablaTexture;
+    sgl::vk::TexturePtr depthFwidthTexture;
+    bool accumulateInputs = true;
+    bool useGlobalFrameNumber = false;
+    uint32_t globalFrameNumber = 0;
 
     std::string getCurrentEventName();
     int targetNumSamples = 1024;
@@ -335,6 +343,7 @@ private:
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
         glm::mat4 previousViewProjMatrix;
+        glm::mat4 inverseTransposedViewMatrix;
 
         // Cloud properties
         glm::vec3 boxMin; float pad0;
@@ -363,7 +372,7 @@ private:
         glm::ivec3 superVoxelGridSize; int pad9;
 
         glm::vec3 voxelTexelSize;
-        float padding;
+        float farDistance;
 
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;
@@ -377,7 +386,8 @@ private:
 
     struct FrameInfo {
         uint32_t frameCount;
-        glm::uvec3 padding;
+        uint32_t globalFrameNumber;
+        glm::uvec2 padding;
     };
     FrameInfo frameInfo{};
     sgl::vk::BufferPtr frameInfoBuffer;

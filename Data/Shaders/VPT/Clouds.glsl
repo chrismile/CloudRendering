@@ -58,11 +58,12 @@ vec3 cameraPosition;
 
 void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     uint frame = frameInfo.frameCount + i;
+    uint frameGlobal = frameInfo.globalFrameNumber + i;
 
     ivec2 dim = imageSize(resultImage);
     ivec2 imageCoord = ivec2(gl_GlobalInvocationID.xy);
 
-    uint seed = frame * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
+    uint seed = frameGlobal * dim.x * dim.y + gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * dim.x;
 #ifdef CUSTOM_SEED_OFFSET
     seed += CUSTOM_SEED_OFFSET;
 #endif
@@ -113,55 +114,71 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     if (!onlyFirstEvent) {
 #ifdef WRITE_CLOUDONLY_MAP
         // Accumulate cloudOnly
-        vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
         vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+#ifndef DISABLE_ACCUMULATION
+        vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
         cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
+#endif
         imageStore(cloudOnlyImage, imageCoord, cloudOnly);
 #endif
 
 #ifdef WRITE_BACKGROUND_MAP
         // Accumulate background
-        vec4 backgroundOld = frame == 0 ? vec4(0) : imageLoad(backgroundImage, imageCoord);
         vec4 background = firstEvent.hasValue ? vec4(sampleSkybox(w), 1) : vec4(result, 1);
+#ifndef DISABLE_ACCUMULATION
+        vec4 backgroundOld = frame == 0 ? vec4(0) : imageLoad(backgroundImage, imageCoord);
         background = mix(backgroundOld, background, 1.0 / float(frame + 1));
+#endif
         imageStore(backgroundImage, imageCoord, background);
 #endif
 
         // Accumulate result
 #ifndef OUTPUT_FOREGROUND_MAP
+#ifndef DISABLE_ACCUMULATION
         vec3 resultOld = frame == 0 ? vec3(0) : imageLoad(accImage, imageCoord).xyz;
         result = mix(resultOld, result, 1.0 / float(frame + 1));
+#endif
         imageStore(accImage, imageCoord, vec4(result, 1));
         imageStore(resultImage, imageCoord, vec4(result, 1));
 #else
-        vec4 resultOld = frame == 0 ? vec4(0) : imageLoad(accImage, imageCoord);
         vec4 resultRgba = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+#ifndef DISABLE_ACCUMULATION
+        vec4 resultOld = frame == 0 ? vec4(0) : imageLoad(accImage, imageCoord);
         resultRgba = mix(resultOld, resultRgba, 1.0 / float(frame + 1));
+#endif
         imageStore(accImage, imageCoord, resultRgba);
         imageStore(resultImage, imageCoord, resultRgba);
 #endif
     }
 
 #ifdef WRITE_POSITION_MAP
-    vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(firstX, imageCoord);
     vec4 position = firstEvent.hasValue ? vec4(firstEvent.x, 1) : vec4(0);
+#ifndef DISABLE_ACCUMULATION
+    vec4 positionOld = frame == 0 ? vec4(0) : imageLoad(firstX, imageCoord);
     position = mix(positionOld, position, 1.0 / float(frame + 1));
+#endif
     imageStore(firstX, imageCoord, position);
 #endif
 
 #ifdef WRITE_DEPTH_MAP
+#ifndef DISABLE_ACCUMULATION
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
     vec2 depthOld = frame == 0 ? vec2(0) : imageLoad(depthImage, imageCoord).xy;
     depthOld.y = depthOld.y * depthOld.y + depthOld.x * depthOld.x;
-    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
     depth = mix(depthOld, depth, 1.0 / float(frame + 1));
+#else
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(parameters.farDistance,0);
+#endif
     imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(max(0.,depth.y - depth.x * depth.x)),0,0));
 #endif
 
 #ifdef WRITE_DENSITY_MAP
+    vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
+#ifndef DISABLE_ACCUMULATION
     vec2 densityOld = frame == 0 ? vec2(0) : imageLoad(densityImage, imageCoord).xy;
     densityOld.y = densityOld.y * densityOld.y + densityOld.x * densityOld.x;
-    vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
     density = mix(densityOld, density, 1.0 / float(frame + 1));
+#endif
     imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.,density.y - density.x * density.x)),0,0));
 #endif
 
@@ -174,19 +191,34 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     imageStore(reprojUVImage, imageCoord, vec4(reprojUV, 0, 0));
 #endif
 
+#if defined(WRITE_DEPTH_NABLA_MAP) || defined(WRITE_DEPTH_FWIDTH_MAP)
+    vec2 nabla = vec2(0.0, 0.0);
+#endif
+
     // Saving the first scatter position and direction
     if (firstEvent.hasValue) {
         //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
 
 #ifdef WRITE_NORMAL_MAP
         vec3 diff = getCloudFiniteDifference(firstEvent.x);
+#ifndef DISABLE_ACCUMULATION
         vec3 diffOld = frame == 0 ? vec3(0) : imageLoad(normalImage, imageCoord).xyz;
         diff = mix(diffOld, diff, 1.0 / float(frame + 1));
+#endif
         imageStore(normalImage, imageCoord, vec4(diff,1));
 #endif
 
 #ifdef WRITE_FIRST_W_MAP
         imageStore(firstW, imageCoord, vec4(firstEvent.w, firstEvent.pdf_w));
+#endif
+
+#if defined(WRITE_DEPTH_NABLA_MAP) || defined(WRITE_DEPTH_FWIDTH_MAP)
+        vec3 camNormalFlat = (parameters.inverseTransposedViewMatrix * vec4(diff, 0.0)).xyz;
+        // A = cos(diff, camX)
+        // cot(acos(A)) = cos(acos(A)) / sin(acos(A)) = A / sin(acos(A)) = A / sqrt(1 - A^2)
+        const float A = camNormalFlat.x; // dot(camNormalFlat, vec3(1.0, 0.0, 0.0))
+        const float B = camNormalFlat.y; // dot(camNormalFlat, vec3(0.0, 1.0, 0.0))
+        nabla = vec2(A / sqrt(1.0 - A * A), B / sqrt(1.0 - B * B));
 #endif
     } else {
         //imageStore(firstX, imageCoord, vec4(0));
@@ -200,10 +232,44 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #endif
     }
 
+#ifdef WRITE_FLOW_MAP
+    vec2 flowVector = vec2(0.0);
+    if (firstEvent.hasValue) {
+        vec4 lastFramePositionNdc = parameters.previousViewProjMatrix * vec4(firstEvent.x, 1.0);
+        lastFramePositionNdc.xyz /= lastFramePositionNdc.w;
+        vec2 pixelPositionLastFrame = (0.5 * lastFramePositionNdc.xy + vec2(0.5)) * vec2(dim) - vec2(0.5);
+        flowVector = vec2(imageCoord) - pixelPositionLastFrame;
+    }
+    imageStore(flowImage, imageCoord, vec4(flowVector, 0.0, 0.0));
+#endif
+
+#ifdef WRITE_DEPTH_NABLA_MAP
+#ifndef DISABLE_ACCUMULATION
+    if (frame != 0) {
+        vec2 nablaOld = imageLoad(depthNablaImage, imageCoord).xy;
+        nabla = mix(nablaOld, nabla, 1.0 / float(frame + 1));
+    }
+#endif
+    imageStore(depthNablaImage, imageCoord, vec4(nabla, 0.0, 0.0));
+#endif
+
+#ifdef WRITE_DEPTH_FWIDTH_MAP
+    float fwidthValue = abs(nabla.x) + abs(nabla.y);
+#ifndef DISABLE_ACCUMULATION
+    if (frame != 0) {
+        float fwidthValueOld = imageLoad(depthFwidthImage, imageCoord).x;
+        fwidthValue = mix(fwidthValueOld, fwidthValue, 1.0 / float(frame + 1));
+    }
+#endif
+    imageStore(depthFwidthImage, imageCoord, vec4(fwidthValue));
+#endif
+
 #ifdef WRITE_DEPTH_BLENDED_MAP
     vec2 depthBlended = computeDepthBlended(x, w);
+#ifndef DISABLE_ACCUMULATION
     vec2 depthBlendedOld = frame == 0 ? vec2(0) : imageLoad(depthBlendedImage, imageCoord).xy;
     depthBlended = mix(depthBlendedOld, depthBlended, 1.0 / float(frame + 1));
+#endif
     imageStore(depthBlendedImage, imageCoord, vec4(depthBlended, 0.0, 1.0));
 #endif
 
