@@ -30,13 +30,12 @@
 #define CLOUDRENDERING_DENSITYFIELD_HPP
 
 #include <memory>
+
+#include <Utils/SciVis/ScalarDataFormat.hpp>
 #include <Graphics/Vulkan/Image/Image.hpp>
 
+class HalfFloat;
 class CloudData;
-
-enum class ScalarDataFormat {
-    FLOAT, BYTE, SHORT // , FLOAT16
-};
 
 class DensityField {
     friend class VolumeData;
@@ -47,16 +46,19 @@ public:
             : scalarDataFormatNative(ScalarDataFormat::BYTE), numEntries(numEntries), dataByte(dataByte) {}
     explicit DensityField(size_t numEntries, uint16_t* dataShort)
             : scalarDataFormatNative(ScalarDataFormat::SHORT), numEntries(numEntries), dataShort(dataShort) {}
-    //explicit DensityField(size_t numEntries, HalfFloat* dataFloat16)
-    //       : scalarDataFormatNative(ScalarDataFormat::FLOAT16), numEntries(numEntries), dataFloat16(dataFloat16) {}
+    explicit DensityField(size_t numEntries, HalfFloat* dataFloat16)
+           : scalarDataFormatNative(ScalarDataFormat::FLOAT16), numEntries(numEntries), dataFloat16(dataFloat16) {}
+    explicit DensityField(ScalarDataFormat fmt) : scalarDataFormatNative(fmt), numEntries(0), dataFloat(nullptr) {}
     ~DensityField();
+
+    static std::shared_ptr<DensityField> createHalfFloat(size_t numEntries, HalfFloat* dataFloat16);
 
     [[nodiscard]] ScalarDataFormat getScalarDataFormatNative() const { return scalarDataFormatNative; }
     [[nodiscard]] const void* getDataNative();
     [[nodiscard]] const float* getDataFloat();
     [[nodiscard]] const uint8_t* getDataByte();
     [[nodiscard]] const uint16_t* getDataShort();
-    //[[nodiscard]] const HalfFloat* getDataFloat16();
+    [[nodiscard]] const HalfFloat* getDataFloat16();
 
     size_t getEntrySizeInBytes();
     uint32_t getEntrySizeInBytesUint32();
@@ -65,7 +67,7 @@ public:
     float getMinValue();
     float getMaxValue();
 
-    //void switchNativeFormat(ScalarDataFormat newNativeFormat);
+    void switchNativeFormat(ScalarDataFormat newNativeFormat);
 
     template<class T>
     [[nodiscard]] inline const typename std::enable_if<std::is_same<T, float>::value, T>::type* data() {
@@ -79,10 +81,10 @@ public:
     [[nodiscard]] inline const typename std::enable_if<std::is_same<T, uint16_t>::value, T>::type* data() {
         return getDataShort();
     }
-    //template<class T>
-    //[[nodiscard]] inline const typename std::enable_if<std::is_same<T, HalfFloat>::value, T>::type* data() {
-    //    return getDataFloat16();
-    //}
+    template<class T>
+    [[nodiscard]] inline const typename std::enable_if<std::is_same<T, HalfFloat>::value, T>::type* data() {
+        return getDataFloat16();
+    }
 
     // Access data at a certain index.
     [[nodiscard]] float getDataFloatAt(size_t idx);
@@ -96,13 +98,15 @@ public:
         return getDataFloatAtNorm(idx);
     }
 
+    void setDataFloatAt(size_t idx, float val);
+
 private:
     ScalarDataFormat scalarDataFormatNative;
     size_t numEntries = 0;
     float* dataFloat = nullptr;
     uint8_t* dataByte = nullptr;
     uint16_t* dataShort = nullptr;
-    //HalfFloat* dataFloat16 = nullptr;
+    HalfFloat* dataFloat16 = nullptr;
 
     // Min/max data.
     void computeMinMax();

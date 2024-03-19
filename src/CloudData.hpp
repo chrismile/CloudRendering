@@ -38,12 +38,12 @@
 #include "DensityField.hpp"
 
 namespace sgl {
-class TransferFunctionWindow;
+class MultiVarTransferFunctionWindow;
 }
 
 class CloudData {
 public:
-    explicit CloudData(sgl::TransferFunctionWindow* transferFunctionWindow = nullptr);
+    explicit CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr);
     ~CloudData();
 
     /**
@@ -106,10 +106,10 @@ public:
 
     /// Called when the transfer function texture was updated.
     void onTransferFunctionMapRebuilt() {}
-    inline sgl::TransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+    inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
 
 private:
-    sgl::TransferFunctionWindow* transferFunctionWindow = nullptr;
+    sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
     std::shared_ptr<CloudData> nextCloudDataFrame;
 
     std::string gridFilename, gridName;

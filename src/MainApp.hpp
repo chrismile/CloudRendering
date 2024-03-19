@@ -35,7 +35,7 @@
 
 #include <Utils/SciVis/SciVisApp.hpp>
 #include <Graphics/Shader/Shader.hpp>
-#include <ImGui/Widgets/TransferFunctionWindow.hpp>
+#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
 #ifdef SUPPORT_CUDA_INTEROP
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
@@ -113,7 +113,7 @@ private:
     std::string fileDialogDirectory;
 
     // For mapping volume density to display density and emission.
-    sgl::TransferFunctionWindow transferFunctionWindow;
+    sgl::MultiVarTransferFunctionWindow transferFunctionWindow;
 
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;

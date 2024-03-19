@@ -28,14 +28,21 @@
 
 #include <Utils/File/Logfile.hpp>
 #include <Utils/Parallel/Reduction.hpp>
+#include <Math/half/half.hpp>
 
 #ifdef USE_TBB
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #endif
 
-//#include "Loaders/half/half.hpp"
 #include "DensityField.hpp"
+
+std::shared_ptr<DensityField> DensityField::createHalfFloat(size_t numEntries, HalfFloat* dataFloat16) {
+    auto* densityField = new DensityField(ScalarDataFormat::FLOAT16);
+    densityField->numEntries = numEntries;
+    densityField->dataFloat16 = dataFloat16;
+    return std::shared_ptr<DensityField>(densityField);
+}
 
 DensityField::~DensityField() {
     if (dataFloat) {
@@ -50,10 +57,10 @@ DensityField::~DensityField() {
         delete[] dataShort;
         dataShort = nullptr;
     }
-    //if (dataFloat16) {
-    //    delete[] dataFloat16;
-    //    dataFloat16 = nullptr;
-    //}
+    if (dataFloat16) {
+        delete[] dataFloat16;
+        dataFloat16 = nullptr;
+    }
 }
 
 const void* DensityField::getDataNative() {
@@ -63,8 +70,8 @@ const void* DensityField::getDataNative() {
         return dataByte;
     } else if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         return dataShort;
-    //} else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return dataFloat16;
+    } else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        return dataFloat16;
     } else {
         return nullptr;
     }
@@ -77,8 +84,8 @@ size_t DensityField::getEntrySizeInBytes() {
         return 1;
     } else if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         return 2;
-    //} else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return 2;
+    } else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        return 2;
     } else {
         return 0;
     }
@@ -91,8 +98,8 @@ uint32_t DensityField::getEntrySizeInBytesUint32() {
         return 1;
     } else if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         return 2;
-    //} else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return 2;
+    } else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        return 2;
     } else {
         return 0;
     }
@@ -105,8 +112,8 @@ VkFormat DensityField::getEntryVulkanFormat() {
         return VK_FORMAT_R8_UNORM;
     } else if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         return VK_FORMAT_R16_UNORM;
-    //} else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return VK_FORMAT_R16_SFLOAT;
+    } else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        return VK_FORMAT_R16_SFLOAT;
     } else {
         return VK_FORMAT_UNDEFINED;
     }
@@ -134,15 +141,15 @@ void DensityField::computeMinMax() {
         minMaxVal = sgl::reduceUnormByteArrayMinMax(dataByte, numEntries);
     } else if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         minMaxVal = sgl::reduceUnormShortArrayMinMax(dataShort, numEntries);
-    //} else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return VK_FORMAT_R16_SFLOAT;
+    } else if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        minMaxVal = sgl::reduceHalfFloatArrayMinMax(dataFloat16, numEntries);
     }
     minValue = minMaxVal.first;
     maxValue = minMaxVal.second;
     minMaxComputed = true;
 }
 
-/*void DensityField::switchNativeFormat(ScalarDataFormat newNativeFormat) {
+void DensityField::switchNativeFormat(ScalarDataFormat newNativeFormat) {
     if (scalarDataFormatNative != ScalarDataFormat::FLOAT
             || newNativeFormat != ScalarDataFormat::FLOAT16) {
         sgl::Logfile::get()->throwError(
@@ -154,7 +161,7 @@ void DensityField::computeMinMax() {
     for (size_t i = 0; i < numEntries; i++) {
         dataFloat16[i] = HalfFloat(dataFloat[i]);
     }
-}*/
+}
 
 const uint8_t* DensityField::getDataByte() {
     if (scalarDataFormatNative != ScalarDataFormat::BYTE) {
@@ -170,12 +177,12 @@ const uint16_t* DensityField::getDataShort() {
     return dataShort;
 }
 
-/*const HalfFloat* DensityField::getDataFloat16() {
+const HalfFloat* DensityField::getDataFloat16() {
     if (scalarDataFormatNative != ScalarDataFormat::FLOAT16) {
         sgl::Logfile::get()->throwError("Error in DensityField::getDataFloat16: Native format is not float16.");
     }
     return dataFloat16;
-}*/
+}
 
 const float* DensityField::getDataFloat() {
     if (!dataFloat && scalarDataFormatNative == ScalarDataFormat::BYTE) {
@@ -212,7 +219,7 @@ const float* DensityField::getDataFloat() {
         });
 #endif
     }
-    /*if (!dataFloat && scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+    if (!dataFloat && scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
         dataFloat = new float[numEntries];
 #ifdef USE_TBB
         tbb::parallel_for(tbb::blocked_range<size_t>(0, numEntries), [&](auto const& r) {
@@ -228,7 +235,7 @@ const float* DensityField::getDataFloat() {
 #ifdef USE_TBB
         });
 #endif
-    }*/
+    }
     return dataFloat;
 }
 
@@ -242,9 +249,9 @@ float DensityField::getDataFloatAt(size_t idx) {
     if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
         return float(dataShort[idx]) / 65535.0f;
     }
-    //if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
-    //    return float(dataFloat16[idx]);
-    //}
+    if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        return float(dataFloat16[idx]);
+    }
     return 0.0f;
 }
 
@@ -253,4 +260,19 @@ float DensityField::getDataFloatAtNorm(size_t idx) {
         computeMinMax();
     }
     return (getDataFloatAt(idx) - minValue) / (maxValue - minValue);
+}
+
+void DensityField::setDataFloatAt(size_t idx, float val) {
+    if (dataFloat) {
+        dataFloat[idx] = val;
+    }
+    if (scalarDataFormatNative == ScalarDataFormat::BYTE) {
+        dataByte[idx] = uint8_t(std::clamp(std::round(val * 255.0f), 0.0f, 255.0f));
+    }
+    if (scalarDataFormatNative == ScalarDataFormat::SHORT) {
+        dataShort[idx] = uint16_t(std::clamp(std::round(val * 65535.0f), 0.0f, 65535.0f));
+    }
+    if (scalarDataFormatNative == ScalarDataFormat::FLOAT16) {
+        dataFloat16[idx] = HalfFloat(val);
+    }
 }

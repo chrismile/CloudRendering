@@ -181,7 +181,11 @@ layout(std140, binding = 24) uniform MomentUniformData {
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 25) uniform sampler1D transferFunctionTexture;
+layout(binding = 25) uniform sampler1DArray transferFunctionTexture;
+#endif
+
+#if defined(ISOSURFACE_TYPE_GRADIENT)
+layout(binding = 26) uniform sampler3D gradientImage;
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {

@@ -486,7 +486,8 @@ vec4 sampleCloudColorAndDensity(in vec3 pos) {
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     float densityRaw = sampleCloudRaw(coord);
     //return densityRaw;
-    return texture(transferFunctionTexture, densityRaw);
+    //return texture(transferFunctionTexture, densityRaw);
+    return texture(transferFunctionTexture, vec2(densityRaw, 0.0));
 }
 #endif
 
@@ -499,13 +500,25 @@ float sampleCloud(in vec3 pos) {
 #endif
     coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, densityRaw).a;
+    //return texture(transferFunctionTexture, densityRaw).a;
+    return texture(transferFunctionTexture, vec2(densityRaw, 0.0)).a;
 }
 vec4 sampleCloudDensityEmission(in vec3 pos) {
     // Idea: Returns (color.rgb, density).
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, densityRaw);
+    //return texture(transferFunctionTexture, densityRaw);
+    return texture(transferFunctionTexture, vec2(densityRaw, 0.0));
+}
+vec4 sampleCloudGradientColor(in vec3 pos) {
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    float densityRaw = sampleCloudRaw(coord);
+    return texture(transferFunctionTexture, vec2(densityRaw, 1.0));
+}
+float sampleCloudGradientOpacity(in vec3 pos) {
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    float densityRaw = sampleCloudRaw(coord);
+    return texture(transferFunctionTexture, vec2(densityRaw, 1.0)).a;
 }
 float sampleCloudDirect(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
@@ -530,6 +543,22 @@ float sampleCloud(in vec3 pos) {
 #define sampleCloudDirect sampleCloud
 #endif
 
+#if defined(ISOSURFACE_TYPE_DENSITY)
+#define sampleCloudIso sampleCloudDirect
+#elif defined(ISOSURFACE_TYPE_GRADIENT)
+float sampleCloudIso(in vec3 pos) {
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+    coord = coord.xzy;
+#endif
+    coord = coord * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+#if defined(GRID_INTERPOLATION_STOCHASTIC)
+    ivec3 dim = textureSize(gridImage, 0);
+    coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
+#endif
+    return texture(gradientImage, coord).x;
+}
+#endif
 
 vec3 getCloudFiniteDifference(in vec3 pos) {
 #ifdef USE_NANOVDB
@@ -643,7 +672,7 @@ void refineIsoSurfaceHit(inout vec3 currentPoint, vec3 lastPoint, float stepSign
         vec3 midPoint = (currentPoint + lastPoint) * 0.5;
         //vec3 texCoordsMidPoint = (midPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
         //float scalarValueMidPoint = texture(scalarField, texCoordsMidPoint).r;
-        float scalarValueMidPoint = sampleCloudDirect(midPoint);
+        float scalarValueMidPoint = sampleCloudIso(midPoint);
         if ((scalarValueMidPoint - parameters.isoValue) * stepSign >= 0.0) {
             currentPoint = midPoint;
         } else {
@@ -691,9 +720,20 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
     return vec3(d.x, d.y, z);
 }
 
+
+#if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
+#define isoSurfaceColorDef parameters.isoSurfaceColor
+#define DEFINE_ISO_SURFACE_COLOR float isoSurfaceOpacity = 1.0;
+#else // defined(ISOSURFACE_TYPE_GRADIENT)
+#define DEFINE_ISO_SURFACE_COLOR \
+vec4 isoSurfaceColorAll = sampleCloudGradientColor(currentPoint); \
+vec3 isoSurfaceColorDef = isoSurfaceColorAll.rgb; \
+float isoSurfaceOpacity = isoSurfaceColorAll.a;
+#endif
+
 #define UNIFORM_SAMPLING
 
-void getIsoSurfaceHit(
+bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
         , inout vec3 colorNee
@@ -704,6 +744,14 @@ void getIsoSurfaceHit(
     vec3 surfaceNormal = computeGradient(texCoords);
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
+    }
+
+    DEFINE_ISO_SURFACE_COLOR;
+    if (isoSurfaceOpacity < 1e-4) {
+        return false;
+    }
+    if (isoSurfaceOpacity < random()) {
+        return false;
     }
 
     vec3 surfaceTangent;
@@ -761,16 +809,16 @@ void getIsoSurfaceHit(
         //weightNee = 1.0;
         //weightOut = 1.0;
 #ifdef SURFACE_BRDF_LAMBERTIAN
-        //vec3 brdfOut = parameters.isoSurfaceColor / M_PI;
-        //vec3 brdfNee = parameters.isoSurfaceColor / M_PI;
-        vec3 rdfOut = parameters.isoSurfaceColor / M_PI * thetaOut;
-        vec3 rdfNee = parameters.isoSurfaceColor / M_PI * thetaNee;
+        //vec3 brdfOut = isoSurfaceColorDef / M_PI;
+        //vec3 brdfNee = isoSurfaceColorDef / M_PI;
+        vec3 rdfOut = isoSurfaceColorDef / M_PI * thetaOut;
+        vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
 #endif
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
         vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
-        vec3 rdfOut = parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
-        vec3 rdfNee = parameters.isoSurfaceColor * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
+        vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
+        vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
 #endif
 
         //colorOut = rdfOut * weightOut / pdfSamplingOut;
@@ -789,17 +837,17 @@ void getIsoSurfaceHit(
         // Lambertian BRDF is: R / pi
 #ifdef UNIFORM_SAMPLING
         // Sampling PDF: 1/(2pi)
-        colorOut = 2.0 * parameters.isoSurfaceColor * thetaOut;
+        colorOut = 2.0 * isoSurfaceColorDef * thetaOut;
 #else
         // Sampling PDF: cos(theta) / pi
-        colorOut = parameters.isoSurfaceColor;
+        colorOut = isoSurfaceColorDef;
 #endif
 #endif
 
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
         float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
-        colorOut = 2.0 * M_PI * parameters.isoSurfaceColor * (rdf / norm);
+        colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
 #endif
 
 #if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
@@ -808,6 +856,7 @@ void getIsoSurfaceHit(
 
     w = dirOut;
     throughput *= colorOut;
+    return true;
 }
 #endif
 
@@ -823,7 +872,8 @@ vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal)
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }
-    vec3 color = blinnPhongShadingSurface(parameters.isoSurfaceColor, currentPoint, surfaceNormal);
+    DEFINE_ISO_SURFACE_COLOR;
+    vec3 color = blinnPhongShadingSurface(isoSurfaceColorDef, currentPoint, surfaceNormal);
     return color;
 }
 #endif

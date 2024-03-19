@@ -29,7 +29,7 @@
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/imgui.h>
-#include <ImGui/Widgets/TransferFunctionWindow.hpp>
+#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
 #include "CloudData.hpp"
 
@@ -71,8 +71,9 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
     camera->resetLookAtLocation();
 
-    transferFunctionWindow = new sgl::TransferFunctionWindow;
+    transferFunctionWindow = new sgl::MultiVarTransferFunctionWindow;
     transferFunctionWindow->setShowWindow(false);
+    transferFunctionWindow->setAttributeNames({"Density", "Gradient"});
 
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);

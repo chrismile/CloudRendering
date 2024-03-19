@@ -53,7 +53,7 @@ public:
     explicit VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer);
     ~VolumetricPathTracingModuleRenderer();
 
-    inline sgl::TransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+    inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
 
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     VolumetricPathTracingPass* getVptPass();
@@ -135,7 +135,7 @@ public:
 #endif
 
 private:
-    sgl::TransferFunctionWindow* transferFunctionWindow;
+    sgl::MultiVarTransferFunctionWindow* transferFunctionWindow;
     sgl::CameraPtr camera;
     glm::vec3 cameraPosition = glm::vec3(0,0,0);
     glm::vec3 cameraTarget = glm::vec3(0,0,0);

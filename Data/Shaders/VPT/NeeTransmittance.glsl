@@ -52,14 +52,14 @@ float calculateTransmittance(vec3 x, vec3 w) {
             //#if defined(ISOSURFACE_TYPE_DENSITY) && !defined(USE_TRANSFER_FUNCTION)
             //            float scalarValue = density;
             //#else
-            //            float scalarValue = sampleCloudDirect(xNew);
+            //            float scalarValue = sampleCloudIso(xNew);
             //#endif
             const int isoSubdivs = 2;
             bool foundHit = false;
             for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
                 vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
                 vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
-                float scalarValue = sampleCloudDirect(x1);
+                float scalarValue = sampleCloudIso(x1);
 
                 currentScalarSign = sign(scalarValue - parameters.isoValue);
                 if (isFirstPoint) {
@@ -70,7 +70,22 @@ float calculateTransmittance(vec3 x, vec3 w) {
                 if (lastScalarSign != currentScalarSign) {
                     refineIsoSurfaceHit(x1, x0, currentScalarSign);
                     x = x1;
-                    return 0;
+                    #define USE_TRANSMITTANCE_DELTA_TRACKING
+#ifdef USE_TRANSFER_FUNCTION
+                    float opacity = 1.0 - sampleCloudGradientOpacity(x);
+                    if (opacity < 1e-4) {
+                        return 0;
+                    }
+#ifdef USE_TRANSMITTANCE_DELTA_TRACKING
+                    if (random() > opacity) {
+                        return 0;
+                    }
+#else
+                    transmittance *= opacity;
+#endif
+#endif
+                    isFirstPoint = true;
+                    break;
                 }
             }
 #endif

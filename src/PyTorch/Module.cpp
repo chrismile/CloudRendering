@@ -32,7 +32,7 @@
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
 #include <Graphics/Vulkan/Image/Image.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
-#include <ImGui/Widgets/TransferFunctionWindow.hpp>
+#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
@@ -60,6 +60,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
     m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
+    m.def("vpt::load_transfer_function_file_gradient", loadTransferFunctionFileGradient);
     m.def("vpt::get_camera_position", getCameraPosition);
     m.def("vpt::get_camera_view_matrix", getCameraViewMatrix);
     m.def("vpt::get_camera_fovy", getCameraFOVy);
@@ -520,13 +521,18 @@ void setSurfaceBrdf(const std::string& _surfaceBrdf) {
 
 
 void setUseTransferFunction(bool _useTf) {
-    sgl::TransferFunctionWindow* tfWindow = vptRenderer->getTransferFunctionWindow();
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
     tfWindow->setShowWindow(_useTf);
 }
 
 void loadTransferFunctionFile(const std::string& tfFilePath) {
-    sgl::TransferFunctionWindow* tfWindow = vptRenderer->getTransferFunctionWindow();
-    tfWindow->loadFunctionFromFile(tfFilePath);
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->loadFunctionFromFile(0, tfFilePath);
+}
+
+void loadTransferFunctionFileGradient(const std::string& tfFilePath) {
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->loadFunctionFromFile(1, tfFilePath);
 }
 
 

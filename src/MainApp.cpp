@@ -137,6 +137,7 @@ MainApp::MainApp()
     transferFunctionWindow.setClearColor(clearColor);
     transferFunctionWindow.setUseLinearRGB(useLinearRGB);
     transferFunctionWindow.setShowWindow(false);
+    transferFunctionWindow.setAttributeNames({"Density", "Gradient"});
     coordinateAxesOverlayWidget.setClearColor(clearColor);
 
     if (usePerformanceMeasurementMode) {
@@ -343,7 +344,7 @@ void MainApp::renderGui() {
                     &dockLeftUpId, &dockLeftDownId);
             ImGui::DockBuilderDockWindow("Property Editor", dockLeftUpId);
 
-            ImGui::DockBuilderDockWindow("Transfer Function", dockLeftDownId);
+            ImGui::DockBuilderDockWindow("Multi-Var Transfer Function", dockLeftDownId);
             ImGui::DockBuilderDockWindow("Camera Checkpoints", dockLeftDownId);
 
             ImGui::DockBuilderFinish(dockLeftId);

@@ -28,6 +28,7 @@
 #include <glm/vec3.hpp>
 
 #include <Math/Math.hpp>
+#include <Math/half/half.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
@@ -37,7 +38,7 @@
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
-#include <ImGui/Widgets/TransferFunctionWindow.hpp>
+#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_stdlib.h>
 
@@ -436,6 +437,7 @@ void VolumetricPathTracingPass::setGridData() {
     densityFieldTexture = {};
     emissionNanoVdbBuffer = {};
     emissionFieldTexture = {};
+    densityGradientFieldTexture = {};
 
     if (!cloudData) {
         return;
@@ -517,6 +519,63 @@ void VolumetricPathTracingPass::setGridData() {
                     emissionData->getGridSizeX() * emissionData->getGridSizeY() * emissionData->getGridSizeZ()
                     * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
                     emissionData->getDenseDensityField()->getDataNative());
+        }
+
+        if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
+            auto xs = cloudData->getGridSizeX();
+            auto ys = cloudData->getGridSizeY();
+            auto zs = cloudData->getGridSizeZ();
+            auto df = cloudData->getDenseDensityField();
+            auto numEntries = size_t(xs) * size_t(ys) * size_t(zs);
+            auto numEntriesUint = xs * ys * zs;
+
+#define IDXS(x,y,z) ((z)*xs*ys + (y)*xs + (x))
+            DensityFieldPtr gradField;
+            if (numEntries >= size_t(1ull << 31ull)) {
+                gradField = DensityField::createHalfFloat(numEntries, new HalfFloat[numEntries]);
+            } else {
+                gradField = std::make_shared<DensityField>(numEntries, new float[numEntries]);
+            }
+#ifdef USE_TBB
+            tbb::parallel_for(tbb::blocked_range<uint32_t>(0, numEntriesUint), [&](auto const& r) {
+                for (auto gridIdx = r.begin(); gridIdx != r.end(); gridIdx++) {
+#else
+#if _OPENMP >= 201107
+            #pragma omp parallel for default(none) shared(xs, ys, zs, numEntriesUint, df, gradField)
+#endif
+            for (uint32_t gridIdx = 0; gridIdx < numEntriesUint; gridIdx++) {
+#endif
+                auto xc = gridIdx % xs;
+                auto yc = (gridIdx / xs) % ys;
+                auto zc = gridIdx / (xs * ys);
+                auto xl = xc > 0 ? xc - 1 : 0;
+                auto yl = yc > 0 ? yc - 1 : 0;
+                auto zl = zc > 0 ? zc - 1 : 0;
+                auto xu = xc < xs - 1 ? xc + 1 : xs - 1;
+                auto yu = yc < ys - 1 ? yc + 1 : ys - 1;
+                auto zu = zc < zs - 1 ? zc + 1 : zs - 1;
+                float dx = (df->getDataFloatAt(IDXS(xu, yc, zc)) - df->getDataFloatAt(IDXS(xl, yc, zc))) / float(xu - xl);
+                float dy = (df->getDataFloatAt(IDXS(xc, yu, zc)) - df->getDataFloatAt(IDXS(xc, yl, zc))) / float(yu - yl);
+                float dz = (df->getDataFloatAt(IDXS(xc, yc, zu)) - df->getDataFloatAt(IDXS(xc, yc, zl))) / float(zu - zl);
+                float gradVal = std::sqrt(dx * dx + dy * dy + dz * dz);
+                gradField->setDataFloatAt(gridIdx, gradVal);
+            }
+#ifdef USE_TBB
+            });
+#endif
+            minGradientVal = gradField->getMinValue();
+            maxGradientVal = gradField->getMaxValue();
+
+            sgl::vk::ImageSettings gradImageSettings;
+            gradImageSettings.width = cloudData->getGridSizeX();
+            gradImageSettings.height = cloudData->getGridSizeY();
+            gradImageSettings.depth = cloudData->getGridSizeZ();
+            gradImageSettings.imageType = VK_IMAGE_TYPE_3D;
+            gradImageSettings.format = gradField->getEntryVulkanFormat();
+            gradImageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            densityGradientFieldTexture = std::make_shared<sgl::vk::Texture>(device, gradImageSettings, samplerSettings);
+            densityGradientFieldTexture->getImage()->uploadData(
+                    numEntries * gradField->getEntrySizeInBytes(), gradField->getDataNative());
         }
     }
 }
@@ -638,6 +697,9 @@ void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
             updateGridSampler();
         }
         setShaderDirty();
+        if (isosurfaceType == IsosurfaceType::GRADIENT) {
+            setGridData();
+        }
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -663,6 +725,7 @@ void VolumetricPathTracingPass::setIsosurfaceType(IsosurfaceType _isosurfaceType
     if (isosurfaceType != _isosurfaceType) {
         isosurfaceType = _isosurfaceType;
         setShaderDirty();
+        setGridData();
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -1029,7 +1092,7 @@ void VolumetricPathTracingPass::loadShader() {
     } else {
         customPreprocessorDefines.insert({ "LOCAL_SIZE", "16" });
     }
-    sgl::TransferFunctionWindow* tfWindow = cloudData->getTransferFunctionWindow();
+    auto* tfWindow = cloudData->getTransferFunctionWindow();
     bool useTransferFunction = tfWindow && tfWindow->getShowWindow();
     if (useTransferFunction) {
         customPreprocessorDefines.insert({ "USE_TRANSFER_FUNCTION", "" });
@@ -1072,6 +1135,9 @@ void VolumetricPathTracingPass::createComputeData(
         computeData->setStaticTexture(densityFieldTexture, "gridImage");
         if (useEmission && emissionFieldTexture){
             computeData->setStaticTexture(emissionFieldTexture, "emissionImage");
+        }
+        if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
+            computeData->setStaticTexture(densityGradientFieldTexture, "gradientImage");
         }
         if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
             computeData->setStaticTexture(
@@ -1147,7 +1213,7 @@ void VolumetricPathTracingPass::createComputeData(
     }
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
 
-    sgl::TransferFunctionWindow* tfWindow = cloudData->getTransferFunctionWindow();
+    auto* tfWindow = cloudData->getTransferFunctionWindow();
     if (tfWindow && tfWindow->getShowWindow()) {
         computeData->setStaticTexture(tfWindow->getTransferFunctionMapTextureVulkan(), "transferFunctionTexture");
     }
@@ -1745,10 +1811,15 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 updateGridSampler();
             }
             setShaderDirty();
+            if (isosurfaceType == IsosurfaceType::GRADIENT) {
+                setGridData();
+            }
             reRender = true;
             frameInfo.frameCount = 0;
         }
-        if (useIsosurfaces && propertyEditor.addSliderFloat("Iso Value", &isoValue, 0.0f, 1.0f)) {
+        float isoValMin = isosurfaceType == IsosurfaceType::DENSITY ? 0.0f : minGradientVal;
+        float isoValMax = isosurfaceType == IsosurfaceType::DENSITY ? 1.0f : maxGradientVal;
+        if (useIsosurfaces && propertyEditor.addSliderFloat("Iso Value", &isoValue, isoValMin, isoValMax)) {
             setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
@@ -1781,6 +1852,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 "Isosurface Field", (int*)&isosurfaceType,
                 ISOSURFACE_TYPE_NAMES, IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES))) {
             setShaderDirty();
+            setGridData();
             reRender = true;
             frameInfo.frameCount = 0;
         }

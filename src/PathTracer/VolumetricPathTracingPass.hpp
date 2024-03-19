@@ -249,6 +249,9 @@ private:
     sgl::vk::TexturePtr emissionFieldTexture; /// < Dense grid texture.
     sgl::vk::BufferPtr emissionNanoVdbBuffer; /// < Sparse grid buffer.
 
+    /// Optional; only for isosurfaceType == IsosurfaceType::GRADIENT.
+    sgl::vk::TexturePtr densityGradientFieldTexture;
+
     bool flipYZCoordinates = false;
 
     uint32_t lastViewportWidth = 0, lastViewportHeight = 0;
@@ -336,6 +339,7 @@ private:
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
+    float minGradientVal = 0.0f, maxGradientVal = 1.0f;
 
     glm::mat4 previousViewProjMatrix;
 

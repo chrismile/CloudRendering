@@ -48,6 +48,7 @@ MODULE_OP_API void setPhaseG(double phaseG);
 
 MODULE_OP_API void setUseTransferFunction(bool _useTf);
 MODULE_OP_API void loadTransferFunctionFile(const std::string& tfFilePath);
+MODULE_OP_API void loadTransferFunctionFileGradient(const std::string& tfFilePath);
 
 MODULE_OP_API std::vector<double> getCameraPosition();
 MODULE_OP_API std::vector<double> getCameraViewMatrix();

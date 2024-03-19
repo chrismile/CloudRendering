@@ -19,7 +19,7 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
         float d = tMax - tMin;
         while (t <= d) {
             vec3 xNew = x + w * t;
-            float scalarValue = sampleCloudDirect(xNew);
+            float scalarValue = sampleCloudIso(xNew);
 
             currentScalarSign = sign(scalarValue - parameters.isoValue);
             if (isFirstPoint) {
@@ -73,7 +73,7 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 #endif
                 while (t <= d) {
                     vec3 xNew = x + w * t;
-                    float scalarValue = sampleCloudDirect(xNew);
+                    float scalarValue = sampleCloudIso(xNew);
 
                     currentScalarSign = sign(scalarValue - parameters.isoValue);
                     if (isFirstPoint) {
