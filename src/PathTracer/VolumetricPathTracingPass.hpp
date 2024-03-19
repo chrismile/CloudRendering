@@ -333,7 +333,7 @@ private:
     bool useIsosurfaces = false;
     float isoValue = 0.5f;
     float isoStepWidth = 0.25f;
-    float maxAoDist = 0.05;
+    float maxAoDist = 0.05f;
     int numAoSamples = 4;
     bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
@@ -382,7 +382,7 @@ private:
         glm::vec3 isoSurfaceColor;
         float isoValue = 0.5f;
         float isoStepWidth = 0.25f;
-        float maxAoDist = 0.05;
+        float maxAoDist = 0.05f;
         int numAoSamples = 4;
     };
     UniformData uniformData{};

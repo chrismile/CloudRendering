@@ -22,10 +22,14 @@
  * SOFTWARE.
  */
 
-#include <iostream>
 #include <memory>
 #include <utility>
 #include <glm/vec3.hpp>
+
+#ifdef USE_TBB
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#endif
 
 #include <Math/Math.hpp>
 #include <Math/half/half.hpp>
