@@ -739,7 +739,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
                     true, true);
             outputVolumeBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputVolumeBufferVk);
         }
-        convertTransmittanceVolumePass->setInputOutputData(texture->getImageView(), outputImageBufferVk);
+        convertTransmittanceVolumePass->setInputOutputData(texture->getImageView(), outputVolumeBufferVk);
         renderer->insertImageMemoryBarrier(
                 texture->getImage(),
                 VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,

@@ -1,6 +1,8 @@
 void computeTransmittanceVolume(vec3 x, vec3 w) {
     const float majorant = parameters.extinction.x;
-    const float stepSize = 0.001;
+    //const float stepSize = 0.001;
+    const ivec3 tImgSize = imageSize(transmittanceVolumeImage);
+    const float stepSize = 0.5 / max(tImgSize.x, max(tImgSize.y, tImgSize.z));
     const float attenuationCoefficient = majorant * stepSize;
     // stepSize * attenuationCoefficient
 
@@ -53,16 +55,13 @@ void computeTransmittanceVolume(vec3 x, vec3 w) {
 
             float alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
             alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
-            if (1.0 - alphaAccum < 1e-6) {
-                break;
-            }
 
             uint transmittanceUint = convertNormalizedFloatToUint32(1.0 - alphaAccum);
             vec3 coord = (xNew - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
             coord = coord.xzy;
 #endif
-            coord = coord * vec3(imageSize(transmittanceVolumeImage) - ivec3(1)) + vec3(0.5);
+            coord = coord * vec3(tImgSize - ivec3(1)) + vec3(0.5);
             imageAtomicMax(transmittanceVolumeImage, ivec3(coord), transmittanceUint);
         }
     }

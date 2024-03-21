@@ -368,6 +368,7 @@ void initialize() {
         std::string settingsFile = sgl::FileUtils::get()->getConfigDirectory() + "settings.txt";
         sgl::AppSettings::get()->setSaveSettings(false);
         sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
+        //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
 #ifdef DATA_PATH
         if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
