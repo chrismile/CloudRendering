@@ -738,6 +738,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
                     true, true);
             outputVolumeBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputVolumeBufferVk);
         }
+        convertTransmittanceVolumePass->setInputOutputData(texture->getImageView(), outputImageBufferVk);
         renderer->insertImageMemoryBarrier(
                 texture->getImage(),
                 VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
@@ -774,6 +775,9 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
     cudaStreamSynchronize(stream);
     renderer->getDevice()->waitIdle();
 
-    return (float*)outputImageBufferCu->getCudaDevicePtr();
-    
+    if (featureMap == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
+        return (float*)outputVolumeBufferCu->getCudaDevicePtr();
+    } else {
+        return (float*)outputImageBufferCu->getCudaDevicePtr();
+    }
 }
