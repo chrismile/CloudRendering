@@ -877,3 +877,5 @@ vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal)
     return color;
 }
 #endif
+
+#include "FloatPack.glsl"

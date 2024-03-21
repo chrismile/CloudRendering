@@ -163,6 +163,9 @@ layout (binding = 22, rg32f) uniform image2D depthNablaImage;
 layout (binding = 23, r32f) uniform image2D depthFwidthImage;
 #endif
 
+#ifdef WRITE_TRANSMITTANCE_VOLUME
+layout (binding = 24, r32ui) uniform uimage3D transmittanceVolumeImage;
+#endif
 
 
 /**
@@ -173,7 +176,7 @@ layout (binding = 23, r32f) uniform image2D depthFwidthImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 24) uniform MomentUniformData {
+layout(std140, binding = 25) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;
@@ -181,11 +184,11 @@ layout(std140, binding = 24) uniform MomentUniformData {
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 25) uniform sampler1DArray transferFunctionTexture;
+layout(binding = 26) uniform sampler1DArray transferFunctionTexture;
 #endif
 
 #if defined(ISOSURFACE_TYPE_GRADIENT)
-layout(binding = 26) uniform sampler3D gradientImage;
+layout(binding = 27) uniform sampler3D gradientImage;
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {

@@ -1,4 +1,4 @@
-vec2 computeDepthBlended(vec3 x, vec3 w) {
+void computeTransmittanceVolume(vec3 x, vec3 w) {
     const float majorant = parameters.extinction.x;
     const float stepSize = 0.001;
     const float attenuationCoefficient = majorant * stepSize;
@@ -9,7 +9,7 @@ vec2 computeDepthBlended(vec3 x, vec3 w) {
     bool isFirstPoint = true;
 #endif
 
-    float depthAccum = 0.0, alphaAccum = 0.0;
+    float alphaAccum = 0.0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         float t = tMin;
@@ -52,11 +52,18 @@ vec2 computeDepthBlended(vec3 x, vec3 w) {
 #endif
 
             float alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
-            depthAccum = depthAccum + (1.0 - alphaAccum) * alpha * t;
             alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
+            if (1.0 - alphaAccum < 1e-6) {
+                break;
+            }
+
+            uint transmittanceUint = convertNormalizedFloatToUint32(1.0 - alphaAccum);
+            vec3 coord = (xNew - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+#if defined(FLIP_YZ)
+            coord = coord.xzy;
+#endif
+            coord = coord * vec3(imageSize(transmittanceVolumeImage) - ivec3(1)) + vec3(0.5);
+            imageAtomicMax(transmittanceVolumeImage, ivec3(coord), transmittanceUint);
         }
     }
-
-    return vec2(depthAccum / max(alphaAccum, 1e-5), alphaAccum);
-    //return vec2(depthAccum, alphaAccum);
 }

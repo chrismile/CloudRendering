@@ -79,8 +79,8 @@ const char* const DENOISER_NAMES[] = {
     FEATURE_MAP(BACKGROUND,     "Background",       4, 4) \
     FEATURE_MAP(REPROJ_UV,      "Reproj_UV",        2, 2) \
     FEATURE_MAP(DEPTH_BLENDED,  "Depth Blended",    1, 1) \
-    FEATURE_MAP(DEPTH_NABLA,    "nabla(z)",         2, 2)    \
-    FEATURE_MAP(DEPTH_FWIDTH,   "fwidth(z)",        1, 1)    \
+    FEATURE_MAP(DEPTH_NABLA,    "nabla(z)",         2, 2) \
+    FEATURE_MAP(DEPTH_FWIDTH,   "fwidth(z)",        1, 1) \
     FEATURE_MAP(UNUSED,         "Unused",           2, 2) \
 
 enum class FeatureMapType {

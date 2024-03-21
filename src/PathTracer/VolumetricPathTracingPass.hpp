@@ -56,12 +56,12 @@ typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
     RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
-    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
+    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
         "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
-        "Density", "Background", "Reprojected UV", "Depth Blended",
+        "Density", "Background", "Reprojected UV", "Depth Blended", "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -107,6 +107,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
         {FeatureMapType::DEPTH_NABLA, FeatureMapTypeVpt::DEPTH_NABLA},
         {FeatureMapType::DEPTH_FWIDTH, FeatureMapTypeVpt::DEPTH_FWIDTH},
+        {FeatureMapType::UNUSED, FeatureMapTypeVpt::TRANSMITTANCE_VOLUME},
 });
 
 enum class VptMode {
@@ -275,6 +276,7 @@ private:
     sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
+    sgl::vk::TexturePtr transmittanceVolumeTexture; //< 3D feature map.
     bool accumulateInputs = true;
     bool useGlobalFrameNumber = false;
     uint32_t globalFrameNumber = 0;

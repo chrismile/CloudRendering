@@ -48,6 +48,25 @@ class Camera;
 typedef std::shared_ptr<Camera> CameraPtr;
 }
 
+class ConvertTransmittanceVolumePass : public sgl::vk::ComputePass {
+public:
+    ConvertTransmittanceVolumePass(sgl::vk::Renderer* renderer);
+    void setInputOutputData(const sgl::vk::ImageViewPtr& _inputImage, const sgl::vk::BufferPtr& _outputBuffer);
+
+protected:
+    void loadShader() override;
+    void setComputePipelineInfo(sgl::vk::ComputePipelineInfo& pipelineInfo) override {}
+    void createComputeData(sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) override;
+    void _render() override;
+
+private:
+    const uint32_t BLOCK_SIZE_X = 8;
+    const uint32_t BLOCK_SIZE_Y = 8;
+    const uint32_t BLOCK_SIZE_Z = 4;
+    sgl::vk::ImageViewPtr inputImage;
+    sgl::vk::BufferPtr outputBuffer;
+};
+
 class VolumetricPathTracingModuleRenderer {
 public:
     explicit VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer);
@@ -150,6 +169,9 @@ private:
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;
 
+    // Copy pass for 3D volume data.
+    std::shared_ptr<ConvertTransmittanceVolumePass> convertTransmittanceVolumePass;
+
     DenoiserType denoiserType = DenoiserType::NONE;
     bool isDenoiserDirty = false;
 
@@ -170,6 +192,8 @@ private:
     // Image data.
     sgl::vk::BufferPtr outputImageBufferVk;
     sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputImageBufferCu;
+    sgl::vk::BufferPtr outputVolumeBufferVk;
+    sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputVolumeBufferCu;
     // Synchronization primitives.
     const uint32_t maxNumFramesInFlight = 32;
     std::vector<sgl::vk::CommandBufferPtr> commandBuffers;

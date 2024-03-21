@@ -78,11 +78,13 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
     m.def("vpt::get_feature_map_from_string", getFeatureMapFromString);
+    m.def("vpt::get_transmittance_volume", getTransmittanceVolume);
     m.def("vpt::set_phase_g", setPhaseG);
     m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
     m.def("vpt::set_use_emission", setUseEmission);
     m.def("vpt::set_emission_strength", setEmissionStrength);
     m.def("vpt::set_emission_cap", setEmissionCap);
+    m.def("vpt::get_volume_voxel_size", getVolumeVoxelSize);
     m.def("vpt::get_render_bounding_box", getRenderBoundingBox);
     m.def("vpt::remember_next_bounds", rememberNextBounds);
     m.def("vpt::forget_current_bounds", forgetCurrentBounds);
@@ -151,21 +153,15 @@ torch::Tensor getFeatureMapFromString(torch::Tensor inputTensor, const std::stri
 
 torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
     if (inputTensor.sizes().size() != 3) {
-        std::cout << "err" << std::endl;
-
         sgl::Logfile::get()->throwError(
                 "Error in renderFrame: inputTensor.sizes().size() != 3.", false);
     }
     if (inputTensor.size(0) != 3 && inputTensor.size(0) != 4) {
-        std::cout << "err" << std::endl;
-
         sgl::Logfile::get()->throwError(
                 "Error in renderFrame: The number of image channels is not equal to 3 or 4.",
                 false);
     }
     if (inputTensor.dtype() != torch::kFloat32) {
-        std::cout << "err" << std::endl;
-
         sgl::Logfile::get()->throwError(
                 "Error in renderFrame: The only data type currently supported is 32-bit float.",
                 false);
@@ -214,6 +210,38 @@ torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
     }
 
     return {};    
+}
+
+torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor) {
+    const auto& cloudData = vptRenderer->getCloudData();
+
+    if (inputTensor.device().type() == torch::DeviceType::CPU) {
+        void* imageDataPtr = vptRenderer->getFeatureMapCpu(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME);
+
+        torch::Tensor outputTensor = torch::from_blob(
+                imageDataPtr,
+                { int(cloudData->getGridSizeZ()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeX()) },
+                torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
+
+        return outputTensor.detach().clone();
+    }
+#ifdef SUPPORT_CUDA_INTEROP
+    else if (inputTensor.device().type() == torch::DeviceType::CUDA) {
+        void* imageDataDevicePtr = vptRenderer->getFeatureMapCuda(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME);
+
+        torch::Tensor outputTensor = torch::from_blob(
+                imageDataDevicePtr,
+                { int(cloudData->getGridSizeZ()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeX()) },
+                torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
+
+        return outputTensor.detach();//.clone();
+    }
+#endif
+    else {
+        sgl::Logfile::get()->throwError("Unsupported PyTorch device type.", false);
+    }
+
+    return {};
 }
 
 
@@ -610,6 +638,11 @@ void flipYZ(bool flip){
     vptRenderer->flipYZ(flip);
 }
 
+
+std::vector<int64_t> getVolumeVoxelSize() {
+    const auto& cloudData = vptRenderer->getCloudData();
+    return { int64_t(cloudData->getGridSizeZ()), int64_t(cloudData->getGridSizeY()), int64_t(cloudData->getGridSizeX()) };
+}
 
 std::vector<double> getRenderBoundingBox() {
     const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox();

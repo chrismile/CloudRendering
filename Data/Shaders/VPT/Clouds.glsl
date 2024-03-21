@@ -56,6 +56,10 @@ vec3 cameraPosition;
 #include "DepthBlended.glsl"
 #endif
 
+#ifdef WRITE_TRANSMITTANCE_VOLUME
+#include "TransmittanceVolume.glsl"
+#endif
+
 void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     uint frame = frameInfo.frameCount + i;
     uint frameGlobal = frameInfo.globalFrameNumber + i;
@@ -88,7 +92,9 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1];
 #endif
 
-#if defined(USE_DELTA_TRACKING)
+#if defined(WRITE_TRANSMITTANCE_VOLUME)
+    vec3 result = vec3(0.0);
+#elif defined(USE_DELTA_TRACKING)
     vec3 result = deltaTracking(
             x, w, firstEvent
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
@@ -271,6 +277,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     depthBlended = mix(depthBlendedOld, depthBlended, 1.0 / float(frame + 1));
 #endif
     imageStore(depthBlendedImage, imageCoord, vec4(depthBlended, 0.0, 1.0));
+#endif
+
+#ifdef WRITE_TRANSMITTANCE_VOLUME
+    computeTransmittanceVolume(x, w);
 #endif
 
 #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS

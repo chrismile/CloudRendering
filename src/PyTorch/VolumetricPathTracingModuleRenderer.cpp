@@ -28,6 +28,7 @@
 
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
+#include <Graphics/Vulkan/Render/Passes/Pass.hpp>
 #include <ImGui/imgui.h>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
@@ -59,6 +60,52 @@
 #include "Denoiser/OptixVptDenoiser.hpp"
 #endif
 
+ConvertTransmittanceVolumePass::ConvertTransmittanceVolumePass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
+}
+
+void ConvertTransmittanceVolumePass::setInputOutputData(
+        const sgl::vk::ImageViewPtr& _inputImage, const sgl::vk::BufferPtr& _outputBuffer) {
+    if (inputImage != _inputImage) {
+        inputImage = _inputImage;
+        if (computeData) {
+            computeData->setStaticImageView(inputImage, "transmittanceVolumeImage");
+        }
+    }
+    if (outputBuffer != _outputBuffer) {
+        outputBuffer = _outputBuffer;
+        if (computeData) {
+            computeData->setStaticBuffer(outputBuffer, "TransmittanceVolumeBuffer");
+        }
+    }
+}
+
+void ConvertTransmittanceVolumePass::loadShader() {
+    sgl::vk::ShaderManager->invalidateShaderCache();
+    std::map<std::string, std::string> preprocessorDefines;
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE_X", std::to_string(BLOCK_SIZE_X)));
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE_Y", std::to_string(BLOCK_SIZE_Y)));
+    preprocessorDefines.insert(std::make_pair("BLOCK_SIZE_Z", std::to_string(BLOCK_SIZE_Z)));
+    std::string shaderName = "ConvertTransmittanceVolume.Compute";
+    shaderStages = sgl::vk::ShaderManager->getShaderStages({ shaderName }, preprocessorDefines);
+}
+
+void ConvertTransmittanceVolumePass::createComputeData(
+        sgl::vk::Renderer* renderer, sgl::vk::ComputePipelinePtr& computePipeline) {
+    computeData = std::make_shared<sgl::vk::ComputeData>(renderer, computePipeline);
+    computeData->setStaticImageView(inputImage, "transmittanceVolumeImage");
+    computeData->setStaticBuffer(outputBuffer, "TransmittanceVolumeBuffer");
+}
+
+void ConvertTransmittanceVolumePass::_render() {
+    auto xs = inputImage->getImage()->getImageSettings().width;
+    auto ys = inputImage->getImage()->getImageSettings().height;
+    auto zs = inputImage->getImage()->getImageSettings().depth;
+    renderer->dispatch(
+            computeData, sgl::uiceil(xs, BLOCK_SIZE_X), sgl::uiceil(ys, BLOCK_SIZE_Y), sgl::uiceil(zs, BLOCK_SIZE_Z));
+}
+
+
+
 VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer)
         : renderer(renderer) {
     camera = std::make_shared<sgl::Camera>();
@@ -78,6 +125,8 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
+
+    convertTransmittanceVolumePass = std::make_shared<ConvertTransmittanceVolumePass>(renderer);
 }
 
 VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
@@ -589,18 +638,24 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt f
     
     renderer->beginCommandBuffer();
 
-    renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+    if (featureMap == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
+        sgl::Logfile::get()->throwError(
+                "Error in VolumetricPathTracingModuleRenderer::getFeatureMapCpu: Transmittance volume "
+                "is currently only supported with CUDA.");
+    } else {
+        renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
 
-    renderImageView->getImage()->transitionImageLayout(
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-    renderImageStaging->transitionImageLayout(
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
-    renderImageView->getImage()->copyToImage(
-            renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
-            renderer->getVkCommandBuffer());
-    
+        renderImageView->getImage()->transitionImageLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderImageStaging->transitionImageLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+        renderImageView->getImage()->copyToImage(
+                renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
+                renderer->getVkCommandBuffer());
+    }
+
     renderer->endCommandBuffer();
 
     // Submit the rendering operations in Vulkan.
@@ -664,14 +719,41 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
     renderer->pushCommandBuffer(commandBuffer);
     renderer->beginCommandBuffer();
 
-    renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+    if (featureMap == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
+        bool recreate = !outputImageBufferVk;
+        if (!recreate) {
+            const auto& cloudData = vptPass->getCloudData();
+            if (size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ()) * sizeof(float)
+                    != outputImageBufferVk->getSizeInBytes()) {
+                recreate = true;
+            }
+        }
+        if (recreate) {
+            const auto& cloudData = vptPass->getCloudData();
+            outputVolumeBufferVk = {};
+            outputVolumeBufferVk = std::make_shared<sgl::vk::Buffer>(
+                    renderer->getDevice(),
+                    size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ()) * sizeof(float),
+                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                    true, true);
+            outputVolumeBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputVolumeBufferVk);
+        }
+        renderer->insertImageMemoryBarrier(
+                texture->getImage(),
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+        convertTransmittanceVolumePass->render();
+    } else {
+        renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
 
-    renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-    renderImageView->getImage()->copyToBuffer(
-            outputImageBufferVk, renderer->getVkCommandBuffer());
+        renderImageView->getImage()->transitionImageLayout(
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderImageView->getImage()->copyToBuffer(
+                outputImageBufferVk, renderer->getVkCommandBuffer());
+    }
 
     renderer->endCommandBuffer();
     renderer->submitToQueue();
