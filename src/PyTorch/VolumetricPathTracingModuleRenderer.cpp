@@ -730,6 +730,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
         }
         if (recreate) {
             const auto& cloudData = vptPass->getCloudData();
+            outputVolumeBufferCu = {};
             outputVolumeBufferVk = {};
             outputVolumeBufferVk = std::make_shared<sgl::vk::Buffer>(
                     renderer->getDevice(),
