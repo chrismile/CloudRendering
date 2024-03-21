@@ -79,6 +79,15 @@ void ConvertTransmittanceVolumePass::setInputOutputData(
     }
 }
 
+void ConvertTransmittanceVolumePass::clearInputOutputData() {
+    inputImage = {};
+    outputBuffer = {};
+    if (computeData) {
+        computeData->setStaticImageView(inputImage, "transmittanceVolumeImage");
+        computeData->setStaticBuffer(outputBuffer, "TransmittanceVolumeBuffer");
+    }
+}
+
 void ConvertTransmittanceVolumePass::loadShader() {
     sgl::vk::ShaderManager->invalidateShaderCache();
     std::map<std::string, std::string> preprocessorDefines;
@@ -732,6 +741,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
             const auto& cloudData = vptPass->getCloudData();
             outputVolumeBufferCu = {};
             outputVolumeBufferVk = {};
+            convertTransmittanceVolumePass->clearInputOutputData();
             outputVolumeBufferVk = std::make_shared<sgl::vk::Buffer>(
                     renderer->getDevice(),
                     size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ()) * sizeof(float),

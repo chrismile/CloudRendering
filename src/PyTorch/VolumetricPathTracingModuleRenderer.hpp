@@ -52,6 +52,7 @@ class ConvertTransmittanceVolumePass : public sgl::vk::ComputePass {
 public:
     ConvertTransmittanceVolumePass(sgl::vk::Renderer* renderer);
     void setInputOutputData(const sgl::vk::ImageViewPtr& _inputImage, const sgl::vk::BufferPtr& _outputBuffer);
+    void clearInputOutputData();
 
 protected:
     void loadShader() override;
