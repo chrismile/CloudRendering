@@ -85,6 +85,9 @@ void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32
     gridSizeX = _gridSizeX;
     gridSizeY = _gridSizeY;
     gridSizeZ = _gridSizeZ;
+    voxelSizeX = 1.0f;
+    voxelSizeY = 1.0f;
+    voxelSizeZ = 1.0f;
 
     computeGridBounds();
 
@@ -210,20 +213,22 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
             densityFieldFloat, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
 
+    if (maxVal - minVal > 1e-6f) {
 #ifdef USE_TBB
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
         for (auto i = r.begin(); i != r.end(); i++) {
 #else
 #if _OPENMP >= 201107
-    #pragma omp parallel for default(none) shared(densityFieldFloat, totalSize, minVal, maxVal)
+        #pragma omp parallel for default(none) shared(densityFieldFloat, totalSize, minVal, maxVal)
 #endif
-    for (size_t i = 0; i < totalSize; i++) {
+        for (size_t i = 0; i < totalSize; i++) {
 #endif
-        densityFieldFloat[i] = (densityFieldFloat[i] - minVal) / (maxVal - minVal);
-    }
+            densityFieldFloat[i] = (densityFieldFloat[i] - minVal) / (maxVal - minVal);
+        }
 #ifdef USE_TBB
-    });
+        });
 #endif
+    }
 
     densityField = std::make_shared<DensityField>(gridSizeX * gridSizeY * gridSizeZ, densityFieldFloat);
 
