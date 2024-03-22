@@ -861,7 +861,7 @@ bool getIsoSurfaceHit(
 #endif
 
 
-#ifdef USE_ISOSURFACE_RENDERING
+#if defined(USE_ISOSURFACE_RENDERING) || (defined(USE_ISOSURFACES) && defined(USE_RAY_MARCHING_EMISSION_ABSORPTION))
 #include "Lighting.glsl"
 
 // Direct illumination

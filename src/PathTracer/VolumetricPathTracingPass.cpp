@@ -1039,6 +1039,8 @@ void VolumetricPathTracingPass::loadShader() {
         if (useAoDist) {
             customPreprocessorDefines.insert({ "USE_AO_DIST", "" });
         }
+    } else if (vptMode == VptMode::RAY_MARCHING_EMISSION_ABSORPTION) {
+        customPreprocessorDefines.insert({ "USE_RAY_MARCHING_EMISSION_ABSORPTION", "" });
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });

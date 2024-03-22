@@ -113,12 +113,12 @@ const FeatureMapCorrespondence featureMapCorrespondence({
 enum class VptMode {
     DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING,
     NEXT_EVENT_TRACKING, NEXT_EVENT_TRACKING_SPECTRAL,
-    ISOSURFACE_RENDERING
+    ISOSURFACE_RENDERING, RAY_MARCHING_EMISSION_ABSORPTION
 };
 const char* const VPT_MODE_NAMES[] = {
         "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
         "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking", "Next Event Tracking (Spectral)",
-        "Isosurfaces"
+        "Isosurfaces", "Ray Marching (Emission/Absorption)"
 };
 
 enum class GridInterpolationType {

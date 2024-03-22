@@ -52,6 +52,10 @@ vec3 cameraPosition;
 #include "NextEventTracking.glsl"
 #include "IsosurfaceRendering.glsl"
 
+#ifdef USE_RAY_MARCHING_EMISSION_ABSORPTION
+#include "RayMarchingEmissionAbsorption.glsl"
+#endif
+
 #ifdef WRITE_DEPTH_BLENDED_MAP
 #include "DepthBlended.glsl"
 #endif
@@ -115,18 +119,26 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     vec3 result = nextEventTrackingSpectral(x, w, firstEvent, onlyFirstEvent);
 #elif defined(USE_ISOSURFACE_RENDERING)
     vec3 result = isosurfaceRendering(x, w, firstEvent);
+#elif defined(USE_RAY_MARCHING_EMISSION_ABSORPTION)
+    vec4 colorRayOut = rayMarchingEmissionAbsorption(x, w, firstEvent);
+    vec3 bgColor = sampleSkybox(w);
+    vec3 result = bgColor.rgb * (1.0 - colorRayOut.a) + colorRayOut.rgb;
 #endif
 
     if (!onlyFirstEvent) {
 #ifdef WRITE_CLOUDONLY_MAP
         // Accumulate cloudOnly
+#ifdef USE_RAY_MARCHING_EMISSION_ABSORPTION
+        vec4 cloudOnly = firstEvent.hasValue ? colorRayOut : vec4(0);
+#else
         vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+#endif
 #ifndef DISABLE_ACCUMULATION
         vec4 cloudOnlyOld = frame == 0 ? vec4(0) : imageLoad(cloudOnlyImage, imageCoord);
         cloudOnly = mix(cloudOnlyOld, cloudOnly, 1.0 / float(frame + 1));
 #endif
         imageStore(cloudOnlyImage, imageCoord, cloudOnly);
-#endif
+#endif // WRITE_CLOUDONLY_MAP
 
 #ifdef WRITE_BACKGROUND_MAP
         // Accumulate background
@@ -136,7 +148,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         background = mix(backgroundOld, background, 1.0 / float(frame + 1));
 #endif
         imageStore(backgroundImage, imageCoord, background);
-#endif
+#endif // WRITE_BACKGROUND_MAP
 
         // Accumulate result
 #ifndef OUTPUT_FOREGROUND_MAP
