@@ -62,9 +62,15 @@ CloudData::~CloudData() {
 }
 
 void CloudData::computeGridBounds() {
-    uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
-    boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
+    float sx = float(gridSizeX) * voxelSizeX;
+    float sy = float(gridSizeY) * voxelSizeY;
+    float sz = float(gridSizeZ) * voxelSizeZ;
+    float maxSize = std::max(sx, std::max(sy, sz));
+    boxMax = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
     boxMin = -boxMax;
+    //uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
+    //boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
+    //boxMin = -boxMax;
 
     gridMin = glm::vec3(0,0,0);
     gridMax = glm::vec3(1,1,1);
@@ -336,6 +342,29 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
     float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
     float cellStep = 1.0f / maxDimension;
 
+    gridSizeX = xs;
+    gridSizeY = ys;
+    gridSizeZ = zs;
+    voxelSizeX = cellStep;
+    voxelSizeY = cellStep;
+    voxelSizeZ = cellStep;
+
+    auto itSliceThickness = datDict.find("slicethickness");
+    if (itSliceThickness != datDict.end()) {
+        std::vector<std::string> sliceThicknessList;
+        sgl::splitStringWhitespace(itSliceThickness->second, sliceThicknessList);
+        if (sliceThicknessList.size() != 3) {
+            sgl::Logfile::get()->throwError(
+                    "Error in DatRawFileLoader::load: Inconsistent entry 'SliceThickness' in \"" + datFilePath + "\".");
+        }
+        auto tx = sgl::fromString<float>(sliceThicknessList.at(0));
+        auto ty = sgl::fromString<float>(sliceThicknessList.at(1));
+        auto tz = sgl::fromString<float>(sliceThicknessList.at(2));
+        voxelSizeX *= tx;
+        voxelSizeY *= ty;
+        voxelSizeZ *= tz;
+    }
+
     auto itFormat = datDict.find("format");
     if (itFormat == datDict.end()) {
         sgl::Logfile::get()->throwError(
@@ -363,13 +392,6 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
         sgl::Logfile::get()->throwError(
                 "Error in DatRawFileLoader::load: Couldn't open file \"" + rawFilePath + "\".");
     }
-
-    gridSizeX = xs;
-    gridSizeY = ys;
-    gridSizeZ = zs;
-    voxelSizeX = cellStep;
-    voxelSizeY = cellStep;
-    voxelSizeZ = cellStep;
 
     size_t numBytesData = lengthRaw;
     size_t totalSize = size_t(xs) * size_t(ys) * size_t(zs);
@@ -564,25 +586,32 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
     auto ys = sgl::fromString<uint32_t>(resolutionSplit.at(1));
     auto zs = sgl::fromString<uint32_t>(resolutionSplit.at(2));
 
-    // TODO: Add support for ElementSpacing storing dx/dy/dz ratio as floats.
-    /*auto itSpacing = mhdDict.find("ElementSpacing");
-    if (itSpacing == mhdDict.end()) {
-        sgl::Logfile::get()->throwError(
-                "Error in loadFromMhdRawFile::load: Entry 'ElementSpacing' missing in \"" + mhdFilePath + "\".");
-    }
-    std::vector<std::string> spacingSplit;
-    sgl::splitStringWhitespace(itSpacing->second, spacingSplit);
-    if (spacingSplit.size() != 3) {
-        sgl::Logfile::get()->throwError(
-                "Error in loadFromMhdRawFile::load: Entry 'ElementSpacing' in \"" + mhdFilePath
-                + "\" does not have three values.");
-    }
-    auto dx = sgl::fromString<float>(spacingSplit.at(0));
-    auto dy = sgl::fromString<float>(spacingSplit.at(1));
-    auto dz = sgl::fromString<float>(spacingSplit.at(2));*/
-
     float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
     float cellStep = 1.0f / maxDimension;
+
+    gridSizeX = xs;
+    gridSizeY = ys;
+    gridSizeZ = zs;
+    voxelSizeX = cellStep;
+    voxelSizeY = cellStep;
+    voxelSizeZ = cellStep;
+
+    auto itSpacing = mhdDict.find("ElementSpacing");
+    if (itSpacing != mhdDict.end()) {
+        std::vector<std::string> spacingSplit;
+        sgl::splitStringWhitespace(itSpacing->second, spacingSplit);
+        if (spacingSplit.size() != 3) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromMhdRawFile::load: Entry 'ElementSpacing' in \"" + mhdFilePath
+                    + "\" does not have three values.");
+        }
+        auto dx = sgl::fromString<float>(spacingSplit.at(0));
+        auto dy = sgl::fromString<float>(spacingSplit.at(1));
+        auto dz = sgl::fromString<float>(spacingSplit.at(2));
+        voxelSizeX *= dx;
+        voxelSizeX *= dy;
+        voxelSizeX *= dz;
+    }
 
     auto itTransformMatrix = mhdDict.find("TransformMatrix");
     if (itTransformMatrix == mhdDict.end()) {
@@ -661,13 +690,6 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         sgl::Logfile::get()->throwError(
                 "Error in loadFromMhdRawFile::load: Couldn't open file \"" + rawFilePath + "\".");
     }
-
-    gridSizeX = xs;
-    gridSizeY = ys;
-    gridSizeZ = zs;
-    voxelSizeX = cellStep;
-    voxelSizeY = cellStep;
-    voxelSizeZ = cellStep;
 
     size_t numBytesData = lengthRaw;
     size_t totalSize = size_t(xs) * size_t(ys) * size_t(zs);
