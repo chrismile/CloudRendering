@@ -176,6 +176,9 @@ public:
     void checkRecreateDenoiser();
     void setOutputForegroundMap(bool _shallOutputForegroundMap);
     inline void setIsIntermediatePass(bool _isIntermediatePass) { isIntermediatePass = _isIntermediatePass; }
+    void setSecondaryVolumeDownscalingFactor(uint32_t ds);
+    uint32_t getSecondaryVolumeDownscalingFactor();
+    size_t getSecondaryVolumeSizeInBytes();
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
@@ -277,6 +280,7 @@ private:
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
     sgl::vk::TexturePtr transmittanceVolumeTexture; //< 3D feature map.
+    uint32_t dsSecondaryVolume = 1; //< Downscaling factor for secondary volumes like @see transmittanceVolumeTexture.
     bool accumulateInputs = true;
     bool useGlobalFrameNumber = false;
     uint32_t globalFrameNumber = 0;

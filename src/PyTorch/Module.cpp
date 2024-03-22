@@ -79,6 +79,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::get_feature_map", getFeatureMap);
     m.def("vpt::get_feature_map_from_string", getFeatureMapFromString);
     m.def("vpt::get_transmittance_volume", getTransmittanceVolume);
+    m.def("vpt::set_secondary_volume_downscaling_factor", setSecondaryVolumeDownscalingFactor);
     m.def("vpt::set_phase_g", setPhaseG);
     m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
     m.def("vpt::set_use_emission", setUseEmission);
@@ -214,13 +215,18 @@ torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap) {
 
 torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor) {
     const auto& cloudData = vptRenderer->getCloudData();
+    auto ds = int(vptRenderer->getVptPass()->getSecondaryVolumeDownscalingFactor());
 
     if (inputTensor.device().type() == torch::DeviceType::CPU) {
         void* imageDataPtr = vptRenderer->getFeatureMapCpu(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME);
 
         torch::Tensor outputTensor = torch::from_blob(
                 imageDataPtr,
-                { int(cloudData->getGridSizeZ()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeX()) },
+                {
+                        sgl::iceil(int(cloudData->getGridSizeZ()), ds),
+                        sgl::iceil(int(cloudData->getGridSizeY()), ds),
+                        sgl::iceil(int(cloudData->getGridSizeX()), ds)
+                },
                 torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
 
         return outputTensor.detach().clone();
@@ -231,7 +237,11 @@ torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor) {
 
         torch::Tensor outputTensor = torch::from_blob(
                 imageDataDevicePtr,
-                { int(cloudData->getGridSizeZ()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeX()) },
+                {
+                        sgl::iceil(int(cloudData->getGridSizeZ()), ds),
+                        sgl::iceil(int(cloudData->getGridSizeY()), ds),
+                        sgl::iceil(int(cloudData->getGridSizeX()), ds)
+                },
                 torch::TensorOptions().dtype(torch::kFloat32).device(inputTensor.device()));
 
         return outputTensor.detach();//.clone();
@@ -242,6 +252,10 @@ torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor) {
     }
 
     return {};
+}
+
+void setSecondaryVolumeDownscalingFactor(int64_t dsFactor) {
+    vptRenderer->getVptPass()->setSecondaryVolumeDownscalingFactor(uint32_t(dsFactor));
 }
 
 

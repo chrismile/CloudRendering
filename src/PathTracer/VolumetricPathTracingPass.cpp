@@ -332,9 +332,9 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
     if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME)))
             || featureMapType == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME || featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) != featureMapSet.end()) {
         sgl::vk::ImageSettings imageSettings3d;
-        imageSettings3d.width = cloudData->getGridSizeX();
-        imageSettings3d.height = cloudData->getGridSizeY();
-        imageSettings3d.depth = cloudData->getGridSizeZ();
+        imageSettings3d.width = sgl::uiceil(cloudData->getGridSizeX(), dsSecondaryVolume);
+        imageSettings3d.height = sgl::uiceil(cloudData->getGridSizeY(), dsSecondaryVolume);
+        imageSettings3d.depth = sgl::uiceil(cloudData->getGridSizeZ(), dsSecondaryVolume);
         imageSettings3d.imageType = VK_IMAGE_TYPE_3D;
         imageSettings3d.format = VK_FORMAT_R32_UINT;
         imageSettings3d.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -786,6 +786,27 @@ void VolumetricPathTracingPass::setOutputForegroundMap(bool _shallOutputForegrou
         reRender = true;
         frameInfo.frameCount = 0;
     }
+}
+
+void VolumetricPathTracingPass::setSecondaryVolumeDownscalingFactor(uint32_t ds) {
+    if (dsSecondaryVolume != ds) {
+        dsSecondaryVolume = ds;
+        transmittanceVolumeTexture = {};
+        if (lastViewportWidth != 0 && lastViewportHeight != 0) {
+            checkRecreateFeatureMaps();
+        }
+    }
+}
+
+uint32_t VolumetricPathTracingPass::getSecondaryVolumeDownscalingFactor() {
+    return dsSecondaryVolume;
+}
+
+size_t VolumetricPathTracingPass::getSecondaryVolumeSizeInBytes() {
+    uint32_t width = sgl::uiceil(cloudData->getGridSizeX(), dsSecondaryVolume);
+    uint32_t height = sgl::uiceil(cloudData->getGridSizeY(), dsSecondaryVolume);
+    uint32_t depth = sgl::uiceil(cloudData->getGridSizeZ(), dsSecondaryVolume);
+    return size_t(width) * size_t(height) * size_t(depth) * sizeof(float);
 }
 
 void VolumetricPathTracingPass::onHasMoved() {

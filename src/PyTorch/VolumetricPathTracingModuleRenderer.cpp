@@ -730,21 +730,18 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
 
     if (featureMap == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
         bool recreate = !outputImageBufferVk;
+        size_t secondaryVolumeSizeInBytes = vptPass->getSecondaryVolumeSizeInBytes();
         if (!recreate) {
-            const auto& cloudData = vptPass->getCloudData();
-            if (size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ()) * sizeof(float)
-                    != outputImageBufferVk->getSizeInBytes()) {
+            if (secondaryVolumeSizeInBytes != outputImageBufferVk->getSizeInBytes()) {
                 recreate = true;
             }
         }
         if (recreate) {
-            const auto& cloudData = vptPass->getCloudData();
             outputVolumeBufferCu = {};
             outputVolumeBufferVk = {};
             convertTransmittanceVolumePass->clearInputOutputData();
             outputVolumeBufferVk = std::make_shared<sgl::vk::Buffer>(
-                    renderer->getDevice(),
-                    size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ()) * sizeof(float),
+                    renderer->getDevice(), secondaryVolumeSizeInBytes,
                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
                     true, true);
             outputVolumeBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputVolumeBufferVk);
