@@ -159,7 +159,11 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         imageStore(accImage, imageCoord, vec4(result, 1));
         imageStore(resultImage, imageCoord, vec4(result, 1));
 #else
+#ifdef USE_RAY_MARCHING_EMISSION_ABSORPTION
+        vec4 resultRgba = firstEvent.hasValue ? colorRayOut : vec4(0);
+#else
         vec4 resultRgba = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
+#endif
 #ifndef DISABLE_ACCUMULATION
         vec4 resultOld = frame == 0 ? vec4(0) : imageLoad(accImage, imageCoord);
         resultRgba = mix(resultOld, resultRgba, 1.0 / float(frame + 1));

@@ -741,7 +741,7 @@ bool getIsoSurfaceHit(
 ) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    vec3 surfaceNormal = computeGradient(texCoords);
+    vec3 surfaceNormal = computeGradient(texCoords); // TODO
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }
@@ -868,7 +868,7 @@ bool getIsoSurfaceHit(
 vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    surfaceNormal = computeGradient(texCoords);
+    surfaceNormal = computeGradient(texCoords); // TODO
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }

@@ -27,7 +27,7 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
 
     const float majorant = parameters.extinction.x;
     const ivec3 gridImgSize = textureSize(gridImage, 0);
-    const float stepSize = 0.5 / max(gridImgSize.x, max(gridImgSize.y, gridImgSize.z));
+    const float stepSize = 0.25 / max(gridImgSize.x, max(gridImgSize.y, gridImgSize.z));
     const float attenuationCoefficient = majorant * stepSize;
     vec3 absorptionAlbedo = vec3(1, 1, 1) - parameters.scatteringAlbedo;
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
@@ -84,12 +84,14 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
                     //alpha = color.a; // TODO
                     alpha = 1.0;
                     density = 1e9;
+                    hasHit = true;
+                    break;
                 }
             }
 #endif
 
             if (!hasHit) {
-                if (density > 1e-5) {
+                if (density > 1e-4) {
                     hasHit = true;
                 }
                 alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
@@ -105,8 +107,8 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
                 firstEvent.depth = t;
             }
 
-            alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
             colorAccum = colorAccum + (1.0 - alphaAccum) * alpha * color;
+            alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
         }
     }
 
