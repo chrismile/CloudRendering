@@ -449,6 +449,17 @@ float sampleCloudRaw(in vec3 coord) {
 #endif
     return sampleGridImage(coord);
 }
+
+#if defined(USE_ISOSURFACE_RENDERING) || defined(USE_ISOSURFACES)
+#if defined(ISOSURFACE_TYPE_DENSITY)
+#define isoImage gridImage
+#elif defined(ISOSURFACE_TYPE_GRADIENT)
+#define isoImage gradientImage
+#endif
+#define sampleIsoImage(coord) (texture(isoImage, coord).x - parameters.voxelValueMin) / (parameters.voxelValueMax - parameters.voxelValueMin)
+#define sampleIsoImageOffset(coord, offset) (textureOffset(isoImage, coord, offset).x - parameters.voxelValueMin) / (parameters.voxelValueMax - parameters.voxelValueMin)
+#endif // defined(USE_ISOSURFACE_RENDERING) || defined(USE_ISOSURFACES)
+
 #endif
 
 #ifdef USE_EMISSION
@@ -634,26 +645,26 @@ vec3 computeGradient(vec3 texCoords) {
     const float dy = 1.0;
     const float dz = 1.0;
     float gradX =
-            (sampleGridImageOffset(texCoords, ivec3(-1, 0, 0))
-            - sampleGridImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
+            (sampleIsoImageOffset(texCoords, ivec3(-1, 0, 0))
+            - sampleIsoImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
     float gradY =
-            (sampleGridImageOffset(texCoords, ivec3(0, -1, 0))
-            - sampleGridImageOffset(texCoords, ivec3(0, 1, 0))) * 0.5 / dy;
+            (sampleIsoImageOffset(texCoords, ivec3(0, -1, 0))
+            - sampleIsoImageOffset(texCoords, ivec3(0, 1, 0))) * 0.5 / dy;
     float gradZ =
-            (sampleGridImageOffset(texCoords, ivec3(0, 0, -1))
-            - sampleGridImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
+            (sampleIsoImageOffset(texCoords, ivec3(0, 0, -1))
+            - sampleIsoImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
 #else
     const float dx = parameters.voxelTexelSize.x * 1;
     const float dy = parameters.voxelTexelSize.y * 1;
     const float dz = parameters.voxelTexelSize.z * 1;
     float gradX =
-            (sampleGridImage(texCoords - vec3(dx, 0.0, 0.0))
-            - sampleGridImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
+            (sampleIsoImage(texCoords - vec3(dx, 0.0, 0.0))
+            - sampleIsoImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
     float gradY =
-            (sampleGridImage(texCoords - vec3(0.0, dy, 0.0))
-            - sampleGridImage(texCoords + vec3(0.0, dy, 0.0))) * 0.5;
+            (sampleIsoImage(texCoords - vec3(0.0, dy, 0.0))
+            - sampleIsoImage(texCoords + vec3(0.0, dy, 0.0))) * 0.5;
     float gradZ =
-            (sampleGridImage(texCoords - vec3(0.0, 0.0, dz))
+            (sampleIsoImage(texCoords - vec3(0.0, 0.0, dz))
             - sampleGidImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
 #endif
 
@@ -741,7 +752,7 @@ bool getIsoSurfaceHit(
 ) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    vec3 surfaceNormal = computeGradient(texCoords); // TODO
+    vec3 surfaceNormal = computeGradient(texCoords);
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }
@@ -868,7 +879,7 @@ bool getIsoSurfaceHit(
 vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    surfaceNormal = computeGradient(texCoords); // TODO
+    surfaceNormal = computeGradient(texCoords);
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }

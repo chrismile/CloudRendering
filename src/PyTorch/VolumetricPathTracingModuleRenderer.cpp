@@ -35,6 +35,7 @@
 #include "CloudData.hpp"
 
 #include "PathTracer/VolumetricPathTracingPass.hpp"
+#include "PathTracer/OccupationVolumePass.hpp"
 
 #include "Config.hpp"
 #include "VolumetricPathTracingModuleRenderer.hpp"
@@ -729,10 +730,10 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
     renderer->beginCommandBuffer();
 
     if (featureMap == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
-        bool recreate = !outputImageBufferVk;
+        bool recreate = !outputVolumeBufferVk;
         size_t secondaryVolumeSizeInBytes = vptPass->getSecondaryVolumeSizeInBytes();
         if (!recreate) {
-            if (secondaryVolumeSizeInBytes != outputImageBufferVk->getSizeInBytes()) {
+            if (secondaryVolumeSizeInBytes != outputVolumeBufferVk->getSizeInBytes()) {
                 recreate = true;
             }
         }
@@ -788,4 +789,84 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
     } else {
         return (float*)outputImageBufferCu->getCudaDevicePtr();
     }
+}
+
+float* VolumetricPathTracingModuleRenderer::computeOccupationVolumeCuda(uint32_t ds, uint32_t maxKernelRadius) {
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+
+    // TODO
+    renderer->getDevice()->waitIdle();
+    cudaStreamSynchronize(stream);
+
+    timelineValue++;
+
+    sgl::vk::CommandBufferPtr commandBuffer = commandBuffers.at(0);
+    sgl::vk::SemaphorePtr waitSemaphore;
+    sgl::vk::SemaphorePtr signalSemaphore;
+
+    VkPipelineStageFlags waitStage;
+    waitSemaphore = renderReadySemaphore;
+    waitStage = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
+
+    signalSemaphore = renderFinishedSemaphore;
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    waitSemaphore->setWaitSemaphoreValue(timelineValue);
+    signalSemaphore->setSignalSemaphoreValue(timelineValue);
+#endif
+    commandBuffer->pushWaitSemaphore(waitSemaphore, waitStage);
+    commandBuffer->pushSignalSemaphore(signalSemaphore);
+
+    renderer->pushCommandBuffer(commandBuffer);
+    renderer->beginCommandBuffer();
+
+    const auto& cloudData = vptPass->getCloudData();
+    size_t occupationVolumeSizeInBytes =
+            sgl::uiceil(cloudData->getGridSizeX(), ds) * sgl::uiceil(cloudData->getGridSizeY(), ds) *
+            sgl::uiceil(cloudData->getGridSizeZ(), ds) * sizeof(uint8_t);
+    bool recreate = !outputOccupationVolumeBufferVk;
+    if (!recreate) {
+        if (occupationVolumeSizeInBytes != outputOccupationVolumeBufferVk->getSizeInBytes()) {
+            recreate = true;
+        }
+    }
+    if (recreate) {
+        outputOccupationVolumeBufferCu = {};
+        outputOccupationVolumeBufferVk = {};
+        convertTransmittanceVolumePass->clearInputOutputData();
+        outputOccupationVolumeBufferVk = std::make_shared<sgl::vk::Buffer>(
+                renderer->getDevice(), occupationVolumeSizeInBytes,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_ONLY,
+                true, true);
+        outputOccupationVolumeBufferCu = std::make_shared<sgl::vk::BufferCudaDriverApiExternalMemoryVk>(outputOccupationVolumeBufferVk);
+    }
+
+    auto* occupationVolumePass = new OccupationVolumePass(renderer);
+    auto occupationVolumeImage = occupationVolumePass->computeVolume(vptPass.get(), ds, maxKernelRadius);
+
+    occupationVolumeImage->getImage()->copyToBuffer(
+            outputOccupationVolumeBufferVk, renderer->getVkCommandBuffer());
+
+    renderer->endCommandBuffer();
+    renderer->submitToQueue();
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderReadySemaphore->signalSemaphoreCuda(stream, timelineValue);
+#else
+    renderReadySemaphores->signalSemaphoreCuda(stream);
+#endif
+
+#ifdef USE_TIMELINE_SEMAPHORES
+    renderFinishedSemaphore->waitSemaphoreCuda(stream, timelineValue);
+#else
+    renderFinishedSemaphore->waitSemaphoreCuda(stream);
+#endif
+
+    // TODO
+    cudaStreamSynchronize(stream);
+    renderer->getDevice()->waitIdle();
+
+    delete occupationVolumePass;
+
+    return (float*)outputOccupationVolumeBufferCu->getCudaDevicePtr();
 }

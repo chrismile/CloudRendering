@@ -91,6 +91,8 @@ MODULE_OP_API torch::Tensor getFeatureMapFromString(torch::Tensor inputTensor, c
 MODULE_OP_API torch::Tensor getFeatureMap(torch::Tensor inputTensor, int64_t featureMap);
 MODULE_OP_API torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor);
 MODULE_OP_API void setSecondaryVolumeDownscalingFactor(int64_t dsFactor);
+MODULE_OP_API torch::Tensor computeOccupationVolume(
+        torch::Tensor inputTensor, int64_t dsFactor, int64_t maxKernelRadius);
 
 class VolumetricPathTracingModuleRenderer;
 extern VolumetricPathTracingModuleRenderer* vptRenderer;

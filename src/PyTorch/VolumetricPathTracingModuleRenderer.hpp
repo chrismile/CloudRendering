@@ -149,6 +149,8 @@ public:
     float* getFeatureMapCpu(FeatureMapTypeVpt featureMap);
     float* getFeatureMapCuda(FeatureMapTypeVpt featureMap);
 
+    float* computeOccupationVolumeCuda(uint32_t ds, uint32_t maxKernelRadius);
+
 #ifdef SUPPORT_CUDA_INTEROP
     void createCommandStructures(uint32_t numFrames);
     float* renderFrameCuda(uint32_t numFrames);
@@ -195,6 +197,8 @@ private:
     sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputImageBufferCu;
     sgl::vk::BufferPtr outputVolumeBufferVk;
     sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputVolumeBufferCu;
+    sgl::vk::BufferPtr outputOccupationVolumeBufferVk;
+    sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr outputOccupationVolumeBufferCu;
     // Synchronization primitives.
     const uint32_t maxNumFramesInFlight = 32;
     std::vector<sgl::vk::CommandBufferPtr> commandBuffers;

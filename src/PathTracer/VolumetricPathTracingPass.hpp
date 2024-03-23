@@ -36,6 +36,7 @@
 #include <Graphics/Vulkan/Utils/Timer.hpp>
 
 #include "Denoiser/Denoiser.hpp"
+#include "RenderSettings.hpp"
 
 namespace sgl {
 class PropertyEditor;
@@ -48,6 +49,7 @@ class BlitMomentTexturePass;
 class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
 class OctahedralMappingPass;
+class OccupationVolumePass;
 
 namespace IGFD {
 class FileDialog;
@@ -110,52 +112,8 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::UNUSED, FeatureMapTypeVpt::TRANSMITTANCE_VOLUME},
 });
 
-enum class VptMode {
-    DELTA_TRACKING, SPECTRAL_DELTA_TRACKING, RATIO_TRACKING, DECOMPOSITION_TRACKING, RESIDUAL_RATIO_TRACKING,
-    NEXT_EVENT_TRACKING, NEXT_EVENT_TRACKING_SPECTRAL,
-    ISOSURFACE_RENDERING, RAY_MARCHING_EMISSION_ABSORPTION
-};
-const char* const VPT_MODE_NAMES[] = {
-        "Delta Tracking", "Delta Tracking (Spectral)", "Ratio Tracking",
-        "Decomposition Tracking", "Residual Ratio Tracking", "Next Event Tracking", "Next Event Tracking (Spectral)",
-        "Isosurfaces", "Ray Marching (Emission/Absorption)"
-};
-
-enum class GridInterpolationType {
-    NEAREST, //< Take sample at voxel closest to (i, j, k)
-    STOCHASTIC, //< Sample within (i - 0.5, j - 0.5, k - 0,5) and (i + 0.5, j + 0.5, k + 0,5).
-    TRILINEAR //< Sample all 8 neighbors and do trilinear interpolation.
-};
-const char* const GRID_INTERPOLATION_TYPE_NAMES[] = {
-        "Nearest", "Stochastic", "Trilinear"
-};
-
-/**
- * Choices of collision probabilities for spectral delta tracking.
- * For more details see: https://jannovak.info/publications/SDTracking/SDTracking.pdf
- */
-enum class SpectralDeltaTrackingCollisionProbability {
-    MAX_BASED, AVG_BASED, PATH_HISTORY_AVG_BASED
-};
-const char* const SPECTRAL_DELTA_TRACKING_COLLISION_PROBABILITY_NAMES[] = {
-        "Max-based", "Avg-based", "Path History Avg-based"
-};
-
-enum class IsosurfaceType {
-    DENSITY, GRADIENT
-};
-const char* const ISOSURFACE_TYPE_NAMES[] = {
-        "Density", "Gradient"
-};
-
-enum class SurfaceBrdf {
-    LAMBERTIAN, BLINN_PHONG
-};
-const char* const SURFACE_BRDF_NAMES[] = {
-        "Lambertian", "Blinn Phong"
-};
-
 class VolumetricPathTracingPass : public sgl::vk::ComputePass {
+    friend class OccupationVolumePass;
 public:
     explicit VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera);
     ~VolumetricPathTracingPass() override;
