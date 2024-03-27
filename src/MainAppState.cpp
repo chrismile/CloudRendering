@@ -26,7 +26,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <fstream>
 #include <json/json.h>
+#include <Utils/File/Logfile.hpp>
 
 #include "MainApp.hpp"
 
