@@ -327,6 +327,44 @@ void MainApp::renderGui() {
         IGFD_CloseDialog(fileDialogInstance);
     }
 
+    if (IGFD_DisplayDialog(
+            fileDialogInstance,
+            "ChooseCamStateFile", ImGuiWindowFlags_NoCollapse,
+            sgl::ImGuiWrapper::get()->getScaleDependentSize(1000, 580),
+            ImVec2(FLT_MAX, FLT_MAX))) {
+        if (IGFD_IsOk(fileDialogInstance)) {
+            std::string filePathName = IGFD_GetFilePathNameString(fileDialogInstance);
+            std::string filePath = IGFD_GetCurrentPathString(fileDialogInstance);
+            std::string filter = IGFD_GetCurrentFilterString(fileDialogInstance);
+            std::string userDatas;
+            if (IGFD_GetUserDatas(fileDialogInstance)) {
+                userDatas = std::string((const char*)IGFD_GetUserDatas(fileDialogInstance));
+            }
+            auto selection = IGFD_GetSelection(fileDialogInstance);
+
+            std::string currentPath = IGFD_GetCurrentPathString(fileDialogInstance);
+            std::string filename = currentPath;
+            if (!filename.empty() && filename.back() != '/' && filename.back() != '\\') {
+                filename += "/";
+            }
+            std::string currentFileName;
+            if (filter == ".*") {
+                currentFileName = IGFD_GetCurrentFileNameRawString(fileDialogInstance);
+            } else {
+                currentFileName = IGFD_GetCurrentFileNameString(fileDialogInstance);
+            }
+            if (selection.count != 0 && selection.table[0].fileName == currentFileName) {
+                filename += selection.table[0].fileName;
+            } else {
+                filename += currentFileName;
+            }
+            IGFD_Selection_DestroyContent(&selection);
+
+            loadCameraStateFromFile(filename);
+        }
+        IGFD_CloseDialog(fileDialogInstance);
+    }
+
     if (useDockSpaceMode) {
         ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
         ImGuiDockNode* centralNode = ImGui::DockBuilderGetNode(dockSpaceId);
@@ -630,6 +668,26 @@ void MainApp::renderGuiMenuBar() {
             }
             if (ImGui::MenuItem("Checkpoint Window", nullptr, checkpointWindow.getShowWindow())) {
                 checkpointWindow.setShowWindow(!checkpointWindow.getShowWindow());
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Tools")) {
+            if (ImGui::MenuItem("Import JSON Camera State...")) {
+                IGFD_OpenModal(
+                        fileDialogInstance, "ChooseCamStateFile", "Choose a File", ".json",
+                        sgl::AppSettings::get()->getDataDirectory().c_str(), "", 1, nullptr,
+                        ImGuiFileDialogFlags_None);
+            }
+
+            if (ImGui::MenuItem("Print Camera State")) {
+                std::cout << "Position: (" << camera->getPosition().x << ", " << camera->getPosition().y
+                          << ", " << camera->getPosition().z << ")" << std::endl;
+                std::cout << "Look At: (" << camera->getLookAtLocation().x << ", " << camera->getLookAtLocation().y
+                          << ", " << camera->getLookAtLocation().z << ")" << std::endl;
+                std::cout << "Yaw: " << camera->getYaw() << std::endl;
+                std::cout << "Pitch: " << camera->getPitch() << std::endl;
+                std::cout << "FoVy: " << (camera->getFOVy() / sgl::PI * 180.0f) << std::endl;
             }
             ImGui::EndMenu();
         }

@@ -125,6 +125,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     vec3 result = bgColor.rgb * (1.0 - colorRayOut.a) + colorRayOut.rgb;
 #endif
 
+#ifdef WRITE_TRANSMITTANCE_VOLUME
+    computeTransmittanceVolume(x, w);
+#endif
+
     if (!onlyFirstEvent) {
 #ifdef WRITE_CLOUDONLY_MAP
         // Accumulate cloudOnly
@@ -293,10 +297,6 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     depthBlended = mix(depthBlendedOld, depthBlended, 1.0 / float(frame + 1));
 #endif
     imageStore(depthBlendedImage, imageCoord, vec4(depthBlended, 0.0, 1.0));
-#endif
-
-#ifdef WRITE_TRANSMITTANCE_VOLUME
-    computeTransmittanceVolume(x, w);
 #endif
 
 #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS

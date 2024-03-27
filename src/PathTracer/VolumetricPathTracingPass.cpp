@@ -875,6 +875,7 @@ void VolumetricPathTracingPass::setUseFeatureMaps(const std::unordered_set<Featu
     if (lastViewportWidth != 0 && lastViewportHeight != 0) {
         checkRecreateFeatureMaps();
     }
+    onHasMoved();
     setShaderDirty();
 }
 
@@ -1134,11 +1135,8 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "FLIP_YZ", "" });
     }
 
-    if (device->getPhysicalDeviceProperties().limits.maxComputeWorkGroupInvocations >= 1024) {
-        customPreprocessorDefines.insert({ "LOCAL_SIZE", "32" });
-    } else {
-        customPreprocessorDefines.insert({ "LOCAL_SIZE", "16" });
-    }
+    customPreprocessorDefines.insert({ "LOCAL_SIZE_X", std::to_string(blockSize2D.x) });
+    customPreprocessorDefines.insert({ "LOCAL_SIZE_Y", std::to_string(blockSize2D.y) });
     auto* tfWindow = cloudData->getTransferFunctionWindow();
     bool useTransferFunction = tfWindow && tfWindow->getShowWindow();
     if (useTransferFunction) {
