@@ -614,8 +614,8 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         auto dy = sgl::fromString<float>(spacingSplit.at(1));
         auto dz = sgl::fromString<float>(spacingSplit.at(2));
         voxelSizeX *= dx;
-        voxelSizeX *= dy;
-        voxelSizeX *= dz;
+        voxelSizeY *= dy;
+        voxelSizeZ *= dz;
     }
 
     auto itTransformMatrix = mhdDict.find("TransformMatrix");

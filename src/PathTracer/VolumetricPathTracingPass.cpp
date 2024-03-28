@@ -1042,6 +1042,13 @@ void VolumetricPathTracingPass::loadShader() {
         }
     } else if (vptMode == VptMode::RAY_MARCHING_EMISSION_ABSORPTION) {
         customPreprocessorDefines.insert({ "USE_RAY_MARCHING_EMISSION_ABSORPTION", "" });
+        if (compositionModel == CompositionModel::ALPHA_BLENDING) {
+            customPreprocessorDefines.insert({ "COMPOSITION_MODEL_ALPHA_BLENDING", "" });
+        } else if (compositionModel == CompositionModel::AVERAGE) {
+            customPreprocessorDefines.insert({ "COMPOSITION_MODEL_AVERAGE", "" });
+        } else if (compositionModel == CompositionModel::MAXIMUM_INTENSITY_PROJECTION) {
+            customPreprocessorDefines.insert({ "COMPOSITION_MODEL_MAXIMUM_INTENSITY_PROJECTION", "" });
+        }
     }
     if (gridInterpolationType == GridInterpolationType::NEAREST) {
         customPreprocessorDefines.insert({ "GRID_INTERPOLATION_NEAREST", "" });
@@ -1740,6 +1747,15 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 updateVptMode();
                 setShaderDirty();
                 setDataDirty();
+            }
+        }
+
+        if (vptMode == VptMode::RAY_MARCHING_EMISSION_ABSORPTION) {
+            if (propertyEditor.addCombo(
+                    "Composition Model", (int*)&compositionModel,
+                    COMPOSITION_MODEL_NAMES, IM_ARRAYSIZE(COMPOSITION_MODEL_NAMES))) {
+                optionChanged = true;
+                setShaderDirty();
             }
         }
 

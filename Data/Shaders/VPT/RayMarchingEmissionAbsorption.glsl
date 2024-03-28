@@ -46,9 +46,15 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
             bool hasHit = false;
             vec3 xOld = x + w * t;
             t += stepSize;
+#if defined(COMPOSITION_MODEL_ALPHA_BLENDING)
             if (t > tMax || alphaAccum > 0.999) {
                 break;
             }
+#else
+            if (t > tMax) {
+                break;
+            }
+#endif
             vec3 xNew = x + w * t;
 
 #ifdef USE_TRANSFER_FUNCTION
@@ -107,10 +113,25 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
                 firstEvent.depth = t;
             }
 
+#if defined(COMPOSITION_MODEL_ALPHA_BLENDING)
             colorAccum = colorAccum + (1.0 - alphaAccum) * alpha * color;
             alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
+#elif defined(COMPOSITION_MODEL_AVERAGE)
+            colorAccum += color;
+            alphaAccum += 1.0;
+#elif defined(COMPOSITION_MODEL_MAXIMUM_INTENSITY_PROJECTION)
+            alpha = clamp(density, 0.0, 1.0);
+            colorAccum = max(colorAccum, color);
+            alphaAccum = max(alphaAccum, alpha);
+#endif
         }
     }
 
+#if defined(COMPOSITION_MODEL_ALPHA_BLENDING)
     return vec4(colorAccum, alphaAccum);
+#elif defined(COMPOSITION_MODEL_AVERAGE)
+    return vec4(colorAccum / (alphaAccum + 1e-5), 1.0);
+#elif defined(COMPOSITION_MODEL_MAXIMUM_INTENSITY_PROJECTION)
+    return vec4(colorAccum, 1.0);
+#endif
 }

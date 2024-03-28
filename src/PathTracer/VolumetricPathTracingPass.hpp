@@ -193,6 +193,7 @@ private:
 
     void updateVptMode();
     VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
+    CompositionModel compositionModel = CompositionModel::ALPHA_BLENDING; ///< only for VptMode::RAY_MARCHING_EMISSION_ABSORPTION.
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
     std::shared_ptr<SuperVoxelGridResidualRatioTracking> superVoxelGridResidualRatioTracking;

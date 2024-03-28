@@ -40,6 +40,14 @@ const char* const VPT_MODE_NAMES[] = {
         "Isosurfaces", "Ray Marching (Emission/Absorption)"
 };
 
+// Only for VptMode::RAY_MARCHING_EMISSION_ABSORPTION.
+enum class CompositionModel {
+    ALPHA_BLENDING, AVERAGE, MAXIMUM_INTENSITY_PROJECTION
+};
+const char* const COMPOSITION_MODEL_NAMES[] = {
+        "Alpha Blending", "Average", "Maximum Intensity Projection"
+};
+
 enum class GridInterpolationType {
     NEAREST, //< Take sample at voxel closest to (i, j, k)
     STOCHASTIC, //< Sample within (i - 0.5, j - 0.5, k - 0,5) and (i + 0.5, j + 0.5, k + 0,5).
