@@ -53,9 +53,6 @@ void computeTransmittanceVolume(vec3 x, vec3 w) {
             }
 #endif
 
-            float alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
-            alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
-
             uint transmittanceUint = convertNormalizedFloatToUint32(1.0 - alphaAccum);
             vec3 coord = (xNew - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
@@ -63,6 +60,9 @@ void computeTransmittanceVolume(vec3 x, vec3 w) {
 #endif
             coord = coord * vec3(tImgSize - ivec3(1)) + vec3(0.5);
             imageAtomicMax(transmittanceVolumeImage, ivec3(coord), transmittanceUint);
+
+            float alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
+            alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
         }
     }
 }
