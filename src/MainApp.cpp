@@ -116,8 +116,8 @@ MainApp::MainApp()
 
     propertyEditor.setInitWidthValues(sgl::ImGuiWrapper::get()->getScaleDependentSize(280.0f));
 
-    camera->setNearClipDistance(0.01f);
-    camera->setFarClipDistance(100.0f);
+    camera->setNearClipDistance(1.0f / 512.0f); // 0.001953125f
+    camera->setFarClipDistance(80.0f);
 
     useDockSpaceMode = true;
     sgl::AppSettings::get()->getSettings().getValueOpt("useDockSpaceMode", useDockSpaceMode);

@@ -119,8 +119,8 @@ void ConvertTransmittanceVolumePass::_render() {
 VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk::Renderer* renderer)
         : renderer(renderer) {
     camera = std::make_shared<sgl::Camera>();
-    camera->setNearClipDistance(0.01f);
-    camera->setFarClipDistance(100.0f);
+    camera->setNearClipDistance(1.0f / 512.0f); // 0.001953125f
+    camera->setFarClipDistance(80.0f);
     camera->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
     camera->setYaw(-sgl::PI / 2.0f); //< around y axis
     camera->setPitch(0.0f); //< around x axis
