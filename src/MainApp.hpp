@@ -114,6 +114,7 @@ private:
 
     // Utility functionality.
     void loadCameraStateFromFile(const std::string& filePath);
+    void loadCameraPosesFromFile(const std::string& filePath);
 
     // For mapping volume density to display density and emission.
     sgl::MultiVarTransferFunctionWindow transferFunctionWindow;

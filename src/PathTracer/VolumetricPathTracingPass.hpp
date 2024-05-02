@@ -50,6 +50,7 @@ class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
 class OctahedralMappingPass;
 class OccupationVolumePass;
+class CameraPoseLinePass;
 
 namespace IGFD {
 class FileDialog;
@@ -161,6 +162,9 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+
+    // For debug rendering.
+    void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
 
     // Called when the camera has moved.
     void onHasMoved();
@@ -281,6 +285,10 @@ private:
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
+
+    // For debug rendering.
+    std::shared_ptr<CameraPoseLinePass> cameraPoseLinePass;
+    bool cameraPosesSet = false;
 
     void createDenoiser();
     void setDenoiserFeatureMaps();

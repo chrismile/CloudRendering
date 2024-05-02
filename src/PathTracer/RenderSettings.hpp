@@ -82,4 +82,14 @@ const char* const SURFACE_BRDF_NAMES[] = {
         "Lambertian", "Blinn Phong"
 };
 
+struct CameraPose {
+    glm::vec3 position;
+    glm::vec3 front;
+    glm::vec3 right;
+    glm::vec3 up;
+    float fovy;
+    float viewportWidth;
+    float viewportHeight;
+};
+
 #endif //CLOUDRENDERING_RENDERSETTINGS_HPP

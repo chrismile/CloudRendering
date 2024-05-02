@@ -55,6 +55,7 @@
 #include "OpenExrLoader.hpp"
 #endif
 
+#include "Utils/CameraPoseLinePass.hpp"
 #include "CloudData.hpp"
 #include "MomentUtils.hpp"
 #include "SuperVoxelGrid.hpp"
@@ -88,6 +89,7 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
     blitResultRenderPass = std::make_shared<sgl::vk::BlitRenderPass>(renderer);
     blitPrimaryRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Primary");
     blitScatterRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Scatter");
+    cameraPoseLinePass = std::make_shared<CameraPoseLinePass>(renderer);
 
     createDenoiser();
     updateVptMode();
@@ -138,6 +140,9 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
             std::make_shared<sgl::vk::Image>(device, imageSettings));
 
     resultImageTexture = std::make_shared<sgl::vk::Texture>(resultImageView, samplerSettings);
+
+    cameraPoseLinePass->setRenderTarget(sceneImageView);
+    cameraPoseLinePass->recreateSwapchain(imageSettings.width, imageSettings.height);
 
     imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     accImageTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
@@ -1527,6 +1532,10 @@ void VolumetricPathTracingPass::_render() {
             resultImageView->getImage()->blit(
                     sceneImageView->getImage(), renderer->getVkCommandBuffer());
         }
+        if (cameraPosesSet) {
+            cameraPoseLinePass->setMvpMatrix((*camera)->getViewProjMatrix());
+            cameraPoseLinePass->render();
+        }
     } else if (featureMapType == FeatureMapTypeVpt::FIRST_X) {
         renderer->transitionImageLayout(firstXTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1822,7 +1831,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 frameInfo.frameCount = 0;
                 setShaderDirty();
             }
-        }else{
+        } else {
             if (propertyEditor.addColorEdit3("Sunlight Color", &sunlightColor.x)) {
                 optionChanged = true;
             }
@@ -1985,6 +1994,49 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
     }
 
     return optionChanged;
+}
+
+
+void buildCameraPrimitives(
+        std::vector<uint32_t>& lineIndices,
+        std::vector<glm::vec3>& vertexPositions,
+        const std::vector<CameraPose>& cameraPoses) {
+    const float dist = 0.01f;
+    for (const auto& camPose : cameraPoses) {
+        auto indexOffset = uint32_t(vertexPositions.size());
+        const glm::vec3& pos = camPose.position;
+        const glm::vec3& front = camPose.front;
+        const glm::vec3& right = camPose.right;
+        const glm::vec3& up = camPose.up;
+        const float& fovy = camPose.fovy;
+        const float& viewportWidth = camPose.viewportWidth;
+        const float& viewportHeight = camPose.viewportHeight;
+        float distUp = 2.0f * dist * std::tan(fovy * 0.5f);
+        float distRight = viewportWidth / viewportHeight * distUp;
+        vertexPositions.push_back(pos);
+        vertexPositions.push_back(pos + dist * front - distRight * right - distUp * up);
+        vertexPositions.push_back(pos + dist * front + distRight * right - distUp * up);
+        vertexPositions.push_back(pos + dist * front + distRight * right + distUp * up);
+        vertexPositions.push_back(pos + dist * front - distRight * right + distUp * up);
+        for (uint32_t i = 0; i < 4; i++) {
+            lineIndices.push_back(indexOffset);
+            lineIndices.push_back(indexOffset + i + 1);
+        }
+        for (uint32_t i = 0; i < 4; i++) {
+            lineIndices.push_back(indexOffset + i + 1);
+            lineIndices.push_back(indexOffset + (i + 1) % 4 + 1);
+        }
+    }
+}
+
+void VolumetricPathTracingPass::setCameraPoses(const std::vector<CameraPose>& cameraPoses) {
+    std::vector<uint32_t> lineIndices;
+    std::vector<glm::vec3> vertexPositions;
+    buildCameraPrimitives(lineIndices, vertexPositions, cameraPoses);
+    cameraPoseLinePass->setRenderData(lineIndices, vertexPositions);
+    if (!cameraPosesSet) {
+        cameraPosesSet = true;
+    }
 }
 
 

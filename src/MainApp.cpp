@@ -360,7 +360,8 @@ void MainApp::renderGui() {
             }
             IGFD_Selection_DestroyContent(&selection);
 
-            loadCameraStateFromFile(filename);
+            //loadCameraStateFromFile(filename);
+            loadCameraPosesFromFile(filename);
         }
         IGFD_CloseDialog(fileDialogInstance);
     }

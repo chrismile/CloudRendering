@@ -32,6 +32,64 @@
 
 #include "MainApp.hpp"
 
+void MainApp::loadCameraPosesFromFile(const std::string& filePath) {
+    // Parse the passed JSON file.
+    std::ifstream jsonFileStream(filePath.c_str());
+    Json::CharReaderBuilder builder;
+    JSONCPP_STRING errorString;
+    Json::Value root;
+    if (!parseFromStream(builder, jsonFileStream, &root, &errorString)) {
+        sgl::Logfile::get()->writeError(errorString);
+        return;
+    }
+    jsonFileStream.close();
+
+    if (!root.isArray()) {
+        sgl::Logfile::get()->writeError("Error in MainApp::loadCameraStateFromFile: Expected array.");
+        return;
+    }
+
+    // At the moment, only loading the first state is supported.
+    std::vector<CameraPose> cameraPoses;
+    cameraPoses.reserve(root.size());
+    for (unsigned int i = 0; i < root.size(); i++) {
+        const auto& camState = root[i];
+        if (!camState.isMember("position") || !camState.isMember("rotation") || !camState.isMember("fovy")) {
+            sgl::Logfile::get()->writeError("Error in MainApp::loadCameraStateFromFile: No camera state data found.");
+        }
+
+        const auto& positionArray = camState["position"];
+        glm::vec3 position(positionArray[0].asFloat(), positionArray[1].asFloat(), positionArray[2].asFloat());
+
+        const auto& rotationArray = camState["rotation"];
+        auto inverseViewMatrix = glm::identity<glm::mat4>();
+        for (int col = 0; col < 3; col++) {
+            for (int row = 0; row < 3; row++) {
+                inverseViewMatrix[col][row] = rotationArray[col][row].asFloat();
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            inverseViewMatrix[3][row] = positionArray[row].asFloat();
+        }
+        //auto viewMatrix = glm::inverse(inverseViewMatrix);
+
+        CameraPose cameraPose{};
+        cameraPose.position = position;
+        cameraPose.front = -inverseViewMatrix[2];
+        cameraPose.right = inverseViewMatrix[0];
+        cameraPose.up = inverseViewMatrix[1];
+        cameraPose.fovy = camState["fovy"].asFloat();
+        cameraPose.viewportWidth = float(camState["width"].asInt());
+        cameraPose.viewportHeight = float(camState["height"].asInt());
+        cameraPoses.push_back(cameraPose);
+    }
+
+    volumetricPathTracingPass->setCameraPoses(cameraPoses);
+
+    reRender = true;
+    hasMoved();
+}
+
 void MainApp::loadCameraStateFromFile(const std::string& filePath) {
     // Parse the passed JSON file.
     std::ifstream jsonFileStream(filePath.c_str());

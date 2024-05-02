@@ -71,6 +71,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/SVGF.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/CameraPoseLinePass.cpp
 )
 
 if (${USE_GTEST})
