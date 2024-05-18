@@ -31,6 +31,7 @@ pushd %~dp0
 set VSLANG=1033
 set run_program=true
 set debug=false
+set devel=false
 set build_dir=".build"
 set destination_dir="Shipping"
 set vcpkg_triplet="x64-windows"
@@ -44,6 +45,9 @@ IF NOT "%1"=="" (
     )
     IF "%1"=="--debug" (
         SET debug=true
+    )
+    IF "%1"=="--devel" (
+        SET devel=true
     )
     IF "%1"=="--vcpkg-triplet" (
         SET vcpkg_triplet=%2
@@ -137,12 +141,14 @@ if %debug% == true (
    echo ------------------------
 
    set cmake_config="Debug"
+   set cmake_config_opposite="Release"
 ) else (
    echo ------------------------
    echo   building in release
    echo ------------------------
 
    set cmake_config="Release"
+   set cmake_config_opposite="Debug"
 )
 
 echo ------------------------
@@ -177,6 +183,16 @@ if %debug% == true (
    )
    robocopy %build_dir%\Release\ %destination_dir% >NUL
    robocopy third_party\sgl\.build\Release %destination_dir% *.dll >NUL
+)
+
+:: Build other configuration and copy sgl DLLs to the build directory.
+if %devel% == true (
+    echo ------------------------
+    echo   setting up dev files
+    echo ------------------------
+    cmake --build %build_dir% --config %cmake_config_opposite% -- /m || exit /b 1
+    robocopy third_party\sgl\.build\Debug %build_dir%\Debug\ *.dll *.pdb >NUL
+    robocopy third_party\sgl\.build\Release %build_dir%\Release\ *.dll >NUL
 )
 
 echo.

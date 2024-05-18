@@ -9,9 +9,11 @@ This repository contains a volumetric path tracing renderer written in C++ using
 
 ### Linux
 
-There are two ways to build the program on Linux systems.
-- Using the system package manager to install all dependencies (tested: apt on Ubuntu, pacman on Arch Linux).
-- Using [vcpkg](https://github.com/microsoft/vcpkg) to install all dependencies.
+There are four ways to build the program on Linux systems.
+- Using the system package manager to install all dependencies (tested: apt on Ubuntu, pacman on Arch Linux, dnf/yum on Fedora).
+- Using [vcpkg](https://github.com/microsoft/vcpkg) to install all dependencies (by using the flag `./build.sh --vcpkg`).
+- Using [conda](https://docs.conda.io/en/latest/) to install all dependencies (by using the flag `./build.sh --conda`).
+- Using [Nix](https://nixos.org/) to install all dependencies (by invoking `./build.sh` after calling `nix-shell`).
 
 The script `build.sh` in the project root directory can be used to build the project. If no arguments are passed, the
 dependencies are installed using the system package manager. When calling the script as `./build.sh --vcpkg`, vcpkg is
