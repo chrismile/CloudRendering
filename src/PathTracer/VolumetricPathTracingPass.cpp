@@ -1165,6 +1165,8 @@ void VolumetricPathTracingPass::loadShader() {
             customPreprocessorDefines.insert({ "SURFACE_BRDF_LAMBERTIAN", "" });
         } else if (surfaceBrdf == SurfaceBrdf::BLINN_PHONG) {
             customPreprocessorDefines.insert({ "SURFACE_BRDF_BLINN_PHONG", "" });
+        } else if (surfaceBrdf == SurfaceBrdf::DISNEY) {
+            customPreprocessorDefines.insert({ "SURFACE_BRDF_DISNEY", "" });
         }
         if (isosurfaceType == IsosurfaceType::DENSITY) {
             customPreprocessorDefines.insert({ "ISOSURFACE_TYPE_DENSITY", "" });

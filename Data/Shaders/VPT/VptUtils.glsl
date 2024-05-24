@@ -772,6 +772,8 @@ bool getIsoSurfaceHit(
 
     vec3 colorOut;
 
+// -------------- BRDF ------------------
+
 #ifdef SURFACE_BRDF_LAMBERTIAN
     // Lambertian BRDF is: R / pi
 #ifdef UNIFORM_SAMPLING
@@ -794,7 +796,17 @@ bool getIsoSurfaceHit(
     vec3 halfwayVectorOut = normalize(-w + dirOut);
 #endif
 
-#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
+#ifdef SURFACE_BRDF_DISNEY
+    // http://www.thetenthplanet.de/archives/255
+    const float n = 10.0;
+    float norm = clamp(
+        (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
+        (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
+    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+    vec3 halfwayVectorOut = normalize(-w + dirOut);
+#endif
+
+#if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
@@ -856,6 +868,12 @@ bool getIsoSurfaceHit(
 #endif
 
 #ifdef SURFACE_BRDF_BLINN_PHONG
+        // http://www.thetenthplanet.de/archives/255
+        float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
+        colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
+#endif
+
+#ifdef SURFACE_BRDF_DISNEY
         // http://www.thetenthplanet.de/archives/255
         float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
         colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
