@@ -76,10 +76,10 @@ const char* const ISOSURFACE_TYPE_NAMES[] = {
 };
 
 enum class SurfaceBrdf {
-    LAMBERTIAN, BLINN_PHONG
+    LAMBERTIAN, BLINN_PHONG, DISNEY
 };
 const char* const SURFACE_BRDF_NAMES[] = {
-        "Lambertian", "Blinn Phong"
+        "Lambertian", "Blinn Phong", "Disney"
 };
 
 struct CameraPose {
