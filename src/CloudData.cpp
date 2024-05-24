@@ -765,7 +765,16 @@ DensityFieldPtr CloudData::getDenseDensityField() {
         bool useHalf = numGridEntries >= size_t(1024) * size_t(1024) * size_t(1024);
         if (useHalf) {
             auto* densityFieldFloat = new HalfFloat[numGridEntries];
+#ifdef USE_TBB
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, gridSizeZ64), [&](auto const& r) {
+                for (auto z = r.begin(); z != r.end(); z++) {
+#else
+#if _OPENMP >= 201107
+            #pragma omp parallel for shared(gridSizeX64, gridSizeY64, gridSizeZ64, gridSizeXY64) \
+            shared(densityFieldFloat, tree, minGridVal) default(none)
+#endif
             for (size_t z = 0; z < gridSizeZ64; z++) {
+#endif
                 for (size_t y = 0; y < gridSizeY64; y++) {
                     for (size_t x = 0; x < gridSizeX64; x++) {
                         densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = HalfFloat(tree.getValue(nanovdb::Coord(
@@ -773,10 +782,22 @@ DensityFieldPtr CloudData::getDenseDensityField() {
                     }
                 }
             }
+#ifdef USE_TBB
+            });
+#endif
             densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
         } else {
             auto* densityFieldFloat = new float[numGridEntries];
+#ifdef USE_TBB
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, gridSizeZ64), [&](auto const& r) {
+                for (auto z = r.begin(); z != r.end(); z++) {
+#else
+#if _OPENMP >= 201107
+            #pragma omp parallel for shared(gridSizeX64, gridSizeY64, gridSizeZ64, gridSizeXY64) \
+            shared(densityFieldFloat, tree, minGridVal) default(none)
+#endif
             for (size_t z = 0; z < gridSizeZ64; z++) {
+#endif
                 for (size_t y = 0; y < gridSizeY64; y++) {
                     for (size_t x = 0; x < gridSizeX64; x++) {
                         densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = tree.getValue(nanovdb::Coord(
@@ -784,6 +805,9 @@ DensityFieldPtr CloudData::getDenseDensityField() {
                     }
                 }
             }
+#ifdef USE_TBB
+            });
+#endif
             densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
         }
     }
