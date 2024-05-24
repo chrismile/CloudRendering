@@ -213,7 +213,7 @@ if (NOT SUPPORT_OPENEXR)
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OpenExrLoader.cpp)
 endif()
 
-find_package(OpenVDB REQUIRED)
+find_package(OpenVDB QUIET)
 if (OpenVDB_FOUND)
     MESSAGE(STATUS "OpenVDB found. Enabling OpenVDB data set loading support.")
 else()
