@@ -79,7 +79,6 @@ cmake-build-*/
 *.mesh
 
 Data/EnvironmentMaps/*
-Data/CloudDataSets/*
 Data/CameraPaths/*
 Data/Checkpoints/*
 Data/Screenshots/*

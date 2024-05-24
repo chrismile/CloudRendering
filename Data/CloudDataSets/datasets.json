@@ -1,0 +1,28 @@
+{
+  "datasets": [
+    {
+      "type": "node",
+      "name": "Body Datasets",
+      "children": [
+        {
+          "name": "Wholebody (CT)",
+          "filename": "../../../Models/WholebodyCT/wholebody.dat"
+        },
+        {
+          "name": "Body (s0287)",
+          "filename": "../../../Models/s0287/s0287_ct_notable.mhd"
+        }
+      ]
+    },
+    {
+      "type": "node",
+      "name": "Other Organs",
+      "children": [
+        {
+          "name": "Kideny",
+          "filename": "../../../Models/Kidney/50.16um_LADAF_2020-27_kidney_8bit_ca_clean.mhd"
+        }
+      ]
+    }
+  ]
+}
