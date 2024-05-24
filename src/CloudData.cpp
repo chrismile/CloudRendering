@@ -35,6 +35,7 @@
 #include <tbb/blocked_range.h>
 #endif
 
+#include <Math/half/half.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/Convert.hpp>
 #include <Utils/StringUtils.hpp>
@@ -760,16 +761,31 @@ DensityFieldPtr CloudData::getDenseDensityField() {
         auto gridSizeY64 = size_t(gridSizeY);
         auto gridSizeZ64 = size_t(gridSizeZ);
         auto gridSizeXY64 = size_t(gridSizeX64) * size_t(gridSizeY64);
-        auto* densityFieldFloat = new float[numGridEntries];
-        for (size_t z = 0; z < gridSizeZ64; z++) {
-            for (size_t y = 0; y < gridSizeY64; y++) {
-                for (size_t x = 0; x < gridSizeX64; x++) {
-                    densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = tree.getValue(nanovdb::Coord(
-                            minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
+
+        bool useHalf = numGridEntries >= size_t(1024) * size_t(1024) * size_t(1024);
+        if (useHalf) {
+            auto* densityFieldFloat = new HalfFloat[numGridEntries];
+            for (size_t z = 0; z < gridSizeZ64; z++) {
+                for (size_t y = 0; y < gridSizeY64; y++) {
+                    for (size_t x = 0; x < gridSizeX64; x++) {
+                        densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = HalfFloat(tree.getValue(nanovdb::Coord(
+                                minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z))));
+                    }
                 }
             }
+            densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
+        } else {
+            auto* densityFieldFloat = new float[numGridEntries];
+            for (size_t z = 0; z < gridSizeZ64; z++) {
+                for (size_t y = 0; y < gridSizeY64; y++) {
+                    for (size_t x = 0; x < gridSizeX64; x++) {
+                        densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = tree.getValue(nanovdb::Coord(
+                                minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
+                    }
+                }
+            }
+            densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
         }
-        densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
     }
 
     return densityField;
