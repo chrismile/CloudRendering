@@ -474,7 +474,7 @@ void VolumetricPathTracingPass::setGridData() {
         uint64_t sparseDensityFieldSize;
         cloudData->getSparseDensityField(sparseDensityField, sparseDensityFieldSize);
 
-        uint64_t bufferSize = sizeof(uint32_t) * sgl::iceil(int(sparseDensityFieldSize), sizeof(uint32_t));
+        uint64_t bufferSize = sizeof(uint32_t) * sgl::ulceil(sparseDensityFieldSize, sizeof(uint32_t));
         auto* sparseDensityFieldCopy = new uint8_t[bufferSize];
         memset(sparseDensityFieldCopy, 0, bufferSize);
         memcpy(sparseDensityFieldCopy, sparseDensityField, sparseDensityFieldSize);
@@ -638,6 +638,13 @@ void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     cloudData = data;
     frameInfo.frameCount = 0;
     globalFrameNumber = 0;
+
+    auto numGridEntries =
+            size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ());
+    // For data larger than 4GB, default to sparse data if possible.
+    if (cloudData->hasSparseData() && numGridEntries > size_t(1024) * size_t(1024) * size_t(1024)) {
+        useSparseGrid = true;
+    }
 
     setGridData();
     setDataDirty();
@@ -1986,6 +1993,14 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
             propertyEditor.endNode();
         }
+    }
+
+    if (cloudData) {
+        auto xs = cloudData->getGridSizeX();
+        auto ys = cloudData->getGridSizeY();
+        auto zs = cloudData->getGridSizeZ();
+        propertyEditor.addText(
+                "Volume Size", std::to_string(xs) + "x" + std::to_string(ys) + "x" + std::to_string(zs));
     }
 
     if (optionChanged) {

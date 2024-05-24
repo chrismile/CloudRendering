@@ -34,6 +34,10 @@
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
+#ifdef USE_OPENVDB
+#include <openvdb/openvdb.h>
+#endif
+
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
@@ -442,6 +446,10 @@ void initialize() {
                 optionalDeviceExtensions);
         sgl::AppSettings::get()->setPrimaryDevice(device);
         sgl::AppSettings::get()->initializeSubsystems();
+
+#ifdef USE_OPENVDB
+        openvdb::initialize();
+#endif
 
         renderer = new sgl::vk::Renderer(sgl::AppSettings::get()->getPrimaryDevice());
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);

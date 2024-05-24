@@ -33,6 +33,10 @@
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 
+#ifdef USE_OPENVDB
+#include <openvdb/openvdb.h>
+#endif
+
 #include "MainApp.hpp"
 
 int main(int argc, char *argv[]) {
@@ -95,6 +99,10 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->setPrimaryDevice(device);
     sgl::AppSettings::get()->setSwapchain(swapchain);
     sgl::AppSettings::get()->initializeSubsystems();
+
+#ifdef USE_OPENVDB
+    openvdb::initialize();
+#endif
 
     auto app = new MainApp();
     app->run();
