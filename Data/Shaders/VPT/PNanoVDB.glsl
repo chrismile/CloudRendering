@@ -550,12 +550,20 @@ PNANOVDB_FORCE_INLINE pnanovdb_address_t pnanovdb_address_mask_inv(pnanovdb_addr
 }
 PNANOVDB_FORCE_INLINE pnanovdb_address_t pnanovdb_address_null()
 {
+#if defined(PNANOVDB_GLSL)
+    pnanovdb_address_t ret = { uvec2(0u) };
+#else
     pnanovdb_address_t ret = { 0 };
+#endif
     return ret;
 }
 PNANOVDB_FORCE_INLINE pnanovdb_bool_t pnanovdb_address_is_null(pnanovdb_address_t address)
 {
+#if defined(PNANOVDB_GLSL)
+    return address.byte_offset.x == 0u && address.byte_offset.y == 0u;
+#else
     return address.byte_offset == 0llu;
+#endif
 }
 PNANOVDB_FORCE_INLINE pnanovdb_bool_t pnanovdb_address_in_interval(pnanovdb_address_t address, pnanovdb_address_t min_address, pnanovdb_address_t max_address)
 {

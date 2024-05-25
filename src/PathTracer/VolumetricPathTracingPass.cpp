@@ -527,9 +527,10 @@ void VolumetricPathTracingPass::setGridData() {
         sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
 
         densityFieldTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+        size_t numEntriesDensityGrid =
+                size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ());
         densityFieldTexture->getImage()->uploadData(
-                cloudData->getGridSizeX() * cloudData->getGridSizeY() * cloudData->getGridSizeZ()
-                * cloudData->getDenseDensityField()->getEntrySizeInBytes(),
+                numEntriesDensityGrid * cloudData->getDenseDensityField()->getEntrySizeInBytes(),
                 cloudData->getDenseDensityField()->getDataNative());
 
         if (emissionData && useEmission) {
@@ -541,19 +542,19 @@ void VolumetricPathTracingPass::setGridData() {
             emissionImageSettings.format = emissionData->getDenseDensityField()->getEntryVulkanFormat();
             emissionImageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             emissionFieldTexture = std::make_shared<sgl::vk::Texture>(device, emissionImageSettings, samplerSettings);
+            size_t numEntriesEmissionGrid =
+                    size_t(emissionData->getGridSizeX()) * size_t(emissionData->getGridSizeY()) * size_t(emissionData->getGridSizeZ());
             emissionFieldTexture->getImage()->uploadData(
-                    emissionData->getGridSizeX() * emissionData->getGridSizeY() * emissionData->getGridSizeZ()
-                    * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
+                    numEntriesEmissionGrid * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
                     emissionData->getDenseDensityField()->getDataNative());
         }
 
         if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
-            auto xs = cloudData->getGridSizeX();
-            auto ys = cloudData->getGridSizeY();
-            auto zs = cloudData->getGridSizeZ();
+            auto xs = size_t(cloudData->getGridSizeX());
+            auto ys = size_t(cloudData->getGridSizeY());
+            auto zs = size_t(cloudData->getGridSizeZ());
             auto df = cloudData->getDenseDensityField();
-            auto numEntries = size_t(xs) * size_t(ys) * size_t(zs);
-            auto numEntriesUint = xs * ys * zs;
+            auto numEntries = xs * ys * zs;
 
 #define IDXS(x,y,z) ((z)*xs*ys + (y)*xs + (x))
             DensityFieldPtr gradField;
@@ -563,13 +564,13 @@ void VolumetricPathTracingPass::setGridData() {
                 gradField = std::make_shared<DensityField>(numEntries, new float[numEntries]);
             }
 #ifdef USE_TBB
-            tbb::parallel_for(tbb::blocked_range<uint32_t>(0, numEntriesUint), [&](auto const& r) {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, numEntries), [&](auto const& r) {
                 for (auto gridIdx = r.begin(); gridIdx != r.end(); gridIdx++) {
 #else
 #if _OPENMP >= 201107
-            #pragma omp parallel for default(none) shared(xs, ys, zs, numEntriesUint, df, gradField)
+            #pragma omp parallel for default(none) shared(xs, ys, zs, numEntries, df, gradField)
 #endif
-            for (uint32_t gridIdx = 0; gridIdx < numEntriesUint; gridIdx++) {
+            for (size_t gridIdx = 0; gridIdx < numEntries; gridIdx++) {
 #endif
                 auto xc = gridIdx % xs;
                 auto yc = (gridIdx / xs) % ys;

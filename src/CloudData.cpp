@@ -840,8 +840,8 @@ void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max){
     seqMax = max;
     gotSeqBounds = true;
 
-    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y-seqMin.y, seqMax.z-seqMin.z));
-    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (.5,.5,.5);
+    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
+    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
     boxMax = boxMin + (gridMax - gridMin) / (maxDim);
 }
 
@@ -874,17 +874,21 @@ void CloudData::computeSparseGridMetadata() {
     glm::vec3 boundMin = gridMin;
     glm::vec3 boundMax = gridMax;
 
-    if (gotSeqBounds){
+    if (gotSeqBounds) {
         boundMin = seqMin;
         boundMax = seqMax;
     }
-    // NORMALIZE BOX
-    float maxDim = std::max(boundMax.x-boundMin.x, std::max(boundMax.y-boundMin.y, boundMax.z-boundMin.z));
-    boxMin = (gridMin - boundMin) / (maxDim) - glm::vec3 (.5,.5,.5);
-    boxMax = boxMin + (gridMax - gridMin) / (maxDim);
 
-    std::cout << boxMin.x<<", " << boxMin.y<< ", " << boxMin.z << std::endl;
-    std::cout << boxMax.x<<", " << boxMax.y<< ", " << boxMax.z << std::endl;
+    // Normalize bounding box.
+    float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
+    boxMin = (gridMin - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
+    boxMax = boxMin + (gridMax - gridMin) / maxDim;
+    auto totalSize = boxMax - boxMin;
+    boxMax = totalSize * 0.5f;
+    boxMin = -boxMax;
+
+    std::cout << boxMin.x << ", " << boxMin.y << ", " << boxMin.z << std::endl;
+    std::cout << boxMax.x << ", " << boxMax.y << ", " << boxMax.z << std::endl;
 
     printSparseGridMetadata();
 }
