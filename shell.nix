@@ -26,6 +26,8 @@ pkgs.mkShell {
     ocl-icd
     jsoncpp
     openexr_3
+    tbb
+    c-blosc
   ];
 
   BUILD_USE_NIX = "ON";
