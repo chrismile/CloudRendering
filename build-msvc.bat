@@ -146,6 +146,12 @@ if %build_with_openvdb_support% == true (
             rmdir /s /q ".\openvdb-src"
         )
         git clone --recursive https://github.com/AcademySoftwareFoundation/openvdb.git openvdb-src
+        echo {> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "name": "openvdb",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "version": "0.1.0",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "dependencies": [ "zlib", "blosc", "tbb", "boost-iostreams", "boost-any", "boost-algorithm", "boost-interprocess" ]>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo }>> %third_party_dir%/openvdb-src/vcpkg.json
         if not exist .\openvdb-src\build\ mkdir .\openvdb-src\build\
         pushd "openvdb-src\build"
         cmake %cmake_generator% %cmake_args_general% ^
