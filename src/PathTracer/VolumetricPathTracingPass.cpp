@@ -643,8 +643,13 @@ void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     auto numGridEntries =
             size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ());
     // For data larger than 4GB, default to sparse data if possible.
-    if (cloudData->hasSparseData() && numGridEntries > size_t(1024) * size_t(1024) * size_t(1024)) {
-        useSparseGrid = true;
+    if (cloudData->hasSparseData()) {
+        auto gridSizeSparse = cloudData->getSparseDataSizeInBytes();
+        // The NanoVDB GLSL implementation seems to have a problem with data >= 2GiB.
+        if (numGridEntries >= size_t(1024) * size_t(1024) * size_t(1024)
+                && gridSizeSparse < size_t(2) * size_t(1024) * size_t(1024) * size_t(1024)) {
+            useSparseGrid = true;
+        }
     }
 
     setGridData();

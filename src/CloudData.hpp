@@ -102,6 +102,7 @@ public:
      */
     void getSparseDensityField(uint8_t*& data, uint64_t& size);
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
+    [[nodiscard]] inline size_t getSparseDataSizeInBytes() const { return sparseGridHandle.gridMetaData()->gridSize(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
 
     /// Called when the transfer function texture was updated.
