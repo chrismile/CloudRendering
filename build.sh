@@ -934,19 +934,15 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         make install
         popd >/dev/null
     fi
-    if [ $use_msys = true ]; then
-        if [ $debug = true ] ; then
-            cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
-        else
-            cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
-        fi
+    if [ $debug = true ] ; then
+        cp "./third_party/sgl/install/lib/libsgld.so" "$install_dir/modules"
     else
-        if [ $debug = true ] ; then
-            cp "./third_party/sgl/install/lib/libsgld.so" "$install_dir/modules"
-        else
-            cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
-        fi
+        cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
     fi
+    if $build_with_openvdb_support; then
+        cp "./third_party/openvdb/lib/libopenvdb.so*" "$install_dir/modules"
+    fi
+    patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
 
 echo "------------------------"

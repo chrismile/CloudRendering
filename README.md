@@ -209,7 +209,7 @@ Supported formats currently are:
   followed by sx * sy * sz floating point values storing the density values stored in the dense Cartesian grid.
 - .vdb and .nvdb files using the [OpenVDB](https://github.com/AcademySoftwareFoundation/openvdb) and
   [NanoVDB](https://github.com/AcademySoftwareFoundation/openvdb/tree/master/nanovdb/nanovdb) formats,
-  which store sparse voxel grids.
+  which store sparse voxel grids. For OpenVDB support, the flag `--use-openvdb` needs to be passed to the build script.
 - .dat/.raw and .mhd/.raw files, which store density grids with metadata in arbitrary precision.
   For more details see: src/CloudData.cpp, CloudData::loadFromDatRawFile and CloudData::loadFromMhdRawFile.
 
