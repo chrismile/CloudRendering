@@ -934,10 +934,18 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         make install
         popd >/dev/null
     fi
-    if [ $debug = true ] ; then
-        cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
+    if [ $use_msys = true ]; then
+        if [ $debug = true ] ; then
+            cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
+        else
+            cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
+        fi
     else
-        cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
+        if [ $debug = true ] ; then
+            cp "./third_party/sgl/install/lib/libsgld.so" "$install_dir/modules"
+        else
+            cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
+        fi
     fi
 fi
 
