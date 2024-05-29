@@ -940,7 +940,7 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
     fi
     if $build_with_openvdb_support; then
-        cp "./third_party/openvdb/lib/libopenvdb.so*" "$install_dir/modules"
+        cp "./third_party/openvdb/lib/libopenvdb.so"* "$install_dir/modules"
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
