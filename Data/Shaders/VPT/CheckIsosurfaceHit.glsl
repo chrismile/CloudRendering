@@ -1,9 +1,8 @@
 #ifdef USE_ISOSURFACES
-        const int isoSubdivs = 2;
         bool foundHit = false;
-        for (int subdiv = 0; subdiv < isoSubdivs; subdiv++) {
-            vec3 x0 = mix(x, xNew, float(subdiv) / float(isoSubdivs));
-            vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(isoSubdivs));
+        for (int subdiv = 0; subdiv < NUM_ISOSURFACE_SUBDIVISIONS; subdiv++) {
+            vec3 x0 = mix(x, xNew, float(subdiv) / float(NUM_ISOSURFACE_SUBDIVISIONS));
+            vec3 x1 = mix(x, xNew, float(subdiv + 1) / float(NUM_ISOSURFACE_SUBDIVISIONS));
             float scalarValue = sampleCloudIso(x1);
 
             currentScalarSign = sign(scalarValue - parameters.isoValue);
@@ -26,7 +25,7 @@
                     if (!firstEvent.hasValue) {
                         firstEvent.x = x;
                         firstEvent.pdf_x = 0;
-                        firstEvent.w = vec3(0.);
+                        firstEvent.w = w;
                         firstEvent.pdf_w = 0;
                         firstEvent.hasValue = true;
                         firstEvent.density = parameters.extinction.x;
@@ -42,6 +41,9 @@
             }
         }
         if (foundHit) {
+            if (weights.r < 1e-3 && weights.g < 1e-3 && weights.b < 1e-3) {
+                return vec3(0.0, 0.0, 0.0);
+            }
             continue;
         }
 #endif

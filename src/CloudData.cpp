@@ -675,7 +675,7 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         bytesPerEntry = 4;
     } else if (formatString == "MET_UCHAR") {
         bytesPerEntry = 1;
-    } else if (formatString == "MET_USHORT") {
+    } else if (formatString == "MET_USHORT" || formatString == "MET_FLOAT16" || formatString == "MET_HALF") {
         bytesPerEntry = 2;
     } else {
         sgl::Logfile::get()->throwError(
@@ -732,6 +732,13 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
             transposeField(densityFieldUshort, xs, ys, zs, mirrorAxes);
         }
         densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
+    } else if (formatString == "MET_FLOAT16" || formatString == "MET_HALF") {
+        auto* densityFieldHalf = new HalfFloat[totalSize];
+        memcpy(densityFieldHalf, bufferRaw, sizeof(HalfFloat) * totalSize);
+        if (useCustomTransform) {
+            transposeField(densityFieldHalf, xs, ys, zs, mirrorAxes);
+        }
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldHalf);
     }
 
     return true;

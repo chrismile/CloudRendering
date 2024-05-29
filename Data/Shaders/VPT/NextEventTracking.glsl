@@ -56,7 +56,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 #ifdef USE_ISOSURFACES
             i++;
             if (i == 1000) {
-                return vec3(0.0, 1.0, 0.0);
+                return vec3(0.0, 0.0, 0.0);
             }
 #endif
 
@@ -211,7 +211,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 #ifdef USE_ISOSURFACES
             i++;
             if (i == 1000) {
-                return vec3(0.0, 1.0, 0.0);
+                return vec3(0.0, 0.0, 0.0);
             }
 #endif
 

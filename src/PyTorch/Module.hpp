@@ -70,6 +70,7 @@ MODULE_OP_API void setIsoValue(double _isoValue);
 MODULE_OP_API void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor);
 MODULE_OP_API void setIsosurfaceType(const std::string& _isosurfaceType);
 MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
+MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
 
 MODULE_OP_API void setSeedOffset(int64_t offset);
 

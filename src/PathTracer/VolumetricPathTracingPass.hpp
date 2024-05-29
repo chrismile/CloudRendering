@@ -162,6 +162,7 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+    void setNumIsosurfaceSubdivisions(int _subdivs);
 
     // For debug rendering.
     void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
@@ -313,6 +314,7 @@ private:
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
+    int numIsosurfaceSubdivisions = 2;
 
     glm::mat4 previousViewProjMatrix;
 

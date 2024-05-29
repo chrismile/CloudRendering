@@ -78,6 +78,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
     m.def("vpt::set_isosurface_type", setIsosurfaceType);
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
+    m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -601,6 +602,10 @@ void setSurfaceBrdf(const std::string& _surfaceBrdf) {
             break;
         }
     }
+}
+
+void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
+    vptRenderer->getVptPass()->setNumIsosurfaceSubdivisions(_subdivs);
 }
 
 

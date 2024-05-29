@@ -779,6 +779,15 @@ void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
     }
 }
 
+void VolumetricPathTracingPass::setNumIsosurfaceSubdivisions(int _subdivs) {
+    if (numIsosurfaceSubdivisions != _subdivs) {
+        numIsosurfaceSubdivisions = _subdivs;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -1174,6 +1183,9 @@ void VolumetricPathTracingPass::loadShader() {
 
     if (useIsosurfaces) {
         customPreprocessorDefines.insert({ "USE_ISOSURFACES", "" });
+        if (vptMode != VptMode::ISOSURFACE_RENDERING) {
+            customPreprocessorDefines.insert({ "NUM_ISOSURFACE_SUBDIVISIONS", std::to_string(numIsosurfaceSubdivisions) });
+        }
         if (surfaceBrdf == SurfaceBrdf::LAMBERTIAN) {
             customPreprocessorDefines.insert({ "SURFACE_BRDF_LAMBERTIAN", "" });
         } else if (surfaceBrdf == SurfaceBrdf::BLINN_PHONG) {
@@ -1935,6 +1947,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             frameInfo.frameCount = 0;
         }
         if (useIsosurfaces && propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+        if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
+                "#Isosurface Subdivisions", &numIsosurfaceSubdivisions, 1, 8)) {
+            setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
         }
