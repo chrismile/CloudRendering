@@ -1735,7 +1735,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         if (propertyEditor.addSliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
             optionChanged = true;
         }
-        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
+        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x, ImGuiColorEditFlags_Float)) {
             optionChanged = true;
         }
         if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {

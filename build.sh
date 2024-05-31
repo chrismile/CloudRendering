@@ -940,7 +940,7 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
     fi
     if $build_with_openvdb_support; then
-        cp $(find "./third_party/openvdb/lib" -maxdepth 1 -mindepth 1 -name 'libopenvdb.so.*.*.*') "$install_dir/modules"
+        cp $(ldd $build_dir/libvpt.so | grep libopenvdb | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
