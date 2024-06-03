@@ -29,6 +29,7 @@
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/AppLogic.hpp>
+#include <Utils/File/Logfile.hpp>
 #include <Graphics/Window.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
