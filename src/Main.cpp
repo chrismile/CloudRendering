@@ -43,6 +43,30 @@ int main(int argc, char *argv[]) {
     // Initialize the filesystem utilities.
     sgl::FileUtils::get()->initialize("Cloud Rendering", argc, argv);
 
+    // Parse the arguments.
+    bool useCustomShaderCompilerBackend = false;
+    sgl::vk::ShaderCompilerBackend shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::SHADERC;
+    bool useDownloadSwapchain = false;
+    for (int i = 1; i < argc; i++) {
+        std::string command = argv[i];
+        if (command == "--shader-backend") {
+            i++;
+            if (i >= argc) {
+                sgl::Logfile::get()->throwError(
+                        "Error: Command line argument '--shader-backend' expects a backend name.");
+            }
+            useCustomShaderCompilerBackend = true;
+            std::string backendName = argv[i];
+            if (backendName == "shaderc") {
+                shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::SHADERC;
+            } else if (backendName == "glslang") {
+                shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::GLSLANG;
+            }
+        } else if (command == "--dlswap") {
+            useDownloadSwapchain = true;
+        }
+    }
+
 #ifdef DATA_PATH
     if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
         sgl::AppSettings::get()->setDataDirectory(DATA_PATH);
@@ -61,6 +85,9 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", false);
 #else
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
+#endif
+#ifdef __linux__
+    sgl::AppSettings::get()->getSettings().addKeyValue("window-useDownloadSwapchain", useDownloadSwapchain);
 #endif
     //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
@@ -99,6 +126,9 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->setPrimaryDevice(device);
     sgl::AppSettings::get()->setSwapchain(swapchain);
     sgl::AppSettings::get()->initializeSubsystems();
+    if (useCustomShaderCompilerBackend) {
+        sgl::vk::ShaderManager->setShaderCompilerBackend(shaderCompilerBackend);
+    }
 
 #ifdef USE_OPENVDB
     openvdb::initialize();

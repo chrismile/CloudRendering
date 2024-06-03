@@ -59,6 +59,7 @@ custom_glslang=false
 build_with_openvdb_support=false
 use_pytorch=false
 install_module=false
+use_download_swapchain=false
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -101,6 +102,9 @@ do
         install_module=true
         ((i++))
         install_dir=${!i}
+    elif [ ${!i} = "--dlswap" ]; then
+        use_download_swapchain=true
+        build_with_vkvg_support=true
     fi
 done
 
