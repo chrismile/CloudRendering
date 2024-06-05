@@ -58,8 +58,10 @@ use_custom_vcpkg_triplet=false
 custom_glslang=false
 build_with_openvdb_support=false
 use_pytorch=false
+use_pre_cxx11_abi=false
 install_module=false
 use_download_swapchain=false
+use_custom_jsoncpp=false
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -90,12 +92,22 @@ do
     elif [ ${!i} = "--use-openvdb" ]; then
       build_with_openvdb_support=true
     elif [ ${!i} = "--use-pytorch" ]; then
+      use_pytorch=true
+      pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
       pytorch_is_cxx11="$(python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
       if [[ "$pytorch_is_cxx11" == "True" ]]; then
-          use_pytorch=true
-          pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
+          use_pre_cxx11_abi=false
+      elif [[ "$pytorch_is_cxx11" == "False" ]]; then
+          # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
+          # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
+          echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
+          exit 1
+          #export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+          #use_pre_cxx11_abi=true
+          #use_custom_jsoncpp=true
+          #echo "Warning: PyTorch is not built with CXX11 ABI."
       else
-          echo "Error: PyTorch was not found or is not built with CXX11 ABI." 1>&2
+          echo "Error: PyTorch was not found." 1>&2
           exit 1
       fi
     elif [ ${!i} = "--install-dir" ]; then
@@ -586,6 +598,10 @@ if [ $use_pytorch = true ]; then
     if [ $install_module = true ]; then
         params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
     fi
+    if [ $use_pre_cxx11_abi = true ]; then
+        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON)
+        params+=(-DUSE_PRE_CXX11_ABI=ON)
+    fi
 fi
 
 use_vulkan=false
@@ -754,7 +770,7 @@ if [ $use_vcpkg = true ] && [ ! -d "./vcpkg" ]; then
         echo "The environment variable VULKAN_SDK is not set but is required in the installation process."
         exit 1
     fi
-    git clone --depth 1 -b fix-libarchive-rpath https://github.com/chrismile/vcpkg.git
+    git clone --depth 1 https://github.com/microsoft/vcpkg.git
     vcpkg/bootstrap-vcpkg.sh -disableMetrics
     vcpkg/vcpkg install
 fi
@@ -771,12 +787,24 @@ if [ ! -d "./sgl" ]; then
 fi
 
 if [ -f "./sgl/$build_dir/CMakeCache.txt" ]; then
+    remove_build_cache_sgl=false
     if grep -q vcpkg_installed "./sgl/$build_dir/CMakeCache.txt"; then
         cache_uses_vcpkg=true
     else
         cache_uses_vcpkg=false
     fi
     if ([ $use_vcpkg = true ] && [ $cache_uses_vcpkg = false ]) || ([ $use_vcpkg = false ] && [ $cache_uses_vcpkg = true ]); then
+        remove_build_cache_sgl=true
+    fi
+    if grep -q "USE_PRE_CXX11_ABI:BOOL=ON" "./sgl/$build_dir/CMakeCache.txt"; then
+        cache_uses_pre_cxx11_abi=true
+    else
+        cache_uses_pre_cxx11_abi=false
+    fi
+    if ([ $use_pre_cxx11_abi = true ] && [ $cache_uses_pre_cxx11_abi = false ]) || ([ $use_pre_cxx11_abi = false ] && [ $cache_uses_pre_cxx11_abi = true ]); then
+        remove_build_cache_sgl=true
+    fi
+    if [ $remove_build_cache_sgl = true ]; then
         echo "Removing old sgl build cache..."
         if [ -d "./sgl/$build_dir_debug" ]; then
             rm -rf "./sgl/$build_dir_debug"
@@ -873,6 +901,25 @@ if $build_with_openvdb_support; then
     params+=(-DCMAKE_MODULE_PATH="${projectpath}/third_party/openvdb/lib/cmake/OpenVDB")
 fi
 
+if $use_custom_jsoncpp; then
+    if [ ! -d "./jsoncpp" ]; then
+        echo "------------------------"
+        echo "  downloading JsonCpp   "
+        echo "------------------------"
+        if [ -d "./jsoncpp-src" ]; then
+            rm -rf "./jsoncpp-src"
+        fi
+        git clone --recursive https://github.com/open-source-parsers/jsoncpp.git jsoncpp-src
+        mkdir -p jsoncpp-src/build
+        pushd jsoncpp-src/build >/dev/null
+        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+    fi
+    params+=(-Djsoncpp_DIR="${projectpath}/third_party/jsoncpp/lib/cmake/jsoncpp")
+fi
+
 popd >/dev/null # back to project root
 
 if [ $debug = true ]; then
@@ -886,12 +933,24 @@ else
 fi
 
 if [ -f "./$build_dir/CMakeCache.txt" ]; then
+    remove_build_cache=false
     if grep -q vcpkg_installed "./$build_dir/CMakeCache.txt"; then
         cache_uses_vcpkg=true
     else
         cache_uses_vcpkg=false
     fi
     if ([ $use_vcpkg = true ] && [ $cache_uses_vcpkg = false ]) || ([ $use_vcpkg = false ] && [ $cache_uses_vcpkg = true ]); then
+        remove_build_cache=true
+    fi
+    if grep -q "USE_PRE_CXX11_ABI:BOOL=ON" "./$build_dir/CMakeCache.txt"; then
+        cache_uses_pre_cxx11_abi=true
+    else
+        cache_uses_pre_cxx11_abi=false
+    fi
+    if ([ $use_pre_cxx11_abi = true ] && [ $cache_uses_pre_cxx11_abi = false ]) || ([ $use_pre_cxx11_abi = false ] && [ $cache_uses_pre_cxx11_abi = true ]); then
+        remove_build_cache=true
+    fi
+    if [ remove_build_cache = true ]; then
         echo "Removing old application build cache..."
         if [ -d "./$build_dir_debug" ]; then
             rm -rf "./$build_dir_debug"
