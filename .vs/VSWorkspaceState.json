@@ -6,8 +6,9 @@
     ]
   },
   "ExpandedNodes": [
-    ""
+    "",
+    "\\Data"
   ],
-  "SelectedNode": "\\CloudRendering.sln",
+  "SelectedNode": "\\.github",
   "PreviewInSolutionExplorer": false
 }
