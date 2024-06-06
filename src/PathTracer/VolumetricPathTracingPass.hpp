@@ -197,7 +197,7 @@ private:
     std::string emissionGridFilenameGui;
 
     void updateVptMode();
-    VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
+    VptMode vptMode = VptMode::DELTA_TRACKING;
     CompositionModel compositionModel = CompositionModel::ALPHA_BLENDING; ///< only for VptMode::RAY_MARCHING_EMISSION_ABSORPTION.
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;

@@ -797,13 +797,31 @@ bool getIsoSurfaceHit(
 #endif
 
 #ifdef SURFACE_BRDF_DISNEY
-    // http://www.thetenthplanet.de/archives/255
-    const float n = 10.0;
-    float norm = clamp(
-        (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
-        (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 halfwayVectorOut = normalize(-w + dirOut);
+    // Bascis
+    vec3 lightVector = frame * sampleHemisphere(vec2(random(), random()));
+    vec3 viewVector = -w;
+    vec3 normalVector = surfaceNormal;
+    vec3 halfwayVector = normalize(lightVector + viewVector);
+
+    float theta_h = dot(halfwayVector, normalVector);
+    float theta_d = dot(lightVector, halfwayVector);
+    float theta_v = dot(viewVector, normalVector);
+    float theta_l = dot(lightVector, normalVector);
+    
+    // Diffuse
+    float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
+    vec3 f_d = vec3(0.0, 1.0, 0.0) / M_PI * (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
+
+    // Specular F
+
+    // Specular D
+
+    // Specular G
+
+    // Microfacet
+
+    colorOut = f_d;
+    vec3 dirOut = lightVector;
 #endif
 
 #if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
@@ -868,12 +886,6 @@ bool getIsoSurfaceHit(
 #endif
 
 #ifdef SURFACE_BRDF_BLINN_PHONG
-        // http://www.thetenthplanet.de/archives/255
-        float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
-        colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
-#endif
-
-#ifdef SURFACE_BRDF_DISNEY
         // http://www.thetenthplanet.de/archives/255
         float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
         colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
