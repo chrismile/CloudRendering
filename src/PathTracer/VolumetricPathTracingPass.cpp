@@ -1964,10 +1964,59 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             frameInfo.frameCount = 0;
         }
 
-        if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::DISNEY && propertyEditor.addSliderFloat("roughness", nullptr, 0.0, 1.0)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
+        if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::DISNEY && propertyEditor.beginNode("Disney BRDF Parameters")) {
+            if (propertyEditor.addSliderFloat("subsurface", (float*)&subsurface, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("metallic", (float*)&metallic, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("specular", (float*)&specular, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("specularTint", (float*)&specularTint, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("roughness", (float*)&roughness, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("anisotropic", (float*)&anisotropic, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("sheen", (float*)&sheen, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("sheenTint", (float*)&sheenTint, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("clearcoat", (float*)&clearcoat, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("clearcoatGloss", (float*)&clearcoatGloss, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+
+            propertyEditor.endNode();
         }
 
         propertyEditor.endNode();
