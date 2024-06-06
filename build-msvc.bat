@@ -37,6 +37,7 @@ set destination_dir="Shipping"
 set vcpkg_triplet="x64-windows"
 :: Leave empty to let cmake try to find the correct paths
 set optix_install_dir=""
+set build_with_openvdb_support=false
 
 :loop
 IF NOT "%1"=="" (
@@ -52,6 +53,9 @@ IF NOT "%1"=="" (
     IF "%1"=="--vcpkg-triplet" (
         SET vcpkg_triplet=%2
         SHIFT
+    )
+    IF "%1"=="--use-openvdb" (
+        SET build_with_openvdb_support=true
     )
     SHIFT
     GOTO :loop
@@ -132,6 +136,31 @@ if not exist .\sgl\install (
    popd
 )
 
+if %build_with_openvdb_support% == true (
+    if not exist ".\openvdb" (
+        echo ------------------------
+        echo   downloading OpenVDB
+        echo ------------------------
+        :: Make sure we have no leftovers from a failed build attempt.
+        if exist ".\openvdb-src" (
+            rmdir /s /q ".\openvdb-src"
+        )
+        git clone --recursive https://github.com/AcademySoftwareFoundation/openvdb.git openvdb-src
+        echo {> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "name": "openvdb",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "version": "0.1.0",>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo "dependencies": [ "zlib", "blosc", "tbb", "boost-iostreams", "boost-any", "boost-algorithm", "boost-interprocess" ]>> %third_party_dir%/openvdb-src/vcpkg.json
+        echo }>> %third_party_dir%/openvdb-src/vcpkg.json
+        if not exist .\openvdb-src\build\ mkdir .\openvdb-src\build\
+        pushd "openvdb-src\build"
+        cmake %cmake_generator% %cmake_args_general% ^
+        -DCMAKE_INSTALL_PREFIX="%third_party_dir%/openvdb" ..
+        cmake --build . --config Release --target install || exit /b 1
+        popd
+    )
+)
+set cmake_args=%cmake_args% -DCMAKE_MODULE_PATH="third_party/openvdb/lib/cmake/OpenVDB"
 
 popd
 

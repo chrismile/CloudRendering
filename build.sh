@@ -56,8 +56,12 @@ conda_env_name="cloudrendering"
 link_dynamic=false
 use_custom_vcpkg_triplet=false
 custom_glslang=false
+build_with_openvdb_support=false
 use_pytorch=false
+use_pre_cxx11_abi=false
 install_module=false
+use_download_swapchain=false
+use_custom_jsoncpp=false
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -85,19 +89,34 @@ do
         use_custom_vcpkg_triplet=true
     elif [ ${!i} = "--custom-glslang" ]; then
         custom_glslang=true
+    elif [ ${!i} = "--use-openvdb" ]; then
+      build_with_openvdb_support=true
     elif [ ${!i} = "--use-pytorch" ]; then
+      use_pytorch=true
+      pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
       pytorch_is_cxx11="$(python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
       if [[ "$pytorch_is_cxx11" == "True" ]]; then
-          use_pytorch=true
-          pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
+          use_pre_cxx11_abi=false
+      elif [[ "$pytorch_is_cxx11" == "False" ]]; then
+          # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
+          # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
+          echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
+          exit 1
+          #export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+          #use_pre_cxx11_abi=true
+          #use_custom_jsoncpp=true
+          #echo "Warning: PyTorch is not built with CXX11 ABI."
       else
-          echo "Error: PyTorch was not found or is not built with CXX11 ABI." 1>&2
+          echo "Error: PyTorch was not found." 1>&2
           exit 1
       fi
     elif [ ${!i} = "--install-dir" ]; then
         install_module=true
         ((i++))
         install_dir=${!i}
+    elif [ ${!i} = "--dlswap" ]; then
+        use_download_swapchain=true
+        build_with_vkvg_support=true
     fi
 done
 
@@ -233,7 +252,8 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
             || ! is_installed_pacman "mingw-w64-x86_64-shaderc" \
             || ! is_installed_pacman "mingw-w64-x86_64-opencl-headers" \
             || ! is_installed_pacman "mingw-w64-x86_64-opencl-icd" || ! is_installed_pacman "mingw-w64-x86_64-jsoncpp" \
-            || ! is_installed_pacman "mingw-w64-x86_64-openexr"; then
+            || ! is_installed_pacman "mingw-w64-x86_64-openexr" || ! is_installed_pacman "mingw-w64-x86_64-tbb" \
+            || ! is_installed_pacman "mingw-w64-x86_64-blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
@@ -243,7 +263,7 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
         mingw64/mingw-w64-x86_64-vulkan-headers mingw64/mingw-w64-x86_64-vulkan-loader \
         mingw64/mingw-w64-x86_64-vulkan-validation-layers mingw64/mingw-w64-x86_64-shaderc \
         mingw64/mingw-w64-x86_64-opencl-headers mingw64/mingw-w64-x86_64-opencl-icd mingw64/mingw-w64-x86_64-jsoncpp \
-        mingw64/mingw-w64-x86_64-openexr
+        mingw64/mingw-w64-x86_64-openexr mingw64/mingw-w64-x86_64-tbb mingw64/mingw-w64-x86_64-blosc
     fi
 elif $use_msys && command -v pacman &> /dev/null; then
     :
@@ -323,6 +343,12 @@ elif $use_macos && command -v brew &> /dev/null && [ ! -d $build_dir_debug ] && 
         if ! is_installed_brew "openexr"; then
             brew install openexr
         fi
+        if ! is_installed_brew "tbb"; then
+            brew install tbb
+        fi
+        if ! is_installed_brew "c-blosc"; then
+            brew install c-blosc
+        fi
     fi
 elif $use_macos && command -v brew &> /dev/null; then
     :
@@ -357,12 +383,15 @@ elif command -v apt &> /dev/null && ! $use_conda; then
                 || ! is_installed_apt "libpng-dev" || ! is_installed_apt "libsdl2-dev" \
                 || ! is_installed_apt "libsdl2-image-dev" || ! is_installed_apt "libglew-dev" \
                 || ! is_installed_apt "opencl-c-headers" || ! is_installed_apt "ocl-icd-opencl-dev" \
-                || ! is_installed_apt "libjsoncpp-dev" || ! is_installed_apt "libopenexr-dev"; then
+                || ! is_installed_apt "libjsoncpp-dev" || ! is_installed_apt "libopenexr-dev" \
+                || ! is_installed_apt "libboost-iostreams-dev" || ! is_installed_apt "libtbb-dev" \
+                || ! is_installed_apt "libblosc-dev" || ! is_installed_apt "liblz4-dev"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
             sudo apt install -y libboost-filesystem-dev libglm-dev libarchive-dev libtinyxml2-dev libpng-dev libsdl2-dev \
-            libsdl2-image-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev
+            libsdl2-image-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev \
+            libboost-iostreams-dev libtbb-dev libblosc-dev liblz4-dev
         fi
     fi
 elif command -v pacman &> /dev/null && ! $use_conda; then
@@ -391,12 +420,13 @@ elif command -v pacman &> /dev/null && ! $use_conda; then
                 || ! is_installed_pacman "sdl2_image" || ! is_installed_pacman "glew" \
                 || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
                 || ! is_installed_pacman "opencl-headers" || ! is_installed_pacman "ocl-icd" \
-                || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr"; then
+                || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" || ! is_installed_pacman "onetbb" \
+                || ! is_installed_pacman "blosc"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
             sudo pacman -S boost glm libarchive tinyxml2 libpng sdl2 sdl2_image glew vulkan-devel shaderc opencl-headers \
-            ocl-icd jsoncpp openexr
+            ocl-icd jsoncpp openexr onetbb blosc
         fi
     fi
 elif command -v yum &> /dev/null && ! $use_conda; then
@@ -430,13 +460,14 @@ elif command -v yum &> /dev/null && ! $use_conda; then
                 || ! is_installed_rpm "glew-devel" || ! is_installed_rpm "vulkan-headers" \
                 || ! is_installed_rpm "libshaderc-devel" || ! is_installed_rpm "opencl-headers" \
                 || ! is_installed_rpm "ocl-icd" || ! is_installed_rpm "jsoncpp-devel" \
-                || ! is_installed_rpm "openexr-devel"; then
+                || ! is_installed_rpm "openexr-devel" || ! is_installed_rpm "tbb-devel" \
+                || ! is_installed_rpm "blosc-devel"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
             sudo yum install -y boost-devel glm-devel libarchive-devel tinyxml2-devel libpng-devel SDL2-devel \
             SDL2_image-devel glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel \
-            openexr-devel
+            openexr-devel tbb-devel blosc-devel
         fi
     fi
 elif $use_conda && ! $use_macos; then
@@ -497,7 +528,8 @@ elif $use_conda && ! $use_macos; then
             || ! list_contains "$conda_pkg_list" "xorg-libxfixes" || ! list_contains "$conda_pkg_list" "xorg-libxau" \
             || ! list_contains "$conda_pkg_list" "xorg-libxrandr" || ! list_contains "$conda_pkg_list" "patchelf" \
             || ! list_contains "$conda_pkg_list" "libvulkan-headers" || ! list_contains "$conda_pkg_list" "shaderc" \
-            || ! list_contains "$conda_pkg_list" "jsoncpp" || ! list_contains "$conda_pkg_list" "openexr"; then
+            || ! list_contains "$conda_pkg_list" "jsoncpp" || ! list_contains "$conda_pkg_list" "openexr" \
+            || ! list_contains "$conda_pkg_list" "intel::tbb" || ! list_contains "$conda_pkg_list" "blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
@@ -505,7 +537,7 @@ elif $use_conda && ! $use_macos; then
         pkg-config gdb git mesa-libgl-devel-cos7-x86_64 libglvnd-glx-cos7-x86_64 mesa-dri-drivers-cos7-aarch64 \
         libxau-devel-cos7-aarch64 libselinux-devel-cos7-aarch64 libxdamage-devel-cos7-aarch64 \
         libxxf86vm-devel-cos7-aarch64 libxext-devel-cos7-aarch64 xorg-libxfixes xorg-libxau xorg-libxrandr patchelf \
-        libvulkan-headers shaderc jsoncpp openexr
+        libvulkan-headers shaderc jsoncpp openexr intel::tbb blosc
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2
@@ -565,6 +597,10 @@ if [ $use_pytorch = true ]; then
     params+=(-DBUILD_PYTORCH_MODULE=On -DSUPPORT_PYTORCH_DENOISER=On -DBUILD_KPN_MODULE=On)
     if [ $install_module = true ]; then
         params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
+    fi
+    if [ $use_pre_cxx11_abi = true ]; then
+        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON)
+        params+=(-DUSE_PRE_CXX11_ABI=ON)
     fi
 fi
 
@@ -734,7 +770,7 @@ if [ $use_vcpkg = true ] && [ ! -d "./vcpkg" ]; then
         echo "The environment variable VULKAN_SDK is not set but is required in the installation process."
         exit 1
     fi
-    git clone --depth 1 -b fix-libarchive-rpath https://github.com/chrismile/vcpkg.git
+    git clone --depth 1 https://github.com/microsoft/vcpkg.git
     vcpkg/bootstrap-vcpkg.sh -disableMetrics
     vcpkg/vcpkg install
 fi
@@ -751,12 +787,24 @@ if [ ! -d "./sgl" ]; then
 fi
 
 if [ -f "./sgl/$build_dir/CMakeCache.txt" ]; then
+    remove_build_cache_sgl=false
     if grep -q vcpkg_installed "./sgl/$build_dir/CMakeCache.txt"; then
         cache_uses_vcpkg=true
     else
         cache_uses_vcpkg=false
     fi
     if ([ $use_vcpkg = true ] && [ $cache_uses_vcpkg = false ]) || ([ $use_vcpkg = false ] && [ $cache_uses_vcpkg = true ]); then
+        remove_build_cache_sgl=true
+    fi
+    if grep -q "USE_PRE_CXX11_ABI:BOOL=ON" "./sgl/$build_dir/CMakeCache.txt"; then
+        cache_uses_pre_cxx11_abi=true
+    else
+        cache_uses_pre_cxx11_abi=false
+    fi
+    if ([ $use_pre_cxx11_abi = true ] && [ $cache_uses_pre_cxx11_abi = false ]) || ([ $use_pre_cxx11_abi = false ] && [ $cache_uses_pre_cxx11_abi = true ]); then
+        remove_build_cache_sgl=true
+    fi
+    if [ $remove_build_cache_sgl = true ]; then
         echo "Removing old sgl build cache..."
         if [ -d "./sgl/$build_dir_debug" ]; then
             rm -rf "./sgl/$build_dir_debug"
@@ -834,6 +882,43 @@ if [ ! -d "./sgl/install" ]; then
     popd >/dev/null
 fi
 
+if $build_with_openvdb_support; then
+    if [ ! -d "./openvdb" ]; then
+        echo "------------------------"
+        echo "  downloading OpenVDB   "
+        echo "------------------------"
+        if [ -d "./openvdb-src" ]; then
+            rm -rf "./openvdb-src"
+        fi
+        git clone --recursive https://github.com/AcademySoftwareFoundation/openvdb.git openvdb-src
+        mkdir -p openvdb-src/build
+        pushd openvdb-src/build >/dev/null
+        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/openvdb"
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+    fi
+    params+=(-DCMAKE_MODULE_PATH="${projectpath}/third_party/openvdb/lib/cmake/OpenVDB")
+fi
+
+if $use_custom_jsoncpp; then
+    if [ ! -d "./jsoncpp" ]; then
+        echo "------------------------"
+        echo "  downloading JsonCpp   "
+        echo "------------------------"
+        if [ -d "./jsoncpp-src" ]; then
+            rm -rf "./jsoncpp-src"
+        fi
+        git clone --recursive https://github.com/open-source-parsers/jsoncpp.git jsoncpp-src
+        mkdir -p jsoncpp-src/build
+        pushd jsoncpp-src/build >/dev/null
+        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+    fi
+    params+=(-Djsoncpp_DIR="${projectpath}/third_party/jsoncpp/lib/cmake/jsoncpp")
+fi
 
 popd >/dev/null # back to project root
 
@@ -848,12 +933,24 @@ else
 fi
 
 if [ -f "./$build_dir/CMakeCache.txt" ]; then
+    remove_build_cache=false
     if grep -q vcpkg_installed "./$build_dir/CMakeCache.txt"; then
         cache_uses_vcpkg=true
     else
         cache_uses_vcpkg=false
     fi
     if ([ $use_vcpkg = true ] && [ $cache_uses_vcpkg = false ]) || ([ $use_vcpkg = false ] && [ $cache_uses_vcpkg = true ]); then
+        remove_build_cache=true
+    fi
+    if grep -q "USE_PRE_CXX11_ABI:BOOL=ON" "./$build_dir/CMakeCache.txt"; then
+        cache_uses_pre_cxx11_abi=true
+    else
+        cache_uses_pre_cxx11_abi=false
+    fi
+    if ([ $use_pre_cxx11_abi = true ] && [ $cache_uses_pre_cxx11_abi = false ]) || ([ $use_pre_cxx11_abi = false ] && [ $cache_uses_pre_cxx11_abi = true ]); then
+        remove_build_cache=true
+    fi
+    if [ remove_build_cache = true ]; then
         echo "Removing old application build cache..."
         if [ -d "./$build_dir_debug" ]; then
             rm -rf "./$build_dir_debug"
@@ -901,10 +998,14 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         popd >/dev/null
     fi
     if [ $debug = true ] ; then
-        cp "./third_party/sgl/install/bin/libsgld.dll" "$install_dir/modules"
+        cp "./third_party/sgl/install/lib/libsgld.so" "$install_dir/modules"
     else
-        cp "./third_party/sgl/install/bin/libsgl.dll" "$install_dir/modules"
+        cp "./third_party/sgl/install/lib/libsgl.so" "$install_dir/modules"
     fi
+    if $build_with_openvdb_support; then
+        cp $(ldd $build_dir/libvpt.so | grep libopenvdb | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+    fi
+    patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
 
 echo "------------------------"

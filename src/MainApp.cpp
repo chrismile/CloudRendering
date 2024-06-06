@@ -316,6 +316,9 @@ void MainApp::renderGui() {
             selectedDataSetIndex = 0;
             if (!boost::ends_with(filenameLower, ".xyz")
                     && !boost::ends_with(filenameLower, ".nvdb")
+#ifdef USE_OPENVDB
+                    && !boost::ends_with(filenameLower, ".vdb")
+#endif
                     && !boost::ends_with(filenameLower, ".dat")
                     && !boost::ends_with(filenameLower, ".raw")
                     && !boost::ends_with(filenameLower, ".mhd")) {
@@ -588,7 +591,11 @@ void MainApp::openFileDialog() {
     IGFD_OpenModal(
             fileDialogInstance,
             "ChooseDataSetFile", "Choose a File",
-            ".*,.xyz,.nvdb,.dat,.raw,.mhd",
+            ".*,.xyz,.nvdb,"
+#ifdef USE_OPENVDB
+            ".vdb,"
+#endif
+            ".dat,.raw,.mhd",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
             ImGuiFileDialogFlags_None);

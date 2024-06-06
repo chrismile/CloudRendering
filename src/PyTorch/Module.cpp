@@ -34,6 +34,10 @@
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
+#ifdef USE_OPENVDB
+#include <openvdb/openvdb.h>
+#endif
+
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
@@ -74,6 +78,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
     m.def("vpt::set_isosurface_type", setIsosurfaceType);
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
+    m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -443,6 +448,10 @@ void initialize() {
         sgl::AppSettings::get()->setPrimaryDevice(device);
         sgl::AppSettings::get()->initializeSubsystems();
 
+#ifdef USE_OPENVDB
+        openvdb::initialize();
+#endif
+
         renderer = new sgl::vk::Renderer(sgl::AppSettings::get()->getPrimaryDevice());
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);
 
@@ -593,6 +602,10 @@ void setSurfaceBrdf(const std::string& _surfaceBrdf) {
             break;
         }
     }
+}
+
+void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
+    vptRenderer->getVptPass()->setNumIsosurfaceSubdivisions(_subdivs);
 }
 
 

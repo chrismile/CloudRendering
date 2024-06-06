@@ -100,7 +100,7 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) 
                 if (density > 1e-4) {
                     hasHit = true;
                 }
-                alpha = 1.0 - exp(-density * stepSize * attenuationCoefficient);
+                alpha = 1.0 - exp(-density * attenuationCoefficient);
             }
 
             if (hasHit && !firstEvent.hasValue) {

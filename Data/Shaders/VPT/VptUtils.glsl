@@ -665,7 +665,7 @@ vec3 computeGradient(vec3 texCoords) {
             - sampleIsoImage(texCoords + vec3(0.0, dy, 0.0))) * 0.5;
     float gradZ =
             (sampleIsoImage(texCoords - vec3(0.0, 0.0, dz))
-            - sampleGidImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
+            - sampleIsoImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
 #endif
 
     vec3 grad = vec3(gradX, gradY, gradZ);
@@ -753,7 +753,7 @@ bool getIsoSurfaceHit(
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
-    if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
+    if (dot(w, surfaceNormal) > 0.0) {
         surfaceNormal = -surfaceNormal;
     }
 

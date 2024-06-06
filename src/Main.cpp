@@ -29,15 +29,44 @@
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/AppLogic.hpp>
+#include <Utils/File/Logfile.hpp>
 #include <Graphics/Window.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
+
+#ifdef USE_OPENVDB
+#include <openvdb/openvdb.h>
+#endif
 
 #include "MainApp.hpp"
 
 int main(int argc, char *argv[]) {
     // Initialize the filesystem utilities.
     sgl::FileUtils::get()->initialize("Cloud Rendering", argc, argv);
+
+    // Parse the arguments.
+    bool useCustomShaderCompilerBackend = false;
+    sgl::vk::ShaderCompilerBackend shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::SHADERC;
+    bool useDownloadSwapchain = false;
+    for (int i = 1; i < argc; i++) {
+        std::string command = argv[i];
+        if (command == "--shader-backend") {
+            i++;
+            if (i >= argc) {
+                sgl::Logfile::get()->throwError(
+                        "Error: Command line argument '--shader-backend' expects a backend name.");
+            }
+            useCustomShaderCompilerBackend = true;
+            std::string backendName = argv[i];
+            if (backendName == "shaderc") {
+                shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::SHADERC;
+            } else if (backendName == "glslang") {
+                shaderCompilerBackend = sgl::vk::ShaderCompilerBackend::GLSLANG;
+            }
+        } else if (command == "--dlswap") {
+            useDownloadSwapchain = true;
+        }
+    }
 
 #ifdef DATA_PATH
     if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
@@ -57,6 +86,9 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", false);
 #else
     sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
+#endif
+#ifdef __linux__
+    sgl::AppSettings::get()->getSettings().addKeyValue("window-useDownloadSwapchain", useDownloadSwapchain);
 #endif
     //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
@@ -95,6 +127,13 @@ int main(int argc, char *argv[]) {
     sgl::AppSettings::get()->setPrimaryDevice(device);
     sgl::AppSettings::get()->setSwapchain(swapchain);
     sgl::AppSettings::get()->initializeSubsystems();
+    if (useCustomShaderCompilerBackend) {
+        sgl::vk::ShaderManager->setShaderCompilerBackend(shaderCompilerBackend);
+    }
+
+#ifdef USE_OPENVDB
+    openvdb::initialize();
+#endif
 
     auto app = new MainApp();
     app->run();

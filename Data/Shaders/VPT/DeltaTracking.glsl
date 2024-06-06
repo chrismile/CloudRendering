@@ -55,7 +55,7 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 #ifdef USE_ISOSURFACES
             i++;
             if (i == 1000) {
-                return vec3(0.0, 1.0, 0.0);
+                return vec3(0.0, 0.0, 0.0);
             }
 #endif
 
@@ -199,7 +199,7 @@ vec3 deltaTracking(
 #ifdef USE_ISOSURFACES
             i++;
             if (i == 1000) {
-                return vec3(0.0, 1.0, 0.0);
+                return vec3(0.0, 0.0, 0.0);
             }
 #endif
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS

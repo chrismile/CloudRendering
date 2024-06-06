@@ -474,7 +474,7 @@ void VolumetricPathTracingPass::setGridData() {
         uint64_t sparseDensityFieldSize;
         cloudData->getSparseDensityField(sparseDensityField, sparseDensityFieldSize);
 
-        uint64_t bufferSize = sizeof(uint32_t) * sgl::iceil(int(sparseDensityFieldSize), sizeof(uint32_t));
+        uint64_t bufferSize = sizeof(uint32_t) * sgl::ulceil(sparseDensityFieldSize, sizeof(uint32_t));
         auto* sparseDensityFieldCopy = new uint8_t[bufferSize];
         memset(sparseDensityFieldCopy, 0, bufferSize);
         memcpy(sparseDensityFieldCopy, sparseDensityField, sparseDensityFieldSize);
@@ -527,9 +527,10 @@ void VolumetricPathTracingPass::setGridData() {
         sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
 
         densityFieldTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+        size_t numEntriesDensityGrid =
+                size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ());
         densityFieldTexture->getImage()->uploadData(
-                cloudData->getGridSizeX() * cloudData->getGridSizeY() * cloudData->getGridSizeZ()
-                * cloudData->getDenseDensityField()->getEntrySizeInBytes(),
+                numEntriesDensityGrid * cloudData->getDenseDensityField()->getEntrySizeInBytes(),
                 cloudData->getDenseDensityField()->getDataNative());
 
         if (emissionData && useEmission) {
@@ -541,19 +542,19 @@ void VolumetricPathTracingPass::setGridData() {
             emissionImageSettings.format = emissionData->getDenseDensityField()->getEntryVulkanFormat();
             emissionImageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             emissionFieldTexture = std::make_shared<sgl::vk::Texture>(device, emissionImageSettings, samplerSettings);
+            size_t numEntriesEmissionGrid =
+                    size_t(emissionData->getGridSizeX()) * size_t(emissionData->getGridSizeY()) * size_t(emissionData->getGridSizeZ());
             emissionFieldTexture->getImage()->uploadData(
-                    emissionData->getGridSizeX() * emissionData->getGridSizeY() * emissionData->getGridSizeZ()
-                    * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
+                    numEntriesEmissionGrid * emissionData->getDenseDensityField()->getEntrySizeInBytes(),
                     emissionData->getDenseDensityField()->getDataNative());
         }
 
         if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
-            auto xs = cloudData->getGridSizeX();
-            auto ys = cloudData->getGridSizeY();
-            auto zs = cloudData->getGridSizeZ();
+            auto xs = size_t(cloudData->getGridSizeX());
+            auto ys = size_t(cloudData->getGridSizeY());
+            auto zs = size_t(cloudData->getGridSizeZ());
             auto df = cloudData->getDenseDensityField();
-            auto numEntries = size_t(xs) * size_t(ys) * size_t(zs);
-            auto numEntriesUint = xs * ys * zs;
+            auto numEntries = xs * ys * zs;
 
 #define IDXS(x,y,z) ((z)*xs*ys + (y)*xs + (x))
             DensityFieldPtr gradField;
@@ -563,13 +564,13 @@ void VolumetricPathTracingPass::setGridData() {
                 gradField = std::make_shared<DensityField>(numEntries, new float[numEntries]);
             }
 #ifdef USE_TBB
-            tbb::parallel_for(tbb::blocked_range<uint32_t>(0, numEntriesUint), [&](auto const& r) {
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, numEntries), [&](auto const& r) {
                 for (auto gridIdx = r.begin(); gridIdx != r.end(); gridIdx++) {
 #else
 #if _OPENMP >= 201107
-            #pragma omp parallel for default(none) shared(xs, ys, zs, numEntriesUint, df, gradField)
+            #pragma omp parallel for default(none) shared(xs, ys, zs, numEntries, df, gradField)
 #endif
-            for (uint32_t gridIdx = 0; gridIdx < numEntriesUint; gridIdx++) {
+            for (size_t gridIdx = 0; gridIdx < numEntries; gridIdx++) {
 #endif
                 auto xc = gridIdx % xs;
                 auto yc = (gridIdx / xs) % ys;
@@ -638,6 +639,18 @@ void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     cloudData = data;
     frameInfo.frameCount = 0;
     globalFrameNumber = 0;
+
+    auto numGridEntries =
+            size_t(cloudData->getGridSizeX()) * size_t(cloudData->getGridSizeY()) * size_t(cloudData->getGridSizeZ());
+    // For data larger than 4GB, default to sparse data if possible.
+    if (cloudData->hasSparseData()) {
+        auto gridSizeSparse = cloudData->getSparseDataSizeInBytes();
+        // The NanoVDB GLSL implementation seems to have a problem with data >= 2GiB.
+        if (numGridEntries >= size_t(1024) * size_t(1024) * size_t(1024)
+                && gridSizeSparse < size_t(2) * size_t(1024) * size_t(1024) * size_t(1024)) {
+            useSparseGrid = true;
+        }
+    }
 
     setGridData();
     setDataDirty();
@@ -760,6 +773,15 @@ void VolumetricPathTracingPass::setIsosurfaceType(IsosurfaceType _isosurfaceType
 void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
     if (surfaceBrdf != _surfaceBrdf) {
         surfaceBrdf = _surfaceBrdf;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setNumIsosurfaceSubdivisions(int _subdivs) {
+    if (numIsosurfaceSubdivisions != _subdivs) {
+        numIsosurfaceSubdivisions = _subdivs;
         setShaderDirty();
         reRender = true;
         frameInfo.frameCount = 0;
@@ -1161,6 +1183,9 @@ void VolumetricPathTracingPass::loadShader() {
 
     if (useIsosurfaces) {
         customPreprocessorDefines.insert({ "USE_ISOSURFACES", "" });
+        if (vptMode != VptMode::ISOSURFACE_RENDERING) {
+            customPreprocessorDefines.insert({ "NUM_ISOSURFACE_SUBDIVISIONS", std::to_string(numIsosurfaceSubdivisions) });
+        }
         if (surfaceBrdf == SurfaceBrdf::LAMBERTIAN) {
             customPreprocessorDefines.insert({ "SURFACE_BRDF_LAMBERTIAN", "" });
         } else if (surfaceBrdf == SurfaceBrdf::BLINN_PHONG) {
@@ -1714,7 +1739,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         if (propertyEditor.addSliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
             optionChanged = true;
         }
-        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x)) {
+        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x, ImGuiColorEditFlags_Float)) {
             optionChanged = true;
         }
         if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {
@@ -1929,6 +1954,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             reRender = true;
             frameInfo.frameCount = 0;
         }
+        if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
+                "#Isosurface Subdivisions", &numIsosurfaceSubdivisions, 1, 8)) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
         if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
                 "Step Width", &isoStepWidth, 0.1f, 1.0f)) {
             reRender = true;
@@ -2045,6 +2076,14 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
             propertyEditor.endNode();
         }
+    }
+
+    if (cloudData) {
+        auto xs = cloudData->getGridSizeX();
+        auto ys = cloudData->getGridSizeY();
+        auto zs = cloudData->getGridSizeZ();
+        propertyEditor.addText(
+                "Volume Size", std::to_string(xs) + "x" + std::to_string(ys) + "x" + std::to_string(zs));
     }
 
     if (optionChanged) {

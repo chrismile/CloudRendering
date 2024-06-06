@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-20.04, windows-2019, windows-2022, macos-latest ]
+        os: [ ubuntu-22.04, windows-2019, windows-2022, macos-latest ]
 
     runs-on: ${{ matrix.os }}
     name: "${{ github.workflow }}: ${{ matrix.os }}"
@@ -64,7 +64,8 @@ jobs:
       shell: bash
       run: |
         if [ "$RUNNER_OS" == "Linux" ]; then
-          distro_code_name="$(lsb_release -c | grep -oP "\:\s+\K\S+")"
+          distro_code_name=$(lsb_release -cs)
+          distro_release=$(lsb_release -rs)
           os_arch="$(uname -m)"
           if ! curl -s -I "https://packages.lunarg.com/vulkan/dists/${distro_code_name}/" | grep "2 404" > /dev/null; then
             echo "Installing Vulkan SDK from a PPA..."
@@ -72,7 +73,9 @@ jobs:
             sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-${distro_code_name}.list \
             https://packages.lunarg.com/vulkan/lunarg-vulkan-${distro_code_name}.list
             sudo apt update
-            sudo apt install vulkan-sdk
+            sudo apt install -y vulkan-sdk
+          elif dpkg --compare-versions "$distro_release" "ge" "24.04"; then
+            sudo apt install -y libvulkan-dev
           else
             echo "Unpacking Vulkan SDK from an archive file..."
             curl --silent --show-error --fail -O https://sdk.lunarg.com/sdk/download/latest/linux/vulkan-sdk.tar.gz
@@ -123,8 +126,8 @@ jobs:
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
       with:
-        vcpkgGitURL: 'https://github.com/chrismile/vcpkg.git'
-        vcpkgGitCommitId: '00e25d7ae041fea1075e79f017693cfce26088d1'
+        vcpkgGitURL: 'https://github.com/microsoft/vcpkg.git'
+        vcpkgGitCommitId: 'a4275b7eee79fb24ec2e135481ef5fce8b41c339'
         doNotCacheOnWorkflowFailure: true
 
     - name: Create custom vcpkg triplet

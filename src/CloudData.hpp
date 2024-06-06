@@ -102,6 +102,7 @@ public:
      */
     void getSparseDensityField(uint8_t*& data, uint64_t& size);
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
+    [[nodiscard]] inline size_t getSparseDataSizeInBytes() const { return sparseGridHandle.gridMetaData()->gridSize(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
 
     /// Called when the transfer function texture was updated.
@@ -175,6 +176,13 @@ private:
     nanovdb::GridHandle<nanovdb::HostBuffer> sparseGridHandle;
     bool cacheSparseGrid = false;
 
+#ifdef USE_OPENVDB
+    /**
+     * @param filename The filename of the .vdb file to load using OpenVDB.
+     * @return Whether the file was loaded successfully.
+     */
+    bool loadFromVdbFile(const std::string& filename);
+#endif
 };
 
 typedef std::shared_ptr<CloudData> CloudDataPtr;

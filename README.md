@@ -111,7 +111,7 @@ If TorchLib does not lie on a standard path, the directory where the CMake confi
 specified using, e.g.:
 
 ```
--DCMAKE_PREFIX_PATH=~/miniconda3/envs/cloud_rendering/lib/python3.8/site-packages/torch/share/cmake
+-DCMAKE_PREFIX_PATH=~/miniconda3/envs/vpt/lib/python3.8/site-packages/torch/share/cmake
 ```
 
 When using the script `build.sh`, the following command can be used to build the program with PyTorch support and to
@@ -142,16 +142,16 @@ sudo apt install g++ git libgflags-dev libgoogle-glog-dev libopenmpi-dev protobu
 python3-setuptools python3-yaml wget intel-mkl libcudnn8-dev
 
 . "$HOME/miniconda3/etc/profile.d/conda.sh"
-conda create --name cloud_rendering python=3.8
-conda activate cloud_rendering
+conda create --name vpt python=3.8
+conda activate vpt
 
 conda install numpy ninja pyyaml mkl mkl-include setuptools cmake cffi typing typing-extensions
-conda install -c pytorch magma-cuda115
+conda install -c pytorch magma-cuda121
 
 git clone --recursive https://github.com/pytorch/pytorch
 cd pytorch
 # Optional: Use a stable version of PyTorch
-#git checkout v2.2.0
+#git checkout v2.3.0
 #git submodule sync
 #git submodule update --init --recursive
 # Optional: Build for different GPU architectures.
@@ -164,13 +164,13 @@ python setup.py install
 ```
 
 HINT: In case the CUDA Toolkit is not found, the build process might just continue without building CUDA support.
-Assuming the CUDA Toolkit was installed to `/usr/local/cuda-11.5` using the manual NVIDIA CUDA Toolkit installer, the
+Assuming the CUDA Toolkit was installed to `/usr/local/cuda-12.1` using the manual NVIDIA CUDA Toolkit installer, the
 following lines might need to be added to `~/.profile` in order for PyTorch to find the installed CUDA version:
 
 ```shell
-export CPATH=/usr/local/cuda-11.5/targets/x86_64-linux/include:$CPATH
-export LD_LIBRARY_PATH=/usr/local/cuda-11.5/targets/x86_64-linux/lib:$LD_LIBRARY_PATH
-export PATH=/usr/local/cuda-11.5/bin:$PATH
+export CPATH=/usr/local/cuda-12.1/targets/x86_64-linux/include:$CPATH
+export LD_LIBRARY_PATH=/usr/local/cuda-12.1/targets/x86_64-linux/lib:$LD_LIBRARY_PATH
+export PATH=/usr/local/cuda-12.1/bin:$PATH
 ```
 
 HINT 2: On Ubuntu 22.04 with Python 3.9 installed via Conda, a problem one user noticed was that GLIBCXX_3.4.30 was
@@ -205,10 +205,13 @@ These files then appear with their specified name in the menu "File > Datasets".
 the folder `Data/CloudDataSets/` (unless they are global, like `C:/path/file.dat` or `/path/file.dat`).
 
 Supported formats currently are:
-- .xyz files, which consist of a header of 3x float (grid size sx, sy, sz) and 3x double (voxel size vx, vy, vz)
+- .xyz files, which consist of a header of 3x uint32 (grid size sx, sy, sz) and 3x double (voxel size vx, vy, vz)
   followed by sx * sy * sz floating point values storing the density values stored in the dense Cartesian grid.
-- .nvdb files using the [NanoVDB](https://github.com/AcademySoftwareFoundation/openvdb/tree/master/nanovdb/nanovdb)
-  format, which stores sparse voxel grids.
+- .vdb and .nvdb files using the [OpenVDB](https://github.com/AcademySoftwareFoundation/openvdb) and
+  [NanoVDB](https://github.com/AcademySoftwareFoundation/openvdb/tree/master/nanovdb/nanovdb) formats,
+  which store sparse voxel grids. For OpenVDB support, the flag `--use-openvdb` needs to be passed to the build script.
+- .dat/.raw and .mhd/.raw files, which store density grids with metadata in arbitrary precision.
+  For more details see: src/CloudData.cpp, CloudData::loadFromDatRawFile and CloudData::loadFromMhdRawFile.
 
 
 ## Supported Rendering Modes

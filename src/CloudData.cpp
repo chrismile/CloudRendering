@@ -35,6 +35,7 @@
 #include <tbb/blocked_range.h>
 #endif
 
+#include <Math/half/half.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/Convert.hpp>
 #include <Utils/StringUtils.hpp>
@@ -144,6 +145,10 @@ bool CloudData::loadFromFile(const std::string& filename) {
         return loadFromXyzFile(filename);
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".nvdb")) {
         return loadFromNvdbFile(filename);
+#ifdef USE_OPENVDB
+    } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".vdb")) {
+        return loadFromVdbFile(filename);
+#endif
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".dat")
             || sgl::FileUtils::get()->hasExtension(filename.c_str(), ".raw")) {
         return loadFromDatRawFile(filename);
@@ -182,9 +187,10 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 
     computeGridBounds();
 
-    auto* densityFieldFloat = new float[gridSizeX * gridSizeY * gridSizeZ];
-    auto* densityFieldTransposed = new float[gridSizeX * gridSizeY * gridSizeZ];
-    binaryReadStream.read(densityFieldTransposed, gridSizeX * gridSizeY * gridSizeZ * sizeof(float));
+    size_t numGridEntries = size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ);
+    auto* densityFieldFloat = new float[numGridEntries];
+    auto* densityFieldTransposed = new float[numGridEntries];
+    binaryReadStream.read(densityFieldTransposed, numGridEntries * sizeof(float));
 
     // Transpose.
 #ifdef USE_TBB
@@ -209,19 +215,18 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 #endif
     delete[] densityFieldTransposed;
 
-    size_t totalSize = gridSizeX * gridSizeY * gridSizeZ;
     auto [minVal, maxVal] = sgl::reduceFloatArrayMinMax(
-            densityFieldFloat, totalSize, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
+            densityFieldFloat, numGridEntries, std::make_pair(0.0f, std::numeric_limits<float>::lowest()));
 
     if (maxVal - minVal > 1e-6f) {
 #ifdef USE_TBB
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, totalSize), [&](auto const& r) {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, numGridEntries), [&](auto const& r) {
         for (auto i = r.begin(); i != r.end(); i++) {
 #else
 #if _OPENMP >= 201107
-        #pragma omp parallel for default(none) shared(densityFieldFloat, totalSize, minVal, maxVal)
+        #pragma omp parallel for default(none) shared(densityFieldFloat, numGridEntries, minVal, maxVal)
 #endif
-        for (size_t i = 0; i < totalSize; i++) {
+        for (size_t i = 0; i < numGridEntries; i++) {
 #endif
             densityFieldFloat[i] = (densityFieldFloat[i] - minVal) / (maxVal - minVal);
         }
@@ -230,7 +235,7 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
 #endif
     }
 
-    densityField = std::make_shared<DensityField>(gridSizeX * gridSizeY * gridSizeZ, densityFieldFloat);
+    densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
 
     return true;
 }
@@ -670,7 +675,7 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         bytesPerEntry = 4;
     } else if (formatString == "MET_UCHAR") {
         bytesPerEntry = 1;
-    } else if (formatString == "MET_USHORT") {
+    } else if (formatString == "MET_USHORT" || formatString == "MET_FLOAT16" || formatString == "MET_HALF") {
         bytesPerEntry = 2;
     } else {
         sgl::Logfile::get()->throwError(
@@ -727,6 +732,13 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
             transposeField(densityFieldUshort, xs, ys, zs, mirrorAxes);
         }
         densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
+    } else if (formatString == "MET_FLOAT16" || formatString == "MET_HALF") {
+        auto* densityFieldHalf = new HalfFloat[totalSize];
+        memcpy(densityFieldHalf, bufferRaw, sizeof(HalfFloat) * totalSize);
+        if (useCustomTransform) {
+            transposeField(densityFieldHalf, xs, ys, zs, mirrorAxes);
+        }
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldHalf);
     }
 
     return true;
@@ -751,16 +763,60 @@ DensityFieldPtr CloudData::getDenseDensityField() {
 
         auto& tree = grid->tree();
         auto minGridVal = grid->indexBBox().min();
-        auto* densityFieldFloat = new float[gridSizeX * gridSizeY * gridSizeZ];
-        for (uint32_t z = 0; z < gridSizeZ; z++) {
-            for (uint32_t y = 0; y < gridSizeY; y++) {
-                for (uint32_t x = 0; x < gridSizeX; x++) {
-                    densityFieldFloat[x + y * gridSizeX + z * gridSizeX * gridSizeY] = tree.getValue(nanovdb::Coord(
-                            minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
+        size_t numGridEntries = size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ);
+        auto gridSizeX64 = size_t(gridSizeX);
+        auto gridSizeY64 = size_t(gridSizeY);
+        auto gridSizeZ64 = size_t(gridSizeZ);
+        auto gridSizeXY64 = size_t(gridSizeX64) * size_t(gridSizeY64);
+
+        bool useHalf = numGridEntries >= size_t(1024) * size_t(1024) * size_t(1024);
+        if (useHalf) {
+            auto* densityFieldFloat = new HalfFloat[numGridEntries];
+#ifdef USE_TBB
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, gridSizeZ64), [&](auto const& r) {
+                for (auto z = r.begin(); z != r.end(); z++) {
+#else
+#if _OPENMP >= 201107
+            #pragma omp parallel for shared(gridSizeX64, gridSizeY64, gridSizeZ64, gridSizeXY64) \
+            shared(densityFieldFloat, tree, minGridVal) default(none)
+#endif
+            for (size_t z = 0; z < gridSizeZ64; z++) {
+#endif
+                for (size_t y = 0; y < gridSizeY64; y++) {
+                    for (size_t x = 0; x < gridSizeX64; x++) {
+                        densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = HalfFloat(tree.getValue(nanovdb::Coord(
+                                minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z))));
+                    }
                 }
             }
+#ifdef USE_TBB
+            });
+#endif
+            densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
+        } else {
+            auto* densityFieldFloat = new float[numGridEntries];
+#ifdef USE_TBB
+            tbb::parallel_for(tbb::blocked_range<size_t>(0, gridSizeZ64), [&](auto const& r) {
+                for (auto z = r.begin(); z != r.end(); z++) {
+#else
+#if _OPENMP >= 201107
+            #pragma omp parallel for shared(gridSizeX64, gridSizeY64, gridSizeZ64, gridSizeXY64) \
+            shared(densityFieldFloat, tree, minGridVal) default(none)
+#endif
+            for (size_t z = 0; z < gridSizeZ64; z++) {
+#endif
+                for (size_t y = 0; y < gridSizeY64; y++) {
+                    for (size_t x = 0; x < gridSizeX64; x++) {
+                        densityFieldFloat[x + y * gridSizeX64 + z * gridSizeXY64] = tree.getValue(nanovdb::Coord(
+                                minGridVal[0] + int(x), minGridVal[1] + int(y), minGridVal[2] + int(z)));
+                    }
+                }
+            }
+#ifdef USE_TBB
+            });
+#endif
+            densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
         }
-        densityField = std::make_shared<DensityField>(gridSizeX * gridSizeY * gridSizeZ, densityFieldFloat);
     }
 
     return densityField;
@@ -768,14 +824,15 @@ DensityFieldPtr CloudData::getDenseDensityField() {
 
 
 void CloudData::printSparseGridMetadata() {
-    double denseGridSizeMiB = gridSizeX * gridSizeY * gridSizeZ * 4 / (1024.0 * 1024.0);
+    size_t numGridEntries = size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ);
+    double denseGridSizeMiB = numGridEntries * 4 / (1024.0 * 1024.0);
     double sparseGridSizeMiB = sparseGridHandle.gridMetaData()->gridSize() / (1024.0 * 1024.0);
     double compressionRatio = denseGridSizeMiB / sparseGridSizeMiB;
     sgl::Logfile::get()->writeInfo("Dense grid memory (MiB): " + std::to_string(denseGridSizeMiB));
     sgl::Logfile::get()->writeInfo("Sparse grid memory (MiB): " + std::to_string(sparseGridSizeMiB));
     sgl::Logfile::get()->writeInfo("Compression ratio: " + std::to_string(compressionRatio));
     sgl::Logfile::get()->writeInfo(
-            "Total number of voxels: " + std::to_string(gridSizeX * gridSizeY * gridSizeZ));
+            "Total number of voxels: " + std::to_string(numGridEntries));
     sgl::Logfile::get()->writeInfo(
             "Number of active voxels: " + std::to_string(sparseGridHandle.gridMetaData()->activeVoxelCount()));
     for (int i = 0; i < 3; i++) {
@@ -790,8 +847,8 @@ void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max){
     seqMax = max;
     gotSeqBounds = true;
 
-    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y-seqMin.y, seqMax.z-seqMin.z));
-    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (.5,.5,.5);
+    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
+    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
     boxMax = boxMin + (gridMax - gridMin) / (maxDim);
 }
 
@@ -821,21 +878,24 @@ void CloudData::computeSparseGridMetadata() {
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
-
     glm::vec3 boundMin = gridMin;
     glm::vec3 boundMax = gridMax;
 
-    if (gotSeqBounds){
+    if (gotSeqBounds) {
         boundMin = seqMin;
         boundMax = seqMax;
     }
-    // NORMALIZE BOX
-    float maxDim = std::max(boundMax.x-boundMin.x, std::max(boundMax.y-boundMin.y, boundMax.z-boundMin.z));
-    boxMin = (gridMin - boundMin) / (maxDim) - glm::vec3 (.5,.5,.5);
-    boxMax = boxMin + (gridMax - gridMin) / (maxDim);
 
-    std::cout << boxMin.x<<", " << boxMin.y<< ", " << boxMin.z << std::endl;
-    std::cout << boxMax.x<<", " << boxMax.y<< ", " << boxMax.z << std::endl;
+    // Normalize bounding box.
+    float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
+    boxMin = (gridMin - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
+    boxMax = boxMin + (gridMax - gridMin) / maxDim;
+    auto totalSize = boxMax - boxMin;
+    boxMax = totalSize * 0.5f;
+    boxMin = -boxMax;
+
+    std::cout << boxMin.x << ", " << boxMin.y << ", " << boxMin.z << std::endl;
+    std::cout << boxMax.x << ", " << boxMax.y << ", " << boxMax.z << std::endl;
 
     printSparseGridMetadata();
 }
@@ -910,3 +970,38 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
     data = buffer.data();
     size = buffer.size();
 }
+
+#ifdef USE_OPENVDB
+#include <openvdb/openvdb.h>
+#include "nanovdb/util/OpenToNanoVDB.h"
+
+bool CloudData::loadFromVdbFile(const std::string& filename) {
+    openvdb::io::File file(filename);
+    file.open();
+    openvdb::GridBase::Ptr baseGrid;
+    bool foundGrid = false;
+    for (openvdb::io::File::NameIterator nameIter = file.beginName(); nameIter != file.endName(); ++nameIter) {
+        baseGrid = file.readGrid(nameIter.gridName());
+        foundGrid = true;
+        break;
+    }
+    file.close();
+
+    if (!foundGrid) {
+        sgl::Logfile::get()->writeError("Error in CloudData::loadFromVdbFile: File \"" + filename + "\" is empty.");
+        return false;
+    }
+    openvdb::FloatGrid::Ptr srcGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(baseGrid);
+
+    //sparseGridHandle = nanovdb::createNanoGrid(*srcGrid);
+    sparseGridHandle = nanovdb::openToNanoVDB(*srcGrid);
+
+    std::string filenameNvdb = sgl::FileUtils::get()->removeExtension(filename) + ".nvdb";
+    if (!sgl::FileUtils::get()->exists(filenameNvdb)) {
+        nanovdb::io::writeGrid(filenameNvdb, sparseGridHandle);
+    }
+
+    computeSparseGridMetadata();
+    return !sparseGridHandle.empty();
+}
+#endif
