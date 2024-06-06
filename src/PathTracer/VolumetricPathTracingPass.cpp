@@ -1964,6 +1964,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             frameInfo.frameCount = 0;
         }
 
+        if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::DISNEY && propertyEditor.addSliderFloat("roughness", nullptr, 0.0, 1.0)) {
+            setShaderDirty();
+            reRender = true;
+            frameInfo.frameCount = 0;
+        }
+
         propertyEditor.endNode();
     }
 
