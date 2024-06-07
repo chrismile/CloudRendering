@@ -794,6 +794,7 @@ bool getIsoSurfaceHit(
     mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
 
     vec3 colorOut;
+    vec3 dirOut;
 
 // -------------- BRDF ------------------
 
@@ -804,7 +805,7 @@ bool getIsoSurfaceHit(
     vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
 #else
     // Sampling PDF: cos(theta) / pi
-    vec3 dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
+    dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
 #endif
     float thetaOut = dot(surfaceNormal, dirOut);
 #endif
@@ -815,7 +816,7 @@ bool getIsoSurfaceHit(
     float norm = clamp(
             (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
             (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+    dirOut = frame * sampleHemisphere(vec2(random(), random()));
     vec3 halfwayVectorOut = normalize(-w + dirOut);
 #endif
 
@@ -839,57 +840,65 @@ bool getIsoSurfaceHit(
     float theta_v = dot(viewVector, normalVector);
     float theta_l = dot(lightVector, normalVector);
 
-    // Base colors and values
-    vec3 baseColor = isoSurfaceColorDef;
-    vec3 col = vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
-    float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
+    if (theta_l < 0 || theta_v < 0) { 
+        colorOut = vec3(0);
+        dirOut = lightVector;
+    }
+    else {
+        // Base colors and values
+        vec3 baseColor = isoSurfaceColorDef;
+        vec3 col = vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
+        float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
 
-    vec3 col_tint = lum > 0 ? col/lum: vec3(1.0);
-    vec3 col_spec0 = mix(parameters.specular*0.08*mix(vec3(1.0),col_tint,parameters.specularTint), col, parameters.metallic);
-    vec3 col_sheen = mix(vec3(1.0),col_tint,parameters.sheenTint);
-    // Diffuse
+        vec3 col_tint = lum > 0 ? col/lum: vec3(1.0);
+        vec3 col_spec0 = mix(parameters.specular*0.08*mix(vec3(1.0),col_tint,parameters.specularTint), col, parameters.metallic);
+        vec3 col_sheen = mix(vec3(1.0),col_tint,parameters.sheenTint);
+        // Diffuse
     
-    // Base Diffuse
-    float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
-    float f_d = (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
+        // Base Diffuse
+        float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
+        float f_d = (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
     
-    // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
-    float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
-    float f_subsurface = (1 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
+        // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
+        float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
+        float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
+        float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
 
-    // Sheen
-    // TODO: Add Fresnel Sschlick for theta d
-    float f_h = pow((1 - theta_d), 5.0);
-    vec3 sheen = f_h * parameters.sheen * col_sheen;
+        // Sheen
+        // TODO: Add Fresnel Sschlick for theta d
+        float f_h = pow((1 - theta_d), 5.0);
+        vec3 sheen = f_h * parameters.sheen * col_sheen;
 
-    vec3 diffuse = ((1/M_PI) * col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1-parameters.metallic);
+        vec3 diffuse = ((1/M_PI) * col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
     
-    // Specular F (Schlick Fresnel Approximation)
-    vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
+        // Specular F (Schlick Fresnel Approximation)
+        vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
 
-    // Specular D (2 lobes using GTR model)
-    float aspect = sqrt(1 - parameters.anisotropic * 0.9);
-    float ax = max(0.001, sqr(parameters.roughness) / aspect);
-    float ay = max(0.001, sqr(parameters.roughness) * aspect);
+        // Specular D (2 lobes using GTR model)
+        float aspect = sqrt(1 - parameters.anisotropic * 0.9);
+        float ax = max(0.001, sqr(parameters.roughness) / aspect);
+        float ay = max(0.001, sqr(parameters.roughness) * aspect);
     
-    // GTR2
-    float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
+        // GTR2
+        float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
 
-    // Specular G Smith G GGX
-    float g_specular = 1 / (theta_v = sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
-    g_specular *= 1 / (theta_v = sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v)));
+        // Specular G Smith G GGX
+        float g_specular = 1 / (theta_v + sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
+        g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
 
-    vec3 specular = f_specular * d_specular * g_specular;
+        vec3 specular = f_specular * d_specular * g_specular;
 
-    // Clearcoat
-    float f_clearcoat = mix(0.04,1.0,f_h);
-    float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
-    float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
+        // Clearcoat
+        float f_clearcoat = mix(0.04,1.0,f_h);
+        float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
+        float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
     
-    // Result
-    colorOut = diffuse + specular + 0.25*parameters.clearcoat*f_clearcoat*d_clearcoat*g_clearcoat;
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
+        // Result
+        colorOut = diffuse + specular + 0.25*parameters.clearcoat*f_clearcoat*d_clearcoat*g_clearcoat;
+        dirOut = lightVector;
+    }
+
+
 #endif
 
 #if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
