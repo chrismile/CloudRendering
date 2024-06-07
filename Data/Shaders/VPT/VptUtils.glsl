@@ -731,7 +731,8 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
     return vec3(d.x, d.y, z);
 }
 
-// BRDF Helper Function
+// -------------- BRDF Helper Functions ------------------
+
 // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L40
 float sqr(float x) {
     return x * x;
@@ -754,6 +755,27 @@ float smithG_GGX(float NdotV, float alphaG)
     return 1 / (NdotV + sqrt(a + b - a * b));
 }
 
+vec3 fresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1-F0) * pow((1.0 - cosTheta), 5.0);
+}
+
+float D_GGX(float NdotH, float roughness) {
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+    float NdotH2 = NdotH * NdotH;
+    float b = (NdotH2 * (alpha2 - 1.0) + 1.0);
+    return (1 / M_PI) * alpha2 / (b * b);
+}
+
+float G1_GGX_Schlick(float NdotV, float roughness) {
+    float alpha = roughness * roughness;
+    float k = alpha / 2.0;
+    return max(NdotV, 0.001) / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness) {
+    return G1_GGX_Schlick(NdotL, roughness) * G1_GGX_Schlick(NdotV, roughness);
+}
 
 #if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
@@ -834,7 +856,7 @@ bool getIsoSurfaceHit(
     vec3 x = normalize(surfaceTangent);
     vec3 y = normalize(surfaceBitangent);
 
-    // Base Vectors
+    // Base Angles
     float theta_h = dot(halfwayVector, normalVector);
     float theta_d = dot(lightVector, halfwayVector);
     float theta_v = dot(viewVector, normalVector);
@@ -901,7 +923,46 @@ bool getIsoSurfaceHit(
 
 #endif
 
-#if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+#ifdef SURFACE_BRDF_COOK_TORRANCE
+    // Parameters: https://www.youtube.com/watch?v=gya7x9H3mV0
+    // Base Vectors
+    vec3 lightVector = normalize(frame * sampleHemisphere(vec2(random(), random())));
+    vec3 viewVector = normalize(-w);
+    vec3 normalVector = normalize(surfaceNormal);
+    vec3 halfwayVector = normalize(lightVector + viewVector);
+
+    // Base Angles
+    float NdotH = dot(halfwayVector, normalVector);
+    float LdotH = dot(lightVector, halfwayVector);
+    float VdotN = dot(viewVector, normalVector);
+    float LdotN = dot(lightVector, normalVector);
+    float LdotV = dot(lightVector, normalVector);
+    float VdotH = dot(viewVector, halfwayVector);
+
+    vec3 baseColor = isoSurfaceColorDef;
+    // Diffuse:
+    // Specular F: Schlick Fresnel Approximation
+    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
+    f0 = mix(f0, baseColor, parameters.metallic);
+
+    vec3 F = fresnelSchlick(VdotH, f0);
+    // Specular D: GGX Distribuition
+    float D = D_GGX(NdotH, parameters.roughness);
+    // Speuclar G: G_Smith with G_1Smith-GGX
+    float G = G_Smith(VdotN, LdotN, parameters.roughness);
+    // Result
+    vec3 spec = (F * D * G) / (4.0 * max(0.001, VdotN) * max(0.001, LdotN));
+    vec3 rhoD = baseColor;
+    
+    rhoD *= vec3(1.0) - F;
+    rhoD *= (1.0 - parameters.metallic);
+    vec3 diff = rhoD * (1.0 / M_PI);
+
+    colorOut = diff + spec;
+    dirOut = normalize(frame * sampleHemisphere(vec2(random(), random())));
+#endif
+
+#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {

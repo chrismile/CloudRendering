@@ -79,7 +79,7 @@ enum class SurfaceBrdf {
     LAMBERTIAN, BLINN_PHONG, DISNEY, COOK_TORRANCE
 };
 const char* const SURFACE_BRDF_NAMES[] = {
-        "Lambertian", "Blinn Phong", "Disney", "Cook Torrance"
+        "Lambertian", "Blinn Phong", "Disney (2012)", "Cook Torrance"
 };
 
 struct CameraPose {

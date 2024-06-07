@@ -2063,6 +2063,25 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             propertyEditor.endNode();
         }
 
+        if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::COOK_TORRANCE && propertyEditor.beginNode("Cook Torrance BRDF Parameters")) {
+            if (propertyEditor.addSliderFloat("metallic", (float*)&metallic, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("specular", (float*)&specular, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat("roughness", (float*)&roughness, 0.0, 1.0)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            propertyEditor.endNode();
+        }
+
         propertyEditor.endNode();
     }
 
