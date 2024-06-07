@@ -33,10 +33,10 @@
 #define COMBINED_OPENEXR_VERSION ((10000*OPENEXR_VERSION_MAJOR) + (100*OPENEXR_VERSION_MINOR) + OPENEXR_VERSION_PATCH)
 #if COMBINED_OPENEXR_VERSION >= 20599
 #include <Imath/ImathVec.h>
-#include <Imath/half.h>
+//#include <Imath/half.h>
 #else
 #include <OpenEXR/ImathVec.h>
-#include <OpenEXR/half.h>
+//#include <OpenEXR/half.h>
 #endif
 
 bool loadOpenExrImageFile(const std::string& filename, OpenExrImageInfo& imageInfo) {
