@@ -731,6 +731,29 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
     return vec3(d.x, d.y, z);
 }
 
+// BRDF Helper Function
+// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L40
+float sqr(float x) {
+    return x * x;
+}
+
+// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L49C1-L55C2
+float GTR1(float NdotH, float a)
+{
+    if (a >= 1) return 1 / PI;
+    float a2 = a * a;
+    float t = 1 + (a2 - 1) * NdotH * NdotH;
+    return (a2 - 1) / (PI * log(a2) * t);
+}
+
+// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L69C1-L74C2
+float smithG_GGX(float NdotV, float alphaG)
+{
+    float a = alphaG * alphaG;
+    float b = NdotV * NdotV;
+    return 1 / (NdotV + sqrt(a + b - a * b));
+}
+
 
 #if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
@@ -797,31 +820,76 @@ bool getIsoSurfaceHit(
 #endif
 
 #ifdef SURFACE_BRDF_DISNEY
-    // Bascis
-    vec3 lightVector = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 viewVector = -w;
-    vec3 normalVector = surfaceNormal;
-    vec3 halfwayVector = normalize(lightVector + viewVector);
+    // Sources:
+    // Paper: https://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
+    // BRDF: https://github.com/wdas/brdf/blob/main/src/brdfs/disney.brdf
 
+    // Base Vectors
+    vec3 lightVector = normalize(frame * sampleHemisphere(vec2(random(), random())));
+    vec3 viewVector = normalize(-w);
+    vec3 normalVector = normalize(surfaceNormal);
+    vec3 halfwayVector = normalize(lightVector + viewVector);
+    // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
+    vec3 x = normalize(surfaceTangent);
+    vec3 y = normalize(surfaceBitangent);
+
+    // Base Vectors
     float theta_h = dot(halfwayVector, normalVector);
     float theta_d = dot(lightVector, halfwayVector);
     float theta_v = dot(viewVector, normalVector);
     float theta_l = dot(lightVector, normalVector);
-    
+
+    // Base colors and values
+    vec3 baseColor = isoSurfaceColorDef;
+    vec3 col = vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
+    float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
+
+    vec3 col_tint = lum > 0 ? col/lum: vec3(1.0);
+    vec3 col_spec0 = mix(parameters.specular*0.08*mix(vec3(1.0),col_tint,parameters.specularTint), col, parameters.metallic);
+    vec3 col_sheen = mix(vec3(1.0),col_tint,parameters.sheenTint);
     // Diffuse
+    
+    // Base Diffuse
     float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
-    vec3 f_d = vec3(0.0, 1.0, 0.0) / M_PI * (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
+    float f_d = (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
+    
+    // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
+    float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
+    float f_subsurface = (1 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_v), 5.0)));
+    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
 
-    // Specular F
+    // Sheen
+    // TODO: Add Fresnel Sschlick for theta d
+    float f_h = pow((1 - theta_d), 5.0);
+    vec3 sheen = f_h * parameters.sheen * col_sheen;
 
-    // Specular D
+    vec3 diffuse = ((1/M_PI) * col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1-parameters.metallic);
+    
+    // Specular F (Schlick Fresnel Approximation)
+    vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
 
-    // Specular G
+    // Specular D (2 lobes using GTR model)
+    float aspect = sqrt(1 - parameters.anisotropic * 0.9);
+    float ax = max(0.001, sqr(parameters.roughness) / aspect);
+    float ay = max(0.001, sqr(parameters.roughness) * aspect);
+    
+    // GTR2
+    float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
 
-    // Microfacet
+    // Specular G Smith G GGX
+    float g_specular = 1 / (theta_v = sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
+    g_specular *= 1 / (theta_v = sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v)));
 
-    colorOut = f_d;
-    vec3 dirOut = lightVector;
+    vec3 specular = f_specular * d_specular * g_specular;
+
+    // Clearcoat
+    float f_clearcoat = mix(0.04,1.0,f_h);
+    float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
+    float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
+    
+    // Result
+    colorOut = diffuse + specular + 0.25*parameters.clearcoat*f_clearcoat*d_clearcoat*g_clearcoat;
+    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
 #endif
 
 #if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
