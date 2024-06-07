@@ -1436,6 +1436,19 @@ void VolumetricPathTracingPass::_render() {
         uniformData.isoStepWidth = isoStepWidth;
         uniformData.maxAoDist = maxAoDist;
         uniformData.numAoSamples = numAoSamples;
+
+        // Update BRDF parameters
+        uniformData.subsurface = subsurface;
+        uniformData.metallic = metallic;
+        uniformData.specular = specular;
+        uniformData.specularTint = specularTint;
+        uniformData.roughness = roughness;
+        uniformData.anisotropic = anisotropic;
+        uniformData.sheen = sheen;
+        uniformData.sheenTint = sheenTint;
+        uniformData.clearcoat = clearcoat;
+        uniformData.clearcoatGloss = clearcoatGloss;
+
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
 
