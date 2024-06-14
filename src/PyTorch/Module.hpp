@@ -94,6 +94,13 @@ MODULE_OP_API torch::Tensor getTransmittanceVolume(torch::Tensor inputTensor);
 MODULE_OP_API void setSecondaryVolumeDownscalingFactor(int64_t dsFactor);
 MODULE_OP_API torch::Tensor computeOccupationVolume(
         torch::Tensor inputTensor, int64_t dsFactor, int64_t maxKernelRadius);
+MODULE_OP_API void updateObservationFrequencyFields(
+        int64_t numBinsX, int64_t numBinsY,
+        torch::Tensor transmittanceField, torch::Tensor obsFreqField, torch::Tensor angularObsFreqField);
+MODULE_OP_API void computeEnergy(
+        int64_t numCams, int64_t numBinsX, int64_t numBinsY, double gamma,
+        torch::Tensor obsFreqField, torch::Tensor angularObsFreqField,
+        torch::Tensor occupancyField, torch::Tensor energyTermField);
 
 class VolumetricPathTracingModuleRenderer;
 extern VolumetricPathTracingModuleRenderer* vptRenderer;
