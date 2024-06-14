@@ -7,8 +7,10 @@
   },
   "ExpandedNodes": [
     "",
-    "\\Data"
+    "\\.build",
+    "\\Data\\TransferFunctions",
+    "\\third_party"
   ],
-  "SelectedNode": "\\.github",
+  "SelectedNode": "\\third_party",
   "PreviewInSolutionExplorer": false
 }

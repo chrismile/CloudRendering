@@ -305,7 +305,7 @@ private:
 
     // Isosurface data.
     bool useIsosurfaces = true;
-    float isoValue = 0.5f;
+    float isoValue = 0.3f;
     float isoStepWidth = 0.25f;
     float maxAoDist = 0.05f;
     int numAoSamples = 4;
