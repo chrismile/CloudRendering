@@ -397,8 +397,8 @@ void computeEnergy(
     const auto depth = obsFreqField.size(0);
     const auto height = obsFreqField.size(1);
     const auto width = obsFreqField.size(2);
-    if (angularObsFreqField.size(0) != depth || angularObsFreqField.size(1) != depth
-            || angularObsFreqField.size(2) != depth || angularObsFreqField.size(3) != int64_t(numBinsX * numBinsY)) {
+    if (angularObsFreqField.size(0) != depth || angularObsFreqField.size(1) != height
+            || angularObsFreqField.size(2) != width || angularObsFreqField.size(3) != int64_t(numBinsX * numBinsY)) {
         sgl::Logfile::get()->throwError(
                 "Error in computeEnergy: angularObsFreqField sizes mismatch.", false);
     }
