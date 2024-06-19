@@ -778,10 +778,10 @@ vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix, out float pd
     float alpha2 = alpha * alpha;
 
     // Compute spherical angles
-    float theta = acos(sqrt((1-u)/(u*(alpha - 1.0)+1.0)));
+    float theta = acos(sqrt((1-u)/(u*(alpha2 - 1.0)+1.0)));
     float phi = 2 * M_PI * v;
     
-    pdf_ggx = cos(theta)*sin(theta);
+    pdf_ggx = cos(theta);
     // Compute halfway vector h
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
@@ -963,7 +963,7 @@ bool getIsoSurfaceHit(
     // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
     // Base Vectors
     // Sample Cook Torrance BRDF
-    float roughness = clamp(parameters.roughness,0.0001, 1.0);
+    float roughness = clamp(parameters.roughness,0.001, 1.0);
     vec3 viewVector = normalize(-w);
     vec3 normalVector = normalize(surfaceNormal);
 
@@ -996,7 +996,7 @@ bool getIsoSurfaceHit(
     // Speuclar G: G_Smith with G_1Smith-GGX
     float G = G_Smith(VdotN, LdotN, roughness);
     // Result
-    vec3 spec = (F * D * G) / (4.0 * max(0.001, VdotN) * max(0.001, LdotN));
+    vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
     vec3 rhoD = baseColor;
     
     // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
@@ -1005,7 +1005,7 @@ bool getIsoSurfaceHit(
     vec3 diff = rhoD * (1.0 / M_PI);
 
     // ----------- Weighting in the PDF
-    colorOut = (diff + spec)/pdf_ggx;
+    colorOut = diffuse + spec;
     dirOut = lightVector;
 #endif
 
