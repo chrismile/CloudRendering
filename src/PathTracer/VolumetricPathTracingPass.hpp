@@ -312,7 +312,7 @@ private:
     bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
-    SurfaceBrdf surfaceBrdf = SurfaceBrdf::COOK_TORRANCE;
+    SurfaceBrdf surfaceBrdf = SurfaceBrdf::DISNEY;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
 
