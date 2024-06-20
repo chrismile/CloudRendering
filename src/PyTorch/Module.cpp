@@ -38,6 +38,15 @@
 #include <openvdb/openvdb.h>
 #endif
 
+#ifdef SUPPORT_CUDA_INTEROP
+#include <cuda.h>
+#include <c10/cuda/CUDAStream.h>
+#endif
+
+#ifdef CUDA_HOST_COMPILER_COMPATIBLE
+#include "EnergyTerm.cuh"
+#endif
+
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
@@ -86,6 +95,8 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::get_transmittance_volume", getTransmittanceVolume);
     m.def("vpt::set_secondary_volume_downscaling_factor", setSecondaryVolumeDownscalingFactor);
     m.def("vpt::compute_occupation_volume", computeOccupationVolume);
+    m.def("vpt::update_observation_frequency_fields", updateObservationFrequencyFields);
+    m.def("vpt::compute_energy", computeEnergy);
     m.def("vpt::set_phase_g", setPhaseG);
     m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
     m.def("vpt::set_use_emission", setUseEmission);
@@ -296,9 +307,116 @@ torch::Tensor computeOccupationVolume(torch::Tensor inputTensor, int64_t dsFacto
     return {};
 }
 
+void updateObservationFrequencyFields(
+        int64_t numBinsX, int64_t numBinsY,
+        torch::Tensor transmittanceField, torch::Tensor obsFreqField, torch::Tensor angularObsFreqField) {
+#ifdef CUDA_HOST_COMPILER_COMPATIBLE
+    if (transmittanceField.device().type() != torch::DeviceType::CUDA
+            || obsFreqField.device().type() != torch::DeviceType::CUDA
+            || angularObsFreqField.device().type() != torch::DeviceType::CUDA) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: All tensors must be on a CUDA device.", false);
+    }
+    if (!transmittanceField.is_contiguous()) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: transmittanceField is not contiguous.", false);
+    }
+    if (!obsFreqField.is_contiguous()) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: obsFreqField is not contiguous.", false);
+    }
+    if (!angularObsFreqField.is_contiguous()) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: angularObsFreqField is not contiguous.", false);
+    }
+    if (obsFreqField.sizes().size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: obsFreqField.sizes().size() != 3.", false);
+    }
+    if (angularObsFreqField.sizes().size() != 4) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: angularObsFreqField.sizes().size() != 3.", false);
+    }
+    if (obsFreqField.dtype() != torch::kFloat32 || angularObsFreqField.dtype() != torch::kFloat32) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: The only data type currently supported is 32-bit float.",
+                false);
+    }
+    const auto depth = obsFreqField.size(0);
+    const auto height = obsFreqField.size(1);
+    const auto width = obsFreqField.size(2);
+    if (angularObsFreqField.size(0) != depth || angularObsFreqField.size(1) != height
+            || angularObsFreqField.size(2) != width || angularObsFreqField.size(3) != int64_t(numBinsX * numBinsY)) {
+        sgl::Logfile::get()->throwError(
+                "Error in updateObservationFrequencyFields: angularObsFreqField sizes mismatch.", false);
+    }
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    updateObservationFrequencyFieldsImpl(
+            stream, uint32_t(depth), uint32_t(height), uint32_t(width), uint32_t(numBinsX), uint32_t(numBinsY),
+            vptRenderer->getCameraPosition(), // TODO
+            transmittanceField.data_ptr<float>(),
+            obsFreqField.data_ptr<float>(),
+            angularObsFreqField.data_ptr<float>());
+#else
+    sgl::Logfile::get()->throwError("Error in updateObservationFrequencyFields: No CUDA compatible host compiler used!");
+#endif
+}
+
+void computeEnergy(
+        int64_t numCams, int64_t numBinsX, int64_t numBinsY, double gamma,
+        torch::Tensor obsFreqField, torch::Tensor angularObsFreqField,
+        torch::Tensor occupancyField, torch::Tensor energyTermField) {
+#ifdef CUDA_HOST_COMPILER_COMPATIBLE
+    if (obsFreqField.device().type() != torch::DeviceType::CUDA
+            || angularObsFreqField.device().type() != torch::DeviceType::CUDA
+            || occupancyField.device().type() != torch::DeviceType::CUDA
+            || energyTermField.device().type() != torch::DeviceType::CUDA) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: All tensors must be on a CUDA device.", false);
+    }
+    if (!obsFreqField.is_contiguous()
+            || !angularObsFreqField.is_contiguous()
+            || !occupancyField.is_contiguous()
+            || !energyTermField.is_contiguous()) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: All tensors must be contiguous.", false);
+    }
+    if (obsFreqField.sizes().size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: obsFreqField.sizes().size() != 3.", false);
+    }
+    if (angularObsFreqField.sizes().size() != 4) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: angularObsFreqField.sizes().size() != 3.", false);
+    }
+    if (obsFreqField.dtype() != torch::kFloat32 || angularObsFreqField.dtype() != torch::kFloat32) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: The only data type currently supported is 32-bit float.",
+                false);
+    }
+    const auto depth = obsFreqField.size(0);
+    const auto height = obsFreqField.size(1);
+    const auto width = obsFreqField.size(2);
+    if (angularObsFreqField.size(0) != depth || angularObsFreqField.size(1) != height
+            || angularObsFreqField.size(2) != width || angularObsFreqField.size(3) != int64_t(numBinsX * numBinsY)) {
+        sgl::Logfile::get()->throwError(
+                "Error in computeEnergy: angularObsFreqField sizes mismatch.", false);
+    }
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+    computeEnergyImpl(
+            stream, uint32_t(depth), uint32_t(height), uint32_t(width), float(numBinsX), float(numBinsY),
+            uint32_t(numCams), float(gamma),
+            obsFreqField.data_ptr<float>(),
+            angularObsFreqField.data_ptr<float>(),
+            occupancyField.data_ptr<uint8_t>(),
+            energyTermField.data_ptr<float>());
+#else
+    sgl::Logfile::get()->throwError("Error in computeEnergy: No CUDA compatible host compiler used!");
+#endif
+}
 
 torch::Tensor renderFrameCpu(torch::Tensor inputTensor, int64_t frameCount) {
-    std::cout << "Device type CPU." << std::endl;
+    //std::cout << "Device type CPU." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
     const size_t channels = inputTensor.size(0);
@@ -327,7 +445,7 @@ torch::Tensor renderFrameCpu(torch::Tensor inputTensor, int64_t frameCount) {
 }
 
 torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount) {
-    std::cout << "Device type Vulkan." << std::endl;
+    //std::cout << "Device type Vulkan." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
     const size_t channels = inputTensor.size(0);
@@ -358,7 +476,7 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount) {
 
 #ifdef SUPPORT_CUDA_INTEROP
 torch::Tensor renderFrameCuda(torch::Tensor inputTensor, int64_t frameCount) {
-    std::cout << "Device type CUDA." << std::endl;
+    //std::cout << "Device type CUDA." << std::endl;
 
     // Expecting tensor of size CxHxW (channels x height x width).
     const size_t channels = inputTensor.size(0);
