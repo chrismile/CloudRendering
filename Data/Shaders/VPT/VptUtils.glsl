@@ -834,7 +834,7 @@ vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 
     }
 }
 
-vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha) {
+vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
     // https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
@@ -844,7 +844,7 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha) {
     // Compute spherical angles
     float theta = acos(sqrt((1 - pow(alpha2, (1- u)))/(1-alpha2)));
     float phi = 2 * M_PI * v;
-
+    theta_h = theta;
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
@@ -852,7 +852,7 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha) {
     return lightVector;
 }
 
-vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix) {
+vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h) {
     // https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
@@ -861,6 +861,7 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix) {
     // Compute spherical angles
     float theta = asin(sqrt(u));
     float phi = 2 * M_PI * v;
+    theta_h = theta;
 
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
@@ -869,24 +870,31 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix) {
     return lightVector;
 }
 
-vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector) {
+vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
     float u = random();
     float v = random();
+    float phi = atan((ay/ax) * tan(2*M_PI) * u);
+    float theta = acos(sqrt((1-v)/(1+((cos(phi)*cos(phi)/(ax*ax))+(sin(phi)*sin(phi)/(ay*ay)))*v)));
+    theta_h = theta;
 
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
 }
 
-vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector) {
+vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
     // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
     // Calculate probabilies for sampling the lobes
-    float metal = metallic;
-    float spec = (1.0 - metallic) * specular;
-    float dielectric = (1.0 - specular) * (1.0 - metallic);
+    // Too much diffuse sampling for
+    // metallic = 0.0
+    // roughness approaching 0.0
+    // roughness is not included here
+    
+    float metal = metallic; // -> 0
+    float dielectric = (1.0 - specular) * (1.0 - metallic) * roughness; // -> 1
 
-    float specularW = metal + dielectric;
-    float diffuseW = dielectric;
+    float specularW = metal + (1.0 - dielectric); // -> 
+    float diffuseW = dielectric; // ->
     float clearcoatW = clamp(clearcoat, 0.0, 1.0);
 
     float norm = 1.0/(specularW + diffuseW + clearcoatW);
@@ -898,12 +906,12 @@ vec3 sample_disney2012(float metallic, float specular, float clearcoat, float cl
     float u = random();
 
     if(u < specularP) {
-        return sample_specular_disney(viewVector, frameMatrix, ax, ay, normalVector, tangentVector, bitangentVector);
+        return sample_specular_disney(viewVector, frameMatrix, ax, ay, normalVector, tangentVector, bitangentVector, theta_h);
     } else if (u < specularP + diffuseP) {
-        return sample_diffuse_disney(viewVector, frameMatrix);
+        return sample_diffuse_disney(viewVector, frameMatrix, theta_h);
     } else {
         float alpha = mix(.1, .001, clearcoatGloss);
-        return sample_clearcoat_disney(viewVector, frameMatrix, alpha);
+        return sample_clearcoat_disney(viewVector, frameMatrix, alpha, theta_h);
     }
 }
 
@@ -1008,8 +1016,9 @@ bool getIsoSurfaceHit(
     vec3 normalVector = normalize(surfaceNormal);
     vec3 x = normalize(surfaceTangent);
     vec3 y = normalize(surfaceBitangent);
+    float th;
     
-    vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, viewVector, frame, ax, ay, normalVector, x, y);
+    vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, viewVector, frame, ax, ay, normalVector, x, y, th);
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
@@ -1070,14 +1079,14 @@ bool getIsoSurfaceHit(
         //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
         // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
         // However the sinTheta Termn should usually be needed, theta however it not available in the specular sampling function.
-        vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH / NdotH;
+        vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sin(th)/ NdotH;
 
         // Clearcoat
         float f_clearcoat = mix(0.04,1.0,f_h);
         float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
         float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
         
-        float clear = parameters.clearcoat*f_clearcoat*g_clearcoat*NdotL*VdotH/NdotH;
+        float clear = parameters.clearcoat*f_clearcoat*g_clearcoat*NdotL*VdotH * sin(th)/NdotH;
         // Result
         colorOut = diffuse + specular + clear;
         dirOut = lightVector;
