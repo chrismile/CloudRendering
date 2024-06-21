@@ -90,6 +90,10 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
     blitPrimaryRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Primary");
     blitScatterRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Scatter");
     cameraPoseLinePass = std::make_shared<CameraPoseLinePass>(renderer);
+    if ((vptMode == VptMode::ISOSURFACE_RENDERING || useIsosurfaces) && gridInterpolationType != GridInterpolationType::TRILINEAR) {
+        gridInterpolationType = GridInterpolationType::TRILINEAR;
+        //updateGridSampler();
+    }
 
     createDenoiser();
     updateVptMode();

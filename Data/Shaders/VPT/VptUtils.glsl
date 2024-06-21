@@ -654,9 +654,9 @@ vec3 computeGradient(vec3 texCoords) {
             (sampleIsoImageOffset(texCoords, ivec3(0, 0, -1))
             - sampleIsoImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
 #else
-    const float dx = parameters.voxelTexelSize.x * 1;
-    const float dy = parameters.voxelTexelSize.y * 1;
-    const float dz = parameters.voxelTexelSize.z * 1;
+    const float dx = parameters.voxelTexelSize.x * 0.01;
+    const float dy = parameters.voxelTexelSize.y * 0.01;
+    const float dz = parameters.voxelTexelSize.z * 0.01;
     float gradX =
             (sampleIsoImage(texCoords - vec3(dx, 0.0, 0.0))
             - sampleIsoImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
@@ -670,7 +670,7 @@ vec3 computeGradient(vec3 texCoords) {
 
     vec3 grad = vec3(gradX, gradY, gradZ);
     float gradLength = length(grad);
-    if (gradLength < 1e-3) {
+    if (gradLength < 1e-4) {
         return vec3(0.0, 0.0, 1.0);
     }
     return grad / gradLength;
@@ -769,7 +769,7 @@ float D_GGX(float NdotH, float roughness) {
     return (1 / M_PI) * alpha2 / (b * b);
 }
 
-vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix, out float pdf_ggx) {
+vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
     // https://www.youtube.com/watch?v=MkFS6lw6aEs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
@@ -782,7 +782,7 @@ vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix, out float pd
     float theta = acos(sqrt((1-u)/(u*(alpha2 - 1.0)+1.0)));
     float phi = 2 * M_PI * v;
     
-    pdf_ggx = cos(theta);
+    //pdf_ggx = cos(theta);
     // Compute halfway vector h
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
@@ -791,7 +791,7 @@ vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix, out float pd
     return lightVector;
 }
 
-vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix, inout float pdf_diffuse) {
+vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
     // https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
@@ -802,36 +802,12 @@ vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix, inout float pdf_diffus
     float phi = 2 * M_PI * v;
 
     // pdf
-    pdf_diffuse = (sin(theta)*cos(theta)/M_PI);
+    //pdf_diffuse = (sin(theta)*cos(theta)/M_PI);
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
-}
-
-vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix, inout float pdf_diffuse, inout float pdf_ggx) {
-    // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
-    // Calculate probabilies for sampling the lobes
-    float metal = metallic;
-    float spec = (1.0 - metallic) * specular;
-    float dielectric = (1.0 - specular) * (1.0 - metallic);
-
-    float specularW = metal + dielectric;
-    float diffuseW = dielectric;
-
-    float norm = 1.0/(specularW + diffuseW);
-
-    float specularP = specularW * norm;
-    float diffuseP = diffuseW * norm;
-
-    float u = random();
-
-    if(u < specularP) {
-        return sample_GGX(viewVector, roughness, frameMatrix, pdf_ggx);
-    } else {
-        return sample_Lambertian(viewVector, frameMatrix, pdf_diffuse);
-    }
 }
 
 vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
@@ -882,19 +858,14 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     return lightVector;
 }
 
-vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
+vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, float subsurface, vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
     // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
-    // Calculate probabilies for sampling the lobes
-    // Too much diffuse sampling for
-    // metallic = 0.0
-    // roughness approaching 0.0
-    // roughness is not included here
     
-    float metal = metallic; // -> 0
-    float dielectric = (1.0 - specular) * (1.0 - metallic) * roughness; // -> 1
+    float metal = metallic;
+    float dielectric = (1.0 - specular) * (1.0 - metallic) * roughness;
 
-    float specularW = metal + (1.0 - dielectric); // -> 
-    float diffuseW = dielectric; // ->
+    float specularW = metal + (1.0 - dielectric);
+    float diffuseW = dielectric + subsurface;
     float clearcoatW = clamp(clearcoat, 0.0, 1.0);
 
     float norm = 1.0/(specularW + diffuseW + clearcoatW);
@@ -904,7 +875,6 @@ vec3 sample_disney2012(float metallic, float specular, float clearcoat, float cl
     float clearcoatP = clearcoatW * norm;
 
     float u = random();
-
     if(u < specularP) {
         return sample_specular_disney(viewVector, frameMatrix, ax, ay, normalVector, tangentVector, bitangentVector, theta_h);
     } else if (u < specularP + diffuseP) {
@@ -933,6 +903,98 @@ float G1_GGX_Schlick(float NdotV, float roughness) {
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
 float G_Smith(float NdotV, float NdotL, float roughness) {
     return G1_GGX_Schlick(NdotL, roughness) * G1_GGX_Schlick(NdotV, roughness);
+}
+
+// -------------- BRDF Functions ------------------
+
+// Cook Torrance
+// Sampling
+vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix) {
+    // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
+    // Calculate probabilies for sampling the lobes
+    float metal = metallic;
+    float spec = (1.0 - metallic) * specular;
+    float dielectric = (1.0 - specular) * (1.0 - metallic);
+
+    float specularW = metal + dielectric;
+    float diffuseW = dielectric;
+
+    float norm = 1.0/(specularW + diffuseW);
+
+    float specularP = specularW * norm;
+    float diffuseP = diffuseW * norm;
+
+    float u = random();
+
+    if(u < specularP) {
+        return sample_GGX(viewVector, roughness, frameMatrix);
+    } else {
+        return sample_Lambertian(viewVector, frameMatrix);
+    }
+}
+
+// Evaluation
+vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
+    vec3 halfwayVector = normalize(lightVector + viewVector);
+
+    // ----------- Evaluating the BRDF
+    // Base Angles
+    float NdotH = dot(halfwayVector, normalVector);
+    float LdotH = dot(lightVector, halfwayVector);
+    float VdotN = dot(viewVector, normalVector);
+    float LdotN = dot(lightVector, normalVector);
+    float LdotV = dot(lightVector, normalVector);
+    float VdotH = dot(viewVector, halfwayVector);
+
+    vec3 baseColor = isoSurfaceColorDef;
+    // Diffuse:
+    // Specular F: Schlick Fresnel Approximation
+    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
+    f0 = mix(f0, baseColor, parameters.metallic);
+
+    vec3 F = fresnelSchlick(VdotH, f0);
+    // Specular D: GGX Distribuition
+    
+    float D = D_GGX(NdotH, clamp(parameters.roughness,0.001, 1.0));
+    // Speuclar G: G_Smith with G_1Smith-GGX
+    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.001, 1.0));
+    // Result
+    vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
+    
+    // Diffuse Part
+    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
+    vec3 rhoD = baseColor;
+    
+    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
+    rhoD *= vec3(1.0) - F;
+    rhoD *= (1.0 - parameters.metallic);
+    vec3 diff = rhoD;
+    // Whitout importance sampling: rhoD *= (1.0 / M_PI)
+    //diff /= pdf_diffuse;
+
+    // ----------- Weighting in the PDF
+    vec3 colorOut = diff + spec;
+    return colorOut;
+}
+
+
+// Combined call
+
+vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef) {
+    // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+    // Base Vectors
+    // Sample Cook Torrance BRDF
+    float roughness = clamp(parameters.roughness,0.001, 1.0);
+    vec3 viewVector = normalize(-w);
+    vec3 normalVector = normalize(surfaceNormal);
+
+    // ----------- Importance Sampling
+    // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
+
+    // Sampling and evaluating
+    vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame);
+    directionOut = lightVector;
+    return evaluate_cook_torrance(viewVector, lightVector, normalVector, isoSurfaceColorDef);
 }
 
 #if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
@@ -976,6 +1038,8 @@ bool getIsoSurfaceHit(
     vec3 colorOut;
     vec3 dirOut;
 
+    // frame, surfaceNormal, w, 
+
 // -------------- BRDF ------------------
 
 #ifdef SURFACE_BRDF_LAMBERTIAN
@@ -1018,7 +1082,7 @@ bool getIsoSurfaceHit(
     vec3 y = normalize(surfaceBitangent);
     float th;
     
-    vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, viewVector, frame, ax, ay, normalVector, x, y, th);
+    vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, parameters.subsurface, viewVector, frame, ax, ay, normalVector, x, y, th);
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
@@ -1095,72 +1159,22 @@ bool getIsoSurfaceHit(
 
 #endif
 
+// Cook Torrance BRDF
+
 #ifdef SURFACE_BRDF_COOK_TORRANCE
-    // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-    // Base Vectors
-    // Sample Cook Torrance BRDF
-    float roughness = clamp(parameters.roughness,0.001, 1.0);
-    vec3 viewVector = normalize(-w);
-    vec3 normalVector = normalize(surfaceNormal);
-
-    // ----------- Importance Sampling
-    // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
-    float pdf_ggx;
-    float pdf_diffuse;
-
-    //vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix, inout float pdf_diffuse, inout float pdf_ggx) {
-
-    vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame, pdf_diffuse, pdf_ggx);
-    
-    vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // ----------- Evaluating the BRDF
-    // Base Angles
-    float NdotH = dot(halfwayVector, normalVector);
-    float LdotH = dot(lightVector, halfwayVector);
-    float VdotN = dot(viewVector, normalVector);
-    float LdotN = dot(lightVector, normalVector);
-    float LdotV = dot(lightVector, normalVector);
-    float VdotH = dot(viewVector, halfwayVector);
-
-    vec3 baseColor = isoSurfaceColorDef;
-    // Diffuse:
-    // Specular F: Schlick Fresnel Approximation
-    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
-    f0 = mix(f0, baseColor, parameters.metallic);
-
-    vec3 F = fresnelSchlick(VdotH, f0);
-    // Specular D: GGX Distribuition
-    
-    float D = D_GGX(NdotH, roughness);
-    pdf_ggx *= D;
-    // Speuclar G: G_Smith with G_1Smith-GGX
-    float G = G_Smith(VdotN, LdotN, roughness);
-    // Result
-    vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
-    
-    // Diffuse Part
-    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
-    vec3 rhoD = baseColor;
-    
-    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
-    rhoD *= vec3(1.0) - F;
-    rhoD *= (1.0 - parameters.metallic);
-    vec3 diff = rhoD;
-    // Whitout importance sampling: rhoD *= (1.0 / M_PI)
-    //diff /= pdf_diffuse;
-
-    // ----------- Weighting in the PDF
-    colorOut = diff + spec;
-    dirOut = lightVector;
+    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef);
 #endif
+
+// Next Event Tracking NEE Start
 
 #if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
-        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+        //float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+
+        // NEE Lambertian PDF
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
@@ -1170,6 +1184,7 @@ bool getIsoSurfaceHit(
         float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
+        // NEE Blinn Phong PDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
@@ -1180,12 +1195,15 @@ bool getIsoSurfaceHit(
         //float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
         //weightNee = 1.0;
         //weightOut = 1.0;
+
+        // NEE Lambertian RDF
 #ifdef SURFACE_BRDF_LAMBERTIAN
         //vec3 brdfOut = isoSurfaceColorDef / M_PI;
         //vec3 brdfNee = isoSurfaceColorDef / M_PI;
         vec3 rdfOut = isoSurfaceColorDef / M_PI * thetaOut;
         vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
 #endif
+        // NEE Blinn Phong RDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
         vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
@@ -1203,8 +1221,11 @@ bool getIsoSurfaceHit(
                 throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
     } else {
+    // Abort Next Event Tracking if Skybox sample is behind the surface
+    // Just compute colorOut and no colorNEE
 #endif
 
+// This Part until the } (exclusive) is not part of NEE
 #if defined(SURFACE_BRDF_LAMBERTIAN)
         // Lambertian BRDF is: R / pi
 #ifdef UNIFORM_SAMPLING
@@ -1222,9 +1243,11 @@ bool getIsoSurfaceHit(
         colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
 #endif
 
-#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
+#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     }
 #endif
+// Next Event Tracking NEE End
+
 
     w = dirOut;
     throughput *= colorOut;
