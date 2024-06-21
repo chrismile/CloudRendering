@@ -934,7 +934,53 @@ vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 
 }
 
 // Evaluation
-vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
+vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float pdf) {
+    vec3 halfwayVector = normalize(lightVector + viewVector);
+
+    // ----------- Evaluating the BRDF
+    // Base Angles
+    float NdotH = dot(halfwayVector, normalVector);
+    float LdotH = dot(lightVector, halfwayVector);
+    float VdotN = dot(viewVector, normalVector);
+    float LdotN = dot(lightVector, normalVector);
+    float LdotV = dot(lightVector, normalVector);
+    float VdotH = dot(viewVector, halfwayVector);
+
+    vec3 baseColor = isoSurfaceColorDef;
+    // Diffuse:
+    // Specular F: Schlick Fresnel Approximation
+    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
+    f0 = mix(f0, baseColor, parameters.metallic);
+
+    vec3 F = fresnelSchlick(VdotH, f0);
+    // Specular D: GGX Distribuition
+    
+    float D = D_GGX(NdotH, clamp(parameters.roughness,0.001, 1.0));
+    // Speuclar G: G_Smith with G_1Smith-GGX
+    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.001, 1.0));
+    // Result
+    float sinThetaH = sqrt(1-(NdotH*NdotH));
+    vec3 spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
+    
+    // Diffuse Part
+    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
+    vec3 rhoD = baseColor;
+    rhoD *= sinThetaH * NdotH;
+    
+    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
+    rhoD *= vec3(1.0) - F;
+    rhoD *= (1.0 - parameters.metallic);
+    rhoD *= (1.0 / M_PI);
+
+    vec3 diff = rhoD;
+    //diff /= pdf_diffuse;
+
+    // ----------- Weighting in the PDF
+    vec3 colorOut = diff + spec;
+    return colorOut;
+}
+
+vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // ----------- Evaluating the BRDF
@@ -994,7 +1040,7 @@ vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame
     // Sampling and evaluating
     vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame);
     directionOut = lightVector;
-    return evaluate_cook_torrance(viewVector, lightVector, normalVector, isoSurfaceColorDef);
+    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef);
 }
 
 #if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
@@ -1202,6 +1248,8 @@ bool getIsoSurfaceHit(
         //vec3 brdfNee = isoSurfaceColorDef / M_PI;
         vec3 rdfOut = isoSurfaceColorDef / M_PI * thetaOut;
         vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
+        colorOut = rdfOut / pdfSamplingOut;
+
 #endif
         // NEE Blinn Phong RDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
@@ -1209,6 +1257,7 @@ bool getIsoSurfaceHit(
         vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
         vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
+        colorOut = rdfOut / pdfSamplingOut;
 #endif
 
         //colorOut = rdfOut * weightOut / pdfSamplingOut;
@@ -1216,7 +1265,13 @@ bool getIsoSurfaceHit(
         //        throughput * rdfNee * weightNee / pdfSkyboxNee
         //        * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
         //        * calculateTransmittance(currentPoint, dirSkyboxNee);
-        colorOut = rdfOut / pdfSamplingOut;
+
+#ifdef SURFACE_BRDF_COOK_TORRANCE
+        // TODO: Call brdf for viewVector and vector to sun dirSkyBoxNee, but this must take NEE sampling into account and not the brdf importance sampling
+        // need to create a new function
+        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, pdfSkyboxNee)*dot(dirSkyboxNee, normalize(surfaceNormal));
+#endif
+
         colorNee +=
                 throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
