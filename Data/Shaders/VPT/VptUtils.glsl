@@ -799,18 +799,18 @@ bool getIsoSurfaceHit(
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
-        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+        //float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        //float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #else
-        float pdfSamplingNee = thetaNee / M_PI;
+        //float pdfSamplingNee = thetaNee / M_PI;
         float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
 #ifdef SURFACE_BRDF_BLINN_PHONG
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        //float pdfSamplingNee = 1.0 / (2.0 * M_PI);
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
         //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
