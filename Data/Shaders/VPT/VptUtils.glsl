@@ -743,6 +743,7 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #endif
 
 #define UNIFORM_SAMPLING
+//#define USE_MIS // only for specular BRDF sampling
 
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
@@ -799,26 +800,25 @@ bool getIsoSurfaceHit(
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
-        //float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
-        //float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#ifdef USE_MIS
+        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#endif
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #else
-        //float pdfSamplingNee = thetaNee / M_PI;
+#ifdef USE_MIS
+        float pdfSamplingNee = thetaNee / M_PI;
+#endif
         float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
 #ifdef SURFACE_BRDF_BLINN_PHONG
-        //float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#ifdef USE_MIS
+        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#endif
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
-        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
-        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
-        //float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
-        //float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
-        //weightNee = 1.0;
-        //weightOut = 1.0;
 #ifdef SURFACE_BRDF_LAMBERTIAN
         //vec3 brdfOut = isoSurfaceColorDef / M_PI;
         //vec3 brdfNee = isoSurfaceColorDef / M_PI;
@@ -832,15 +832,34 @@ bool getIsoSurfaceHit(
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
 #endif
 
-        //colorOut = rdfOut * weightOut / pdfSamplingOut;
-        //colorNee +=
-        //        throughput * rdfNee * weightNee / pdfSkyboxNee
-        //        * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
-        //        * calculateTransmittance(currentPoint, dirSkyboxNee);
         colorOut = rdfOut / pdfSamplingOut;
+
+#ifdef USE_MIS
+
+        // NEE with MIS.
+        // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
+        // instead of pdfSamplingOut and pdfSamplingNee.
+        // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
+        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+        float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
+        float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
         colorNee +=
-                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
+                throughput * rdfNee * weightNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+        colorNee +=
+                throughput * rdfOut * weightOut / pdfSamplingOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
+                * (sampleSkybox(dirOut) + sampleLight(dirOut));
+
+#else
+
+        // Normal NEE.
+        colorNee +=
+                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
+                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+
+#endif
     } else {
 #endif
 

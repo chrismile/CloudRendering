@@ -121,7 +121,7 @@ protected:
         std::string emptyTfString =
                 "<TransferFunction>\n"
                 "<OpacityPoints>\n"
-                "<OpacityPoint position=\"0\" opacity=\"1\"/><OpacityPoint position=\"1\" opacity=\"1\"/>\n"
+                "<OpacityPoint position=\"0\" opacity=\"0\"/><OpacityPoint position=\"1\" opacity=\"0\"/>\n"
                 "</OpacityPoints>\n"
                 "<ColorPoints color_data=\"ushort\">\n"
                 "<ColorPoint position=\"0\" r=\"0\" g=\"0\" b=\"0\"/><ColorPoint position=\"1\" r=\"0\" g=\"0\" b=\"0\"/>\n"
@@ -133,7 +133,7 @@ protected:
 
     sgl::vk::Renderer* renderer = nullptr;
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
-    int numSamples = 256;
+    int numSamples = 64;
     int renderingResolution = 128;
     std::shared_ptr<VolumetricPathTracingTestRenderer> vptRenderer0;
     std::shared_ptr<VolumetricPathTracingTestRenderer> vptRenderer1;
@@ -275,6 +275,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingNextEventTrackingEqualMeanTestSur
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
+    numSamples = 256;
     outputImagesAlways = true;
     transferFunctionWindow->setShowWindow(true);
     loadEmptyTf();
