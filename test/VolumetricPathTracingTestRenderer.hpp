@@ -50,6 +50,9 @@ public:
     explicit VolumetricPathTracingTestRenderer(sgl::vk::Renderer* renderer);
     ~VolumetricPathTracingTestRenderer();
 
+    /// Returns the underlying VPT rendering pass.
+    [[nodiscard]] const std::shared_ptr<VolumetricPathTracingPass>& getVptPass() { return vptPass; }
+
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     void setCloudData(const CloudDataPtr& cloudData);
 

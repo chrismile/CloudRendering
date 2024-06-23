@@ -132,6 +132,8 @@ jobs:
           VK_LAYER_PATH=""
           source "VulkanSDK/$(ls VulkanSDK)/setup-env.sh"
         fi
+        mkdir -p ${{github.workspace}}/Data/CloudDataSets/env_maps
+        wget -O ${{github.workspace}}/Data/CloudDataSets/env_maps/small_empty_room_1_1k.exr https://dl.polyhaven.org/file/ph-assets/HDRIs/exr/1k/small_empty_room_1_1k.exr
         ${{github.workspace}}/build/CloudRendering_test
 
     - name: Archive logs and failure case images

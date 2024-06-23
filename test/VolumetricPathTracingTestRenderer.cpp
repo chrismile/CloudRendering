@@ -40,7 +40,7 @@ VolumetricPathTracingTestRenderer::VolumetricPathTracingTestRenderer(sgl::vk::Re
     camera->setYaw(-sgl::PI / 2.0f); //< around y axis
     camera->setPitch(0.0f); //< around x axis
     camera->setPosition(glm::vec3(0.0f, 0.0f, 0.8f));
-    camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
+    camera->setFOVy(std::atan(1.0f / 2.0f) * 4.0f);
     camera->resetLookAtLocation();
 
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
@@ -53,6 +53,7 @@ VolumetricPathTracingTestRenderer::~VolumetricPathTracingTestRenderer() {
         delete[] imageData;
         imageData = nullptr;
     }
+    renderer->getDevice()->waitIdle();
 }
 
 void VolumetricPathTracingTestRenderer::setCloudData(const CloudDataPtr& cloudData) {

@@ -257,12 +257,12 @@ float evaluateSkyboxPDF(vec3 sampledDir) {
 #else
 
 vec3 importanceSampleSkybox(out float pdf) {
-    pdf = 1.0 / (4 * PI);
+    pdf = 1.0 / (4.0 * PI);
     return randomDirection(vec3(1.0, 0.0, 0.0));
 }
 
 float evaluateSkyboxPDF(vec3 sampledDir) {
-    return 1.0 / (4 * PI);
+    return 1.0 / (4.0 * PI);
 }
 
 #endif

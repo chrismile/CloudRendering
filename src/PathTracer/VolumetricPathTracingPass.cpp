@@ -1395,6 +1395,9 @@ void VolumetricPathTracingPass::_render() {
             uniformData.voxelValueMin = 0.0f;
             uniformData.voxelValueMax = 1.0f;
         }
+        if (uniformData.voxelValueMin == uniformData.voxelValueMax) {
+            uniformData.voxelValueMin = 0.0f;
+        }
 
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;
