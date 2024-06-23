@@ -18,7 +18,7 @@ jobs:
       sgl_REPO_DIR: ${{ github.workspace }}/sgl-repo
       sgl_DIR: ${{ github.workspace }}/sgl
       swiftshader_DIR: ${{ github.workspace }}/swiftshader
-      swiftshader_COMMIT_ID: 647d3d24c935c2adb4e7bc5f1ecfe14ab12725d2
+      swiftshader_COMMIT_ID: de870ac7518fe2b6bb651ecc22fc36647cf7b986
 
     steps:
     - uses: actions/checkout@v2
@@ -119,6 +119,7 @@ jobs:
       run: |
         git clone https://github.com/google/swiftshader.git ${{env.swiftshader_DIR}}
         git -C ${{env.swiftshader_DIR}} checkout ${{env.swiftshader_COMMIT_ID}}
+        git -C ${{env.swiftshader_DIR}} submodule update --init
         cmake ${{env.swiftshader_DIR}} -B ${{env.swiftshader_DIR}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         cmake --build ${{env.swiftshader_DIR}}/build --config ${{env.BUILD_TYPE}} --parallel 4
 
