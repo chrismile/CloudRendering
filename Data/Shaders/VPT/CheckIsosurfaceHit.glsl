@@ -45,12 +45,12 @@
                 return vec3(0.0, 0.0, 0.0);
             }
             // TODO: Russian roulette (https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Russian_Roulette_and_Splitting)
-            //float q = max(1.0 - max(weights.r, max(weights.g, weights.b)), 0.0);
-            //if (random() <= q) return vec3(0.0, 0.0, 0.0);
-            //else weights = (weights - q) / (1.0 - q);
-            // TODO: https://www.cg.tuwien.ac.at/sites/default/files/course/4411/attachments/08_next%20event%20estimation.pdf
+            //float maxWeight = max(weights.r, max(weights.g, weights.b));
+            //if (maxWeight < 1e-3) {
+            //float q = 0.5;
             //if (random() <= q) return vec3(0.0, 0.0, 0.0);
             //else weights = weights / (1.0 - q);
+            //}
             continue;
         }
 #endif
