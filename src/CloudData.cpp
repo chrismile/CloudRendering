@@ -67,14 +67,16 @@ void CloudData::computeGridBounds() {
     float sy = float(gridSizeY) * voxelSizeY;
     float sz = float(gridSizeZ) * voxelSizeZ;
     float maxSize = std::max(sx, std::max(sy, sz));
-    boxMax = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
-    boxMin = -boxMax;
+    boxMaxDense = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
+    boxMinDense = -boxMaxDense;
     //uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
     //boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
     //boxMin = -boxMax;
 
-    gridMin = glm::vec3(0,0,0);
-    gridMax = glm::vec3(1,1,1);
+    gridMinDense = glm::vec3(0,0,0);
+    gridMaxDense = glm::vec3(1,1,1);
+    gridMinSparse = glm::vec3(0,0,0);
+    gridMaxSparse = glm::vec3(1,1,1);
 }
 
 void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
@@ -761,6 +763,9 @@ DensityFieldPtr CloudData::getDenseDensityField() {
             return {};
         }
 
+        boxMinDense = boxMinSparse;
+        boxMaxDense = boxMaxSparse;
+
         auto& tree = grid->tree();
         auto minGridVal = grid->indexBBox().min();
         size_t numGridEntries = size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ);
@@ -847,9 +852,9 @@ void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max){
     seqMax = max;
     gotSeqBounds = true;
 
-    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
-    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
-    boxMax = boxMin + (gridMax - gridMin) / (maxDim);
+    float maxDim = std::max(seqMax.x - seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
+    boxMinSparse = (gridMinSparse - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
+    boxMaxSparse = boxMinSparse + (gridMaxSparse - gridMinSparse) / (maxDim);
 }
 
 void CloudData::computeSparseGridMetadata() {
@@ -861,41 +866,48 @@ void CloudData::computeSparseGridMetadata() {
                 "with value type float.");
     }
 
-    gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
-    gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
-    gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
-    voxelSizeX = float(grid->voxelSize()[0]);
-    voxelSizeY = float(grid->voxelSize()[1]);
-    voxelSizeZ = float(grid->voxelSize()[2]);
+    if (!dataSetFromDense) {
+        gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
+        gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
+        gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
+        voxelSizeX = float(grid->voxelSize()[0]);
+        voxelSizeY = float(grid->voxelSize()[1]);
+        voxelSizeZ = float(grid->voxelSize()[2]);
+    }
 
     auto nanoVdbBoundingBox = grid->worldBBox();
-    gridMin = glm::vec3(
+    gridMinSparse = glm::vec3(
             float(nanoVdbBoundingBox.min()[0]),
             float(nanoVdbBoundingBox.min()[1]),
             float(nanoVdbBoundingBox.min()[2]));
-    gridMax = glm::vec3(
+    gridMaxSparse = glm::vec3(
             float(nanoVdbBoundingBox.max()[0]),
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
-    glm::vec3 boundMin = gridMin;
-    glm::vec3 boundMax = gridMax;
+    glm::vec3 boundMin = gridMinSparse;
+    glm::vec3 boundMax = gridMaxSparse;
 
     if (gotSeqBounds) {
         boundMin = seqMin;
         boundMax = seqMax;
     }
 
-    // Normalize bounding box.
-    float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
-    boxMin = (gridMin - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
-    boxMax = boxMin + (gridMax - gridMin) / maxDim;
-    auto totalSize = boxMax - boxMin;
-    boxMax = totalSize * 0.5f;
-    boxMin = -boxMax;
+    if (!dataSetFromDense) {
+        // Normalize bounding box.
+        float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
+        boxMinSparse = (gridMinSparse - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
+        boxMaxSparse = boxMinSparse + (gridMaxSparse - gridMinSparse) / maxDim;
+        auto totalSize = boxMaxSparse - boxMinSparse;
+        boxMaxSparse = totalSize * 0.25f;
+        boxMinSparse = -boxMaxSparse;
+    } else {
+        boxMinSparse = boundMin;
+        boxMaxSparse = boundMax;
+    }
 
-    std::cout << boxMin.x << ", " << boxMin.y << ", " << boxMin.z << std::endl;
-    std::cout << boxMax.x << ", " << boxMax.y << ", " << boxMax.z << std::endl;
+    std::cout << boxMinSparse.x << ", " << boxMinSparse.y << ", " << boxMinSparse.z << std::endl;
+    std::cout << boxMaxSparse.x << ", " << boxMaxSparse.y << ", " << boxMaxSparse.z << std::endl;
 
     printSparseGridMetadata();
 }
@@ -937,11 +949,17 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
             auto maxIdxZ = int32_t(gridSizeZ - 1);
             builder(gridSamplingOperation, nanovdb::CoordBBox(
                     nanovdb::Coord(0), nanovdb::Coord(maxIdxX, maxIdxY, maxIdxZ)));
-            double dx = double(boxMax.x - boxMin.x) / double(gridSizeX);
+            double dx = double(boxMaxDense.x - boxMinDense.x) / double(gridSizeX);
+            double dy = double(boxMaxDense.y - boxMinDense.y) / double(gridSizeY);
+            double dz = double(boxMaxDense.z - boxMinDense.z) / double(gridSizeZ);
+            if (dx != dy || dy != dz) {
+                sgl::Logfile::get()->writeWarning(
+                        "Warning in CloudData::getSparseDensityField: "
+                        "Mismatch in dx, dy, dz, but NanoVDB does not support non-uniform voxel sizes.");
+            }
             sparseGridHandle = builder.getHandle<>(
-                    dx, nanovdb::Vec3d(boxMin.x, boxMin.y, boxMin.z),
+                    dx, nanovdb::Vec3d(boxMinDense.x, boxMinDense.y, boxMinDense.z),
                     gridName, nanovdb::GridClass::FogVolume);
-            printSparseGridMetadata();
 
             /*auto* gridData = sparseGridHandle.grid<float>();
             const auto& rootNode = gridData->tree().getFirstNode<2>();
@@ -963,7 +981,10 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
                 }
             }
         }
+
+        dataSetFromDense = true;
     }
+
     computeSparseGridMetadata();
 
     auto& buffer = sparseGridHandle.buffer();

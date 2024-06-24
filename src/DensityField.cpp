@@ -146,6 +146,10 @@ void DensityField::computeMinMax() {
     }
     minValue = minMaxVal.first;
     maxValue = minMaxVal.second;
+    if (minValue == maxValue) {
+        // Mimic behavior of renderer, where min = 0 is used if the volume is mono-valued.
+        minValue = 0.0f;
+    }
     minMaxComputed = true;
 }
 

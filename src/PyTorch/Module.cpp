@@ -824,7 +824,8 @@ std::vector<int64_t> getVolumeVoxelSize() {
 }
 
 std::vector<double> getRenderBoundingBox() {
-    const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox();
+    const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox(
+            vptRenderer->getVptPass()->getUseSparseGrid());
     return { aabb.min.x, aabb.max.x, aabb.min.y, aabb.max.y, aabb.min.z, aabb.max.z };
 }
 

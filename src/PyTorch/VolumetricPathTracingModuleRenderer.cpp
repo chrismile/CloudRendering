@@ -179,8 +179,13 @@ const CloudDataPtr& VolumetricPathTracingModuleRenderer::getCloudData() {
 void VolumetricPathTracingModuleRenderer::setCloudData(const CloudDataPtr& cloudData) {
     if (storeNextBounds) {
         storeNextBounds = false;
-        seq_bounds_min = cloudData->getWorldSpaceGridMin();
-        seq_bounds_max = cloudData->getWorldSpaceGridMax();
+        if (vptPass->getUseSparseGrid()) {
+            seq_bounds_min = cloudData->getWorldSpaceSparseGridMin();
+            seq_bounds_max = cloudData->getWorldSpaceSparseGridMax();
+        } else {
+            seq_bounds_min = cloudData->getWorldSpaceDenseGridMin();
+            seq_bounds_max = cloudData->getWorldSpaceDenseGridMax();
+        }
         hasStoredBounds = true;
     }
     if (hasStoredBounds) {

@@ -1362,26 +1362,31 @@ void VolumetricPathTracingPass::_render() {
         }
         uniformData.inverseTransposedViewMatrix = glm::transpose(glm::inverse((*camera)->getViewMatrix()));
         uniformData.farDistance = (*camera)->getFarClipDistance();
-        uniformData.boxMin = cloudData->getWorldSpaceBoxMin();
-        uniformData.boxMax = cloudData->getWorldSpaceBoxMax();
+        uniformData.boxMin = cloudData->getWorldSpaceBoxMin(useSparseGrid);
+        uniformData.boxMax = cloudData->getWorldSpaceBoxMax(useSparseGrid);
         if (emissionData){
-            uniformData.emissionBoxMin = emissionData->getWorldSpaceBoxMin();
-            uniformData.emissionBoxMax = emissionData->getWorldSpaceBoxMax();
+            uniformData.emissionBoxMin = emissionData->getWorldSpaceBoxMin(useSparseGrid);
+            uniformData.emissionBoxMax = emissionData->getWorldSpaceBoxMax(useSparseGrid);
         }
         if (flipYZCoordinates){
-            uniformData.boxMin.y = cloudData->getWorldSpaceBoxMin().z;
-            uniformData.boxMin.z = cloudData->getWorldSpaceBoxMin().y;
-            uniformData.boxMax.y = cloudData->getWorldSpaceBoxMax().z;
-            uniformData.boxMax.z = cloudData->getWorldSpaceBoxMax().y;
+            uniformData.boxMin.y = cloudData->getWorldSpaceBoxMin(useSparseGrid).z;
+            uniformData.boxMin.z = cloudData->getWorldSpaceBoxMin(useSparseGrid).y;
+            uniformData.boxMax.y = cloudData->getWorldSpaceBoxMax(useSparseGrid).z;
+            uniformData.boxMax.z = cloudData->getWorldSpaceBoxMax(useSparseGrid).y;
             if (emissionData){
-                uniformData.emissionBoxMin.y = emissionData->getWorldSpaceBoxMin().z;
-                uniformData.emissionBoxMin.z = emissionData->getWorldSpaceBoxMin().y;
-                uniformData.emissionBoxMax.y = emissionData->getWorldSpaceBoxMax().z;
-                uniformData.emissionBoxMax.z = emissionData->getWorldSpaceBoxMax().y;
+                uniformData.emissionBoxMin.y = emissionData->getWorldSpaceBoxMin(useSparseGrid).z;
+                uniformData.emissionBoxMin.z = emissionData->getWorldSpaceBoxMin(useSparseGrid).y;
+                uniformData.emissionBoxMax.y = emissionData->getWorldSpaceBoxMax(useSparseGrid).z;
+                uniformData.emissionBoxMax.z = emissionData->getWorldSpaceBoxMax(useSparseGrid).y;
             }
         }
-        uniformData.gridMin = cloudData->getWorldSpaceGridMin();
-        uniformData.gridMax = cloudData->getWorldSpaceGridMax();
+        if (useSparseGrid) {
+            uniformData.gridMin = cloudData->getWorldSpaceSparseGridMin();
+            uniformData.gridMax = cloudData->getWorldSpaceSparseGridMax();
+        } else {
+            uniformData.gridMin = cloudData->getWorldSpaceDenseGridMin();
+            uniformData.gridMax = cloudData->getWorldSpaceDenseGridMax();
+        }
         if (!useSparseGrid){
             uniformData.gridMin = glm::vec3(0,0,0);
             uniformData.gridMax = glm::vec3(1,1,1);
@@ -1426,8 +1431,8 @@ void VolumetricPathTracingPass::_render() {
             uniformData.voxelTexelSize =
                     glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
         } else {
-            // TODO
-            uniformData.voxelTexelSize = glm::vec3(1e-3);
+            uniformData.voxelTexelSize = glm::vec3(1.0f) / glm::vec3(
+                    cloudData->getGridSizeX() - 1, cloudData->getGridSizeY() - 1, cloudData->getGridSizeZ() - 1);
         }
 
         uniformData.isoSurfaceColor = isoSurfaceColor;

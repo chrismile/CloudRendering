@@ -127,6 +127,7 @@ public:
     void setEmissionData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
     void setUseSparseGrid(bool useSparse);
+    [[nodiscard]] bool getUseSparseGrid() const { return useSparseGrid; }
     void setSparseGridInterpolationType(GridInterpolationType type);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
