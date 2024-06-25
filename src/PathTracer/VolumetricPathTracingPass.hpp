@@ -40,6 +40,10 @@
 
 namespace sgl {
 class PropertyEditor;
+namespace vk {
+class BlitComputePass;
+typedef std::shared_ptr<BlitComputePass> BlitComputePassPtr;
+}
 }
 
 class CloudData;
@@ -231,6 +235,7 @@ private:
     sgl::vk::TexturePtr resultImageTexture;
     sgl::vk::TexturePtr resultTexture;
     sgl::vk::ImageViewPtr denoisedImageView;
+    sgl::vk::TexturePtr denoisedTexture;
     sgl::vk::TexturePtr accImageTexture;
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
@@ -285,6 +290,9 @@ private:
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
+    // Use the two passes below if a compute queue is used and raster-blitting is not available.
+    sgl::vk::BlitComputePassPtr resultImageBlitPass;
+    sgl::vk::BlitComputePassPtr denoisedImageBlitPass;
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
 

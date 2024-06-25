@@ -571,6 +571,9 @@ void initialize() {
 #endif
 
         renderer = new sgl::vk::Renderer(sgl::AppSettings::get()->getPrimaryDevice());
+        if (device->getComputeQueueIndex() != device->getGraphicsQueueIndex()) {
+            renderer->setUseComputeQueue(true);
+        }
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);
 
         // TODO: Make this configurable.

@@ -50,3 +50,21 @@ layout(location = 0) out vec4 fragColor;
 void main() {
     fragColor = texture(inputTexture, fragTexCoord);
 }
+
+-- Compute
+
+#version 450
+
+layout (local_size_x = LOCAL_SIZE_X, local_size_y = LOCAL_SIZE_Y, local_size_z = 1) in;
+
+layout(binding = 0) uniform sampler2D inputTexture;
+layout(binding = 1, OUTPUT_IMAGE_FORMAT) uniform writeonly image2D outputImage;
+
+void main() {
+    ivec2 outputImageSize = imageSize(outputImage);
+    ivec2 imageCoords = ivec2(gl_GlobalInvocationID.xy);
+    if (imageCoords.x >= outputImageSize.x || imageCoords.y >= outputImageSize.y) {
+        return;
+    }
+    imageStore(outputImage, imageCoords, texelFetch(inputTexture, imageCoords, 0));
+}

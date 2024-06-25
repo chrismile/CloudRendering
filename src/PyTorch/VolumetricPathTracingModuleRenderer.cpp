@@ -29,6 +29,7 @@
 #include <Utils/AppSettings.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <Graphics/Vulkan/Render/Passes/Pass.hpp>
+#include <Graphics/Vulkan/Render/Passes/BlitComputePass.hpp>
 #include <ImGui/imgui.h>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 
@@ -136,6 +137,7 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
 
+    renderImageBlitPass = std::make_shared<sgl::vk::BlitComputePass>(renderer);
     convertTransmittanceVolumePass = std::make_shared<ConvertTransmittanceVolumePass>(renderer);
 }
 
@@ -429,6 +431,7 @@ void VolumetricPathTracingModuleRenderer::createCommandStructures(uint32_t numFr
     commandBuffers.clear();
     frameFences.clear();
     sgl::vk::CommandPoolType commandPoolType;
+    commandPoolType.queueFamilyIndex = device->getComputeQueueIndex();
     commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 #ifdef USE_TIMELINE_SEMAPHORES
     renderReadySemaphore = std::make_shared<sgl::vk::SemaphoreVkCudaDriverApiInterop>(
@@ -658,9 +661,19 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt f
                 "Error in VolumetricPathTracingModuleRenderer::getFeatureMapCpu: Transmittance volume "
                 "is currently only supported with CUDA.");
     } else {
-        renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+        if (renderer->getUseGraphicsQueue()) {
+            renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+        } else {
+            renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+            // The commands below only write to the descriptor set when the texture/image changes.
+            // In this case, waitIdle makes sure the descriptor set is not currently in use.
+            renderImageBlitPass->setInputTexture(texture);
+            renderImageBlitPass->setOutputImage(renderImageView);
+            renderImageBlitPass->render();
+        }
 
         renderImageView->getImage()->transitionImageLayout(
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
@@ -760,9 +773,19 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
                 VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
         convertTransmittanceVolumePass->render();
     } else {
-        renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+        if (renderer->getUseGraphicsQueue()) {
+            renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            texture->getImage()->blit(renderImageView->getImage(), renderer->getVkCommandBuffer());
+        } else {
+            renderer->transitionImageLayout(texture->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            renderer->transitionImageLayout(renderImageView->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+            // The commands below only write to the descriptor set when the texture/image changes.
+            // In this case, waitIdle makes sure the descriptor set is not currently in use.
+            renderImageBlitPass->setInputTexture(texture);
+            renderImageBlitPass->setOutputImage(renderImageView);
+            renderImageBlitPass->render();
+        }
 
         renderImageView->getImage()->transitionImageLayout(
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());

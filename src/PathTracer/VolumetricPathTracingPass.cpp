@@ -40,6 +40,7 @@
 #include <Graphics/Vulkan/Buffers/Framebuffer.hpp>
 #include <Graphics/Vulkan/Render/RayTracingPipeline.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
+#include <Graphics/Vulkan/Render/Passes/BlitComputePass.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
@@ -87,6 +88,8 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
     }
 
     blitResultRenderPass = std::make_shared<sgl::vk::BlitRenderPass>(renderer);
+    resultImageBlitPass = std::make_shared<sgl::vk::BlitComputePass>(renderer);
+    denoisedImageBlitPass = std::make_shared<sgl::vk::BlitComputePass>(renderer);
     blitPrimaryRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Primary");
     blitScatterRayMomentTexturePass = std::make_shared<BlitMomentTexturePass>(renderer, "Scatter");
     cameraPoseLinePass = std::make_shared<CameraPoseLinePass>(renderer);
@@ -138,6 +141,7 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
             | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     denoisedImageView = std::make_shared<sgl::vk::ImageView>(
             std::make_shared<sgl::vk::Image>(device, imageSettings));
+    denoisedTexture = std::make_shared<sgl::vk::Texture>(denoisedImageView, sgl::vk::ImageSamplerSettings());
 
     resultImageTexture = std::make_shared<sgl::vk::Texture>(resultImageView, samplerSettings);
 
@@ -160,9 +164,12 @@ void VolumetricPathTracingPass::setOutputImage(sgl::vk::ImageViewPtr& imageView)
 
     blitResultRenderPass->setInputTexture(resultTexture);
     blitResultRenderPass->setOutputImage(imageView);
+    resultImageBlitPass->setInputTexture(resultTexture);
+    resultImageBlitPass->setOutputImage(imageView);
+    denoisedImageBlitPass->setInputTexture(denoisedTexture);
+    denoisedImageBlitPass->setOutputImage(imageView);
     blitPrimaryRayMomentTexturePass->setOutputImage(imageView);
     blitScatterRayMomentTexturePass->setOutputImage(imageView);
-
 
     frameInfo.frameCount = 0;
     setDataDirty();
@@ -1548,22 +1555,38 @@ void VolumetricPathTracingPass::_render() {
                 accumulationTimer->endGPU("denoise");
                 denoiseTimer->endGPU("denoise");
             }
-            renderer->transitionImageLayout(
-                    denoisedImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-            renderer->transitionImageLayout(
-                    sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-            denoisedImageView->getImage()->blit(
-                    sceneImageView->getImage(), renderer->getVkCommandBuffer());
+            if (renderer->getUseGraphicsQueue()) {
+                renderer->transitionImageLayout(
+                        denoisedImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                renderer->transitionImageLayout(
+                        sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                denoisedImageView->getImage()->blit(
+                        sceneImageView->getImage(), renderer->getVkCommandBuffer());
+            } else {
+                renderer->transitionImageLayout(
+                        denoisedImageView->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                renderer->transitionImageLayout(
+                        sceneImageView->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+                denoisedImageBlitPass->render();
+            }
         } else {
             /*renderer->transitionImageLayout(
                     resultImageView->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             blitResultRenderPass->render();*/
-            renderer->transitionImageLayout(
-                    resultImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-            renderer->transitionImageLayout(
-                    sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-            resultImageView->getImage()->blit(
-                    sceneImageView->getImage(), renderer->getVkCommandBuffer());
+            if (renderer->getUseGraphicsQueue()) {
+                renderer->transitionImageLayout(
+                        resultImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                renderer->transitionImageLayout(
+                        sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                resultImageView->getImage()->blit(
+                        sceneImageView->getImage(), renderer->getVkCommandBuffer());
+            } else {
+                renderer->transitionImageLayout(
+                        resultImageView->getImage(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                renderer->transitionImageLayout(
+                        sceneImageView->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+                resultImageBlitPass->render();
+            }
         }
         if (cameraPosesSet) {
             cameraPoseLinePass->setMvpMatrix((*camera)->getViewProjMatrix());
