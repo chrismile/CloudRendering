@@ -321,7 +321,8 @@ void MainApp::renderGui() {
 #endif
                     && !boost::ends_with(filenameLower, ".dat")
                     && !boost::ends_with(filenameLower, ".raw")
-                    && !boost::ends_with(filenameLower, ".mhd")) {
+                    && !boost::ends_with(filenameLower, ".mhd")
+                    && !boost::ends_with(filenameLower, ".nii")) {
                 sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
             }
             customDataSetFileName = filename;
@@ -595,7 +596,7 @@ void MainApp::openFileDialog() {
 #ifdef USE_OPENVDB
             ".vdb,"
 #endif
-            ".dat,.raw,.mhd",
+            ".dat,.raw,.mhd,.nii",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
             ImGuiFileDialogFlags_None);
@@ -819,6 +820,9 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
     }
 
     CloudDataPtr cloudData(new CloudData(&transferFunctionWindow));
+    if (selectedDataSetInformation.axes != glm::ivec3(0, 1, 2)) {
+        cloudData->setTransposeAxes(selectedDataSetInformation.axes);
+    }
 
     if (blockingDataLoading) {
         //bool dataLoaded = cloudData->loadFromFile(fileName, selectedDataSetInformation, transformationMatrixPtr);

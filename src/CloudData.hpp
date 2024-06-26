@@ -97,8 +97,8 @@ public:
     std::shared_ptr<CloudData> getNextCloudDataFrame(){ return nextCloudDataFrame; }
 
     void setClearColor(const sgl::Color& clearColor) {}
-
     void setSeqBounds(glm::vec3 min, glm::vec3 max);
+    void setTransposeAxes(const glm::ivec3& axes);
 
     /**
      * @return An array of size gridSizeX * gridSizeY * gridSizeZ containing the dense data field.
@@ -136,6 +136,11 @@ private:
     glm::vec3 seqMin{}, seqMax{}; // World space bounds of sequence
 
     void computeGridBounds();
+
+    // Data & functions for transposing the field (specified in datasets.json).
+    void transposeIfNecessary();
+    bool transpose = false;
+    glm::ivec3 transposeAxes = glm::ivec3(0, 1, 2);
 
     // --- Dense field. ---
     /**
@@ -177,6 +182,15 @@ private:
      * @return Whether the file was loaded successfully.
      */
     bool loadFromMhdRawFile(const std::string& filename);
+    /**
+     * Loading function for the .nii file format. For more details see
+     * - https://github.com/NIFTI-Imaging/nifti_clib
+     * - https://nifti.nimh.nih.gov/nifti-1/
+     * @param filename The filename of the .mhd file to load.
+     * @return Whether the file was loaded successfully.
+     */
+    bool loadFromNiiFile(const std::string& filename);
+
     DensityFieldPtr densityField{};
 
     // --- Sparse field. ---

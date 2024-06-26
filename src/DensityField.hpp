@@ -38,7 +38,7 @@ class HalfFloat;
 class CloudData;
 
 class DensityField {
-    friend class VolumeData;
+    friend class CloudData;
 public:
     explicit DensityField(size_t numEntries, float* dataFloat)
             : scalarDataFormatNative(ScalarDataFormat::FLOAT), numEntries(numEntries), dataFloat(dataFloat) {}

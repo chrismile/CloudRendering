@@ -109,6 +109,16 @@ void processDataSetNodeChildren(Json::Value& childList, DataSetInformation* data
             continue;
         }
 
+        // Optional data: Transpose axes.
+        if (source.isMember("axes")) {
+            auto axesElement = source["axes"];
+            int dim = 0;
+            for (const auto& axisElement : axesElement) {
+                dataSetInformation->axes[dim] = axisElement.asInt();
+                dim++;
+            }
+        }
+
         // Optional data: Transform.
         dataSetInformation->hasCustomTransform = source.isMember("transform");
         if (dataSetInformation->hasCustomTransform) {
