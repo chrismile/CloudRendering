@@ -197,7 +197,7 @@ private:
     std::string emissionGridFilenameGui;
 
     void updateVptMode();
-    VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
+    VptMode vptMode = VptMode::DELTA_TRACKING;
     CompositionModel compositionModel = CompositionModel::ALPHA_BLENDING; ///< only for VptMode::RAY_MARCHING_EMISSION_ABSORPTION.
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
@@ -304,19 +304,31 @@ private:
     std::vector<bool> featureMapUsedArray;
 
     // Isosurface data.
-    bool useIsosurfaces = false;
-    float isoValue = 0.5f;
+    bool useIsosurfaces = true;
+    float isoValue = 0.3f;
     float isoStepWidth = 0.25f;
     float maxAoDist = 0.05f;
     int numAoSamples = 4;
     bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
-    SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
+    SurfaceBrdf surfaceBrdf = SurfaceBrdf::DISNEY;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
 
     glm::mat4 previousViewProjMatrix;
+
+    // Disney BRDF
+    float subsurface = 0.0;
+    float metallic = 0.0;
+    float specular = 0.5;
+    float specularTint = 0.0;
+    float roughness = 0.5;
+    float anisotropic = 0.0;
+    float sheen = 0.0;
+    float sheenTint = 0.5;
+    float clearcoat = 0.0;
+    float clearcoatGloss = 1.0;
 
     // Uniform buffer object storing the camera settings.
     struct UniformData {
@@ -359,6 +371,18 @@ private:
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;
         int numAoSamples = 4;
+
+        // Disney BRDF
+        float subsurface = 0.0;
+        float metallic = 0.0;
+        float specular = 0.5;
+        float specularTint = 0.0;
+        float roughness = 0.5;
+        float anisotropic = 0.0;
+        float sheen = 0.0;
+        float sheenTint = 0.5;
+        float clearcoat = 0.0;
+        float clearcoatGloss = 1.0;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

@@ -1,0 +1,16 @@
+{
+  "OutputFoldersPerTargetSystem": {
+    "Lokaler Computer": [
+      "out\\build\\x64-Debug",
+      "out\\install\\x64-Debug"
+    ]
+  },
+  "ExpandedNodes": [
+    "",
+    "\\.build",
+    "\\Data\\TransferFunctions",
+    "\\third_party"
+  ],
+  "SelectedNode": "\\third_party",
+  "PreviewInSolutionExplorer": false
+}

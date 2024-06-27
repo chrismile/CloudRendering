@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2022, Christoph Neuhauser
+ * Copyright (c) 2024, Christoph Neuhauser
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,30 +26,20 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "OpenExrLoader.hpp"
+#ifndef CLOUDRENDERING_ENERGYTERM_CUH
+#define CLOUDRENDERING_ENERGYTERM_CUH
 
-#include <OpenEXR/OpenEXRConfig.h>
-#include <OpenEXR/ImfRgbaFile.h>
-#define COMBINED_OPENEXR_VERSION ((10000*OPENEXR_VERSION_MAJOR) + (100*OPENEXR_VERSION_MINOR) + OPENEXR_VERSION_PATCH)
-#if COMBINED_OPENEXR_VERSION >= 20599
-#include <Imath/ImathVec.h>
-//#include <Imath/half.h>
-#else
-#include <OpenEXR/ImathVec.h>
-//#include <OpenEXR/half.h>
-#endif
+#include <cstdint>
+#include <glm/vec3.hpp>
 
-bool loadOpenExrImageFile(const std::string& filename, OpenExrImageInfo& imageInfo) {
-    Imf::RgbaInputFile file(filename.c_str());
-    Imath::Box2i dw = file.dataWindow();
+void updateObservationFrequencyFieldsImpl(
+        cudaStream_t stream, uint32_t depth, uint32_t height, uint32_t width, uint32_t numBinsX, uint32_t numBinsY,
+        const glm::vec3& camPos, const float* transmittanceField, float* obsFreqField, float* angularObsFreqField);
 
-    imageInfo.width = dw.max.x - dw.min.x + 1;
-    imageInfo.height = dw.max.y - dw.min.y + 1;
+void computeEnergyImpl(
+        cudaStream_t stream, uint32_t depth, uint32_t height, uint32_t width, uint32_t numBinsX, uint32_t numBinsY,
+        uint32_t numCams, float gamma,
+        const float* obsFreqField, const float* angularObsFreqField,
+        const uint8_t* occupancyField, float* energyTermField);
 
-    imageInfo.pixelData = new uint16_t[imageInfo.width * imageInfo.height * 4];
-    auto* rgbaData = reinterpret_cast<Imf::Rgba*>(imageInfo.pixelData);
-    file.setFrameBuffer(rgbaData - dw.min.x - dw.min.y * imageInfo.width, 1, imageInfo.width);
-    file.readPixels(dw.min.y, dw.max.y);
-
-    return true;
-}
+#endif //CLOUDRENDERING_ENERGYTERM_CUH

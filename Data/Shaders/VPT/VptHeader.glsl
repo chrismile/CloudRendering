@@ -86,6 +86,18 @@ layout (binding = 3) uniform Parameters {
     float isoStepWidth;
     float maxAoDist;
     int numAoSamples;
+
+    // Disney BRDF
+    float subsurface;
+    float metallic;
+    float specular;
+    float specularTint;
+    float roughness;
+    float anisotropic;
+    float sheen;
+    float sheenTint;
+    float clearcoat;
+    float clearcoatGloss;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {
