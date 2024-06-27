@@ -1213,7 +1213,7 @@ bool getIsoSurfaceHit(
 
 // Next Event Tracking NEE Start
 
-#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_COOK_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
@@ -1271,9 +1271,9 @@ bool getIsoSurfaceHit(
         // need to create a new function
         vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, pdfSkyboxNee)*dot(dirSkyboxNee, normalize(surfaceNormal));
 #endif
-
+        //colorOut = colorOut;
         colorNee +=
-                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint, dirSkyboxNee)
+                throughput * (rdfNee / pdfSkyboxNee) * calculateTransmittance(currentPoint, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
     } else {
     // Abort Next Event Tracking if Skybox sample is behind the surface
@@ -1298,7 +1298,7 @@ bool getIsoSurfaceHit(
         colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
 #endif
 
-#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_COOK_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     }
 #endif
 // Next Event Tracking NEE End
