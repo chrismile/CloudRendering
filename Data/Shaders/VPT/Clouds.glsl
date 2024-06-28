@@ -134,7 +134,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     if (!onlyFirstEvent) {
 #ifdef WRITE_CLOUDONLY_MAP
         // Accumulate cloudOnly
-#ifdef USE_RAY_MARCHING_EMISSION_ABSORPTION
+#if defined(USE_RAY_MARCHING_EMISSION_ABSORPTION) && !defined(WRITE_TRANSMITTANCE_VOLUME)
         vec4 cloudOnly = firstEvent.hasValue ? colorRayOut : vec4(0);
 #else
         vec4 cloudOnly = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
@@ -165,7 +165,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         imageStore(accImage, imageCoord, vec4(result, 1));
         imageStore(resultImage, imageCoord, vec4(result, 1));
 #else
-#ifdef USE_RAY_MARCHING_EMISSION_ABSORPTION
+#if defined(USE_RAY_MARCHING_EMISSION_ABSORPTION) && !defined(WRITE_TRANSMITTANCE_VOLUME)
         vec4 resultRgba = firstEvent.hasValue ? colorRayOut : vec4(0);
 #else
         vec4 resultRgba = firstEvent.hasValue ? vec4(result, 1) : vec4(0);
