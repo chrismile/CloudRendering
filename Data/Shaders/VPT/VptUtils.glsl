@@ -913,10 +913,10 @@ vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 
     // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
     // Calculate probabilies for sampling the lobes
     float metal = metallic;
-    float spec = (1.0 - metallic) * specular;
-    float dielectric = (1.0 - specular) * (1.0 - metallic);
+    float spec = (1.0 - roughness) * (1.0 + specular);
+    float dielectric = (1.0 - metallic);
 
-    float specularW = metal + dielectric;
+    float specularW = metal + spec;
     float diffuseW = dielectric;
 
     float norm = 1.0/(specularW + diffuseW);
@@ -957,9 +957,9 @@ vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector
     vec3 F = fresnelSchlick(VdotH, f0);
     // Specular D: GGX Distribuition
     
-    float D = D_GGX(NdotH, clamp(parameters.roughness,0.001, 1.0));
+    float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
     // Speuclar G: G_Smith with G_1Smith-GGX
-    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.001, 1.0));
+    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
     // Result
     float sinThetaH = sqrt(1-(NdotH*NdotH));
     vec3 spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
@@ -1003,9 +1003,9 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
     vec3 F = fresnelSchlick(VdotH, f0);
     // Specular D: GGX Distribuition
     
-    float D = D_GGX(NdotH, clamp(parameters.roughness,0.001, 1.0));
+    float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
     // Speuclar G: G_Smith with G_1Smith-GGX
-    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.001, 1.0));
+    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
     // Result
     vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
     
@@ -1036,11 +1036,11 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
 
 // Combined call
 
-vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float pdfSamplingOut) {
+vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float pdfSamplingOut, out bool specularHit) {
     // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
     // Base Vectors
     // Sample Cook Torrance BRDF
-    float roughness = clamp(parameters.roughness,0.001, 1.0);
+    float roughness = clamp(parameters.roughness,0.05, 1.0);
     vec3 viewVector = normalize(-w);
     vec3 normalVector = normalize(surfaceNormal);
 
@@ -1048,7 +1048,6 @@ vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame
     // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
 
     // Sampling and evaluating
-    bool specularHit;
     vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame, specularHit);
     directionOut = lightVector;
     return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, pdfSamplingOut);
@@ -1073,6 +1072,7 @@ bool getIsoSurfaceHit(
         , inout vec3 colorNee
 #endif
 ) {
+    bool useMIS = false;
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
@@ -1220,8 +1220,18 @@ bool getIsoSurfaceHit(
 // Cook Torrance BRDF
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
+    bool specularHit;
     float pdfSamplingOut;
-    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, pdfSamplingOut);
+    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, pdfSamplingOut, specularHit);
+    
+    #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+        if(specularHit == true) {
+            useMIS = true;
+        } else {
+            useMIS = false;
+        }
+    #endif
+
 #endif
 
 // Next Event Tracking NEE Start
@@ -1234,22 +1244,25 @@ bool getIsoSurfaceHit(
 
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
-#ifdef USE_MIS
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
-#endif
+        float pdfSamplingNee;
+        if(useMIS) {
+            pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        }
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #else
-#ifdef USE_MIS
-        float pdfSamplingNee = thetaNee / M_PI;
-#endif
+        float pdfSamplingNee;
+        if(useMIS) {
+            pdfSamplingNee = thetaNee / M_PI;
+        }
         float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
         // NEE Blinn Phong PDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
-#ifdef USE_MIS
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
-#endif
+        float pdfSamplingNee;
+        if(useMIS) {
+            pdfSamplingNee = 1.0 / (2.0 * M_PI);
+        }
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
 
@@ -1279,9 +1292,8 @@ bool getIsoSurfaceHit(
 #endif
         //colorOut = rdfOut / pdfSamplingOut;
 
-#ifdef USE_MIS
-
-        // NEE with MIS.
+if(useMIS){
+     // NEE with MIS.
         // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
         // instead of pdfSamplingOut and pdfSamplingNee.
         // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
@@ -1296,15 +1308,12 @@ bool getIsoSurfaceHit(
         colorNee +=
                 throughput * weightOut * colorOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
                 * (sampleSkybox(dirOut) + sampleLight(dirOut));
-
-#else
-
-        // Normal NEE.
+} else {
+    // Normal NEE.
         colorNee +=
                 throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
-
-#endif
+}
     } else {
     // Abort Next Event Tracking if Skybox sample is behind the surface
     // Just compute colorOut and no colorNEE
