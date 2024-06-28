@@ -909,7 +909,7 @@ float G_Smith(float NdotV, float NdotL, float roughness) {
 
 // Cook Torrance
 // Sampling
-vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix) {
+vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix, out bool specularHit) {
     // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
     // Calculate probabilies for sampling the lobes
     float metal = metallic;
@@ -927,8 +927,10 @@ vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 
     float u = random();
 
     if(u < specularP) {
+        specularHit = true;
         return sample_GGX(viewVector, roughness, frameMatrix);
     } else {
+        specularHit = false;
         return sample_Lambertian(viewVector, frameMatrix);
     }
 }
@@ -980,7 +982,7 @@ vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector
     return colorOut;
 }
 
-vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
+vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, bool specularHit, out float pdfSamplingOut) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // ----------- Evaluating the BRDF
@@ -1017,6 +1019,14 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
     vec3 diff = rhoD;
     // Whitout importance sampling: rhoD *= (1.0 / M_PI)
     //diff /= pdf_diffuse;
+    float sinThetaH = sqrt(1-(NdotH*NdotH));
+    float cosThetaH = NdotH;
+
+    if (specularHit) {
+        pdfSamplingOut = D * sinThetaH * cosThetaH;
+    } else {
+        pdfSamplingOut = (1.0/M_PI) * sinThetaH * cosThetaH;
+    }
 
     // ----------- Weighting in the PDF
     vec3 colorOut = diff + spec;
@@ -1026,7 +1036,7 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
 
 // Combined call
 
-vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef) {
+vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float pdfSamplingOut) {
     // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
     // Base Vectors
     // Sample Cook Torrance BRDF
@@ -1038,9 +1048,10 @@ vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame
     // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
 
     // Sampling and evaluating
-    vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame);
+    bool specularHit;
+    vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame, specularHit);
     directionOut = lightVector;
-    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef);
+    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, pdfSamplingOut);
 }
 
 #if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
@@ -1209,12 +1220,13 @@ bool getIsoSurfaceHit(
 // Cook Torrance BRDF
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
-    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef);
+    float pdfSamplingOut;
+    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, pdfSamplingOut);
 #endif
 
 // Next Event Tracking NEE Start
 
-#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_COOK_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+#if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfSkyboxNee;
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
@@ -1262,6 +1274,8 @@ bool getIsoSurfaceHit(
         // TODO: Call brdf for viewVector and vector to sun dirSkyBoxNee, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
         vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, pdfSkyboxNee)*dot(dirSkyboxNee, normalize(surfaceNormal));
+        // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
+        float pdfSamplingNee = pdfSamplingOut;
 #endif
         //colorOut = rdfOut / pdfSamplingOut;
 
@@ -1280,7 +1294,7 @@ bool getIsoSurfaceHit(
                 throughput * rdfNee * weightNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
         colorNee +=
-                throughput * rdfOut * weightOut / pdfSamplingOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
+                throughput * weightOut * colorOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
                 * (sampleSkybox(dirOut) + sampleLight(dirOut));
 
 #else
@@ -1314,7 +1328,7 @@ bool getIsoSurfaceHit(
         colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
 #endif
 
-#if !defined(SURFACE_BRDF_DISNEY) && !defined(SURFACE_BRDF_COOK_TORRANCE) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+#if !defined(SURFACE_BRDF_DISNEY) && (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     }
 #endif
 // Next Event Tracking NEE End
