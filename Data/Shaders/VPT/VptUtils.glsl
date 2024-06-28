@@ -847,12 +847,15 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h)
 }
 
 vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
-    float u = random();
-    float v = random();
-    float phi = atan((ay/ax) * tan(2*M_PI) * u);
+    float u = clamp(random(),0.05, 0.95);
+    float v = clamp(random(),0.05, 0.95);
+    float phi = atan((ay/ax) * tan(2*M_PI*u));
     float theta = acos(sqrt((1-v)/(1+((cos(phi)*cos(phi)/(ax*ax))+(sin(phi)*sin(phi)/(ay*ay)))*v)));
     theta_h = theta;
 
+    // Pronblem:
+    // sqrt macht Problem für negativ
+    // NMormalize macht problem für nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
