@@ -71,10 +71,10 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 #ifdef USE_TRANSFER_FUNCTION
             vec4 densityEmission = sampleCloudDensityEmission(x);
             float density = densityEmission.a;
-            scatteringAlbedo = densityEmission.rgb;
-            absorptionAlbedo = vec3(1) - scatteringAlbedo;
-            float PA = maxComponent(absorptionAlbedo * parameters.extinction);
-            float PS = maxComponent(scatteringAlbedo * parameters.extinction);
+            //scatteringAlbedo = densityEmission.rgb;
+            //absorptionAlbedo = vec3(1) - scatteringAlbedo;
+            //float PA = maxComponent(absorptionAlbedo * parameters.extinction);
+            //float PS = maxComponent(scatteringAlbedo * parameters.extinction);
 #else
             float density = sampleCloud(xNew);
 #endif
@@ -178,7 +178,10 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
         }
     }
 
-    return color + bw_phase * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
+    if (!firstEvent.hasValue){
+        color += bw_phase * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(w) + sampleLight(w));
+    }
+    return color;
 }
 #endif
 

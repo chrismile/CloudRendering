@@ -323,7 +323,7 @@ vec3 analogDecompositionTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
                 if (t_c <= t_r) {
                     isCollision = true;
                 } else {
-                    float density = sampleCloud(accessor, xs);
+                    float density = sampleCloud(xs);
                     isCollision = random() * majorant_r_local < parameters.extinction.x * density - mu_c_t;
                 }
 

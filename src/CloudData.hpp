@@ -71,12 +71,24 @@ public:
     [[nodiscard]] inline uint32_t getGridSizeY() const { return gridSizeY; }
     [[nodiscard]] inline uint32_t getGridSizeZ() const { return gridSizeZ; }
 
-    [[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMin() const { return boxMin; }
-    [[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMax() const { return boxMax; }
-    [[nodiscard]] inline sgl::AABB3 getWorldSpaceBoundingBox() const { return sgl::AABB3(boxMin, boxMax); }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMin(bool _useSparse) const { return _useSparse ? boxMinSparse : boxMinDense; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMax(bool _useSparse) const { return _useSparse ? boxMaxSparse : boxMaxDense; }
+    [[nodiscard]] inline sgl::AABB3 getWorldSpaceBoundingBox(bool _useSparse) const {
+        return {getWorldSpaceBoxMin(_useSparse), getWorldSpaceBoxMax(_useSparse)};
+    }
+    [[nodiscard]] inline sgl::AABB3 getWorldSpaceBoundingBox() const {
+        return getWorldSpaceBoundingBox(!hasDenseData());
+    }
+    //[[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMin() const { return boxMin; }
+    //[[nodiscard]] inline const glm::vec3& getWorldSpaceBoxMax() const { return boxMax; }
+    //[[nodiscard]] inline sgl::AABB3 getWorldSpaceBoundingBox() const { return sgl::AABB3(boxMin, boxMax); }
 
-    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMin() const { return gridMin; }
-    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMax() const { return gridMax; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMin(bool _useSparse) const { return _useSparse ? gridMinSparse : gridMinDense; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceGridMax(bool _useSparse) const { return _useSparse ? gridMaxSparse : gridMaxDense; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceDenseGridMin() const { return gridMinDense; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceDenseGridMax() const { return gridMaxDense; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceSparseGridMin() const { return gridMinSparse; }
+    [[nodiscard]] inline const glm::vec3& getWorldSpaceSparseGridMax() const { return gridMaxSparse; }
 
     void setNextCloudDataFrame(std::shared_ptr<CloudData>nextFrame) {
         nextCloudDataFrame = nextFrame;
@@ -85,8 +97,8 @@ public:
     std::shared_ptr<CloudData> getNextCloudDataFrame(){ return nextCloudDataFrame; }
 
     void setClearColor(const sgl::Color& clearColor) {}
-
     void setSeqBounds(glm::vec3 min, glm::vec3 max);
+    void setTransposeAxes(const glm::ivec3& axes);
 
     /**
      * @return An array of size gridSizeX * gridSizeY * gridSizeZ containing the dense data field.
@@ -116,12 +128,19 @@ private:
     std::string gridFilename, gridName;
     uint32_t gridSizeX = 0, gridSizeY = 0, gridSizeZ = 0;
     float voxelSizeX = 0.0f, voxelSizeY = 0.0f, voxelSizeZ = 0.0f;
-    glm::vec3 boxMin{}, boxMax{}; // Box in which to render
-    glm::vec3 gridMin{}, gridMax{}; // Box from which to sample density values. (0,0,0) to (1,1,1) for dense
+    glm::vec3 boxMinDense{}, boxMaxDense{}; // Box in which to render
+    glm::vec3 boxMinSparse{}, boxMaxSparse{}; // Box in which to render
+    glm::vec3 gridMinDense{}, gridMaxDense{}; // Box from which to sample density values. (0,0,0) to (1,1,1) for dense.
+    glm::vec3 gridMinSparse{}, gridMaxSparse{}; // Box from which to sample density values.
     bool gotSeqBounds = false;
     glm::vec3 seqMin{}, seqMax{}; // World space bounds of sequence
 
     void computeGridBounds();
+
+    // Data & functions for transposing the field (specified in datasets.json).
+    void transposeIfNecessary();
+    bool transpose = false;
+    glm::ivec3 transposeAxes = glm::ivec3(0, 1, 2);
 
     // --- Dense field. ---
     /**
@@ -163,6 +182,15 @@ private:
      * @return Whether the file was loaded successfully.
      */
     bool loadFromMhdRawFile(const std::string& filename);
+    /**
+     * Loading function for the .nii file format. For more details see
+     * - https://github.com/NIFTI-Imaging/nifti_clib
+     * - https://nifti.nimh.nih.gov/nifti-1/
+     * @param filename The filename of the .mhd file to load.
+     * @return Whether the file was loaded successfully.
+     */
+    bool loadFromNiiFile(const std::string& filename);
+
     DensityFieldPtr densityField{};
 
     // --- Sparse field. ---
@@ -175,6 +203,7 @@ private:
     void printSparseGridMetadata();
     nanovdb::GridHandle<nanovdb::HostBuffer> sparseGridHandle;
     bool cacheSparseGrid = false;
+    bool dataSetFromDense = false; //< Whether the sparse data was computed from a dense field on-the-fly.
 
 #ifdef USE_OPENVDB
     /**

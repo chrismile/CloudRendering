@@ -62,12 +62,14 @@ float sampleCloud(in ivec3 voxelCoord) {
     return sampleGridImage(voxelCoord).r;
 }
 
+#ifdef USE_TRANSFER_FUNCTION
 vec4 sampleCloudDensityEmission(in ivec3 voxelCoord) {
     // Idea: Returns (color.rgb, density).
     float densityRaw = sampleCloud(voxelCoord);
     //return texture(transferFunctionTexture, densityRaw);
     return texture(transferFunctionTexture, vec2(densityRaw, 0.0));
 }
+#endif
 
 #if defined(ISOSURFACE_TYPE_DENSITY)
 #define sampleCloudIso sampleCloud

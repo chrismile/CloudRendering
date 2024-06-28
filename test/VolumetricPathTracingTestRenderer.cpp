@@ -53,6 +53,7 @@ VolumetricPathTracingTestRenderer::~VolumetricPathTracingTestRenderer() {
         delete[] imageData;
         imageData = nullptr;
     }
+    renderer->getDevice()->waitIdle();
 }
 
 void VolumetricPathTracingTestRenderer::setCloudData(const CloudDataPtr& cloudData) {

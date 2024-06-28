@@ -44,6 +44,13 @@
             if (weights.r < 1e-3 && weights.g < 1e-3 && weights.b < 1e-3) {
                 return vec3(0.0, 0.0, 0.0);
             }
+            // TODO: Russian roulette (https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Russian_Roulette_and_Splitting)
+            //float maxWeight = max(weights.r, max(weights.g, weights.b));
+            //if (maxWeight < 1e-3) {
+            //float q = 0.5;
+            //if (random() <= q) return vec3(0.0, 0.0, 0.0);
+            //else weights = weights / (1.0 - q);
+            //}
             continue;
         }
 #endif

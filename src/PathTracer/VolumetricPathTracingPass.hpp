@@ -40,6 +40,10 @@
 
 namespace sgl {
 class PropertyEditor;
+namespace vk {
+class BlitComputePass;
+typedef std::shared_ptr<BlitComputePass> BlitComputePassPtr;
+}
 }
 
 class CloudData;
@@ -127,6 +131,7 @@ public:
     void setEmissionData(const CloudDataPtr& data);
     void setVptMode(VptMode vptMode);
     void setUseSparseGrid(bool useSparse);
+    [[nodiscard]] bool getUseSparseGrid() const { return useSparseGrid; }
     void setSparseGridInterpolationType(GridInterpolationType type);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
@@ -230,6 +235,7 @@ private:
     sgl::vk::TexturePtr resultImageTexture;
     sgl::vk::TexturePtr resultTexture;
     sgl::vk::ImageViewPtr denoisedImageView;
+    sgl::vk::TexturePtr denoisedTexture;
     sgl::vk::TexturePtr accImageTexture;
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
@@ -284,6 +290,9 @@ private:
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
+    // Use the two passes below if a compute queue is used and raster-blitting is not available.
+    sgl::vk::BlitComputePassPtr resultImageBlitPass;
+    sgl::vk::BlitComputePassPtr denoisedImageBlitPass;
     std::shared_ptr<BlitMomentTexturePass> blitPrimaryRayMomentTexturePass;
     std::shared_ptr<BlitMomentTexturePass> blitScatterRayMomentTexturePass;
 

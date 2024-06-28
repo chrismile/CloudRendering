@@ -46,6 +46,10 @@ enum class GridInterpolationType;
 namespace sgl {
 class Camera;
 typedef std::shared_ptr<Camera> CameraPtr;
+namespace vk {
+class BlitComputePass;
+typedef std::shared_ptr<BlitComputePass> BlitComputePassPtr;
+}
 }
 
 class ConvertTransmittanceVolumePass : public sgl::vk::ComputePass {
@@ -179,6 +183,7 @@ private:
     bool isDenoiserDirty = false;
 
     sgl::vk::ImageViewPtr renderImageView;
+    sgl::vk::BlitComputePassPtr renderImageBlitPass;
     uint32_t numChannels = 0;
     caffe2::TypeMeta dtype;
     c10::DeviceType deviceType;

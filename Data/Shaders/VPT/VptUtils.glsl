@@ -257,12 +257,12 @@ float evaluateSkyboxPDF(vec3 sampledDir) {
 #else
 
 vec3 importanceSampleSkybox(out float pdf) {
-    pdf = 1.0 / (4 * PI);
+    pdf = 1.0 / (4.0 * PI);
     return randomDirection(vec3(1.0, 0.0, 0.0));
 }
 
 float evaluateSkyboxPDF(vec3 sampledDir) {
-    return 1.0 / (4 * PI);
+    return 1.0 / (4.0 * PI);
 }
 
 #endif
@@ -1054,6 +1054,7 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #endif
 
 #define UNIFORM_SAMPLING
+//#define USE_MIS // only for specular BRDF sampling
 
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
@@ -1218,31 +1219,28 @@ bool getIsoSurfaceHit(
     vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
     if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
         float thetaNee = dot(surfaceNormal, dirSkyboxNee);
-        //float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
 
-        // NEE Lambertian PDF
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
+#ifdef USE_MIS
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#endif
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #else
+#ifdef USE_MIS
         float pdfSamplingNee = thetaNee / M_PI;
+#endif
         float pdfSamplingOut = thetaOut / M_PI;
 #endif
 #endif
         // NEE Blinn Phong PDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
+#ifdef USE_MIS
         float pdfSamplingNee = 1.0 / (2.0 * M_PI);
+#endif
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
 #endif
-        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
-        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
-        //float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
-        //float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
-        //weightNee = 1.0;
-        //weightOut = 1.0;
 
-        // NEE Lambertian RDF
 #ifdef SURFACE_BRDF_LAMBERTIAN
         //vec3 brdfOut = isoSurfaceColorDef / M_PI;
         //vec3 brdfNee = isoSurfaceColorDef / M_PI;
@@ -1260,21 +1258,39 @@ bool getIsoSurfaceHit(
         colorOut = rdfOut / pdfSamplingOut;
 #endif
 
-        //colorOut = rdfOut * weightOut / pdfSamplingOut;
-        //colorNee +=
-        //        throughput * rdfNee * weightNee / pdfSkyboxNee
-        //        * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee))
-        //        * calculateTransmittance(currentPoint, dirSkyboxNee);
-
 #ifdef SURFACE_BRDF_COOK_TORRANCE
         // TODO: Call brdf for viewVector and vector to sun dirSkyBoxNee, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
         vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, pdfSkyboxNee)*dot(dirSkyboxNee, normalize(surfaceNormal));
 #endif
-        //colorOut = colorOut;
+        //colorOut = rdfOut / pdfSamplingOut;
+
+#ifdef USE_MIS
+
+        // NEE with MIS.
+        // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
+        // instead of pdfSamplingOut and pdfSamplingNee.
+        // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
+        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+        float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
+        float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
         colorNee +=
-                throughput * (rdfNee / pdfSkyboxNee) * calculateTransmittance(currentPoint, dirSkyboxNee)
+                throughput * rdfNee * weightNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
                 * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+        colorNee +=
+                throughput * rdfOut * weightOut / pdfSamplingOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
+                * (sampleSkybox(dirOut) + sampleLight(dirOut));
+
+#else
+
+        // Normal NEE.
+        colorNee +=
+                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
+                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+
+#endif
     } else {
     // Abort Next Event Tracking if Skybox sample is behind the surface
     // Just compute colorOut and no colorNEE

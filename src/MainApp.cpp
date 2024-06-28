@@ -310,22 +310,17 @@ void MainApp::renderGui() {
             filename += selection.table[0].fileName;
             IGFD_Selection_DestroyContent(&selection);
 
-            fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(filename);
-
             std::string filenameLower = boost::to_lower_copy(filename);
-            selectedDataSetIndex = 0;
-            if (!boost::ends_with(filenameLower, ".xyz")
-                    && !boost::ends_with(filenameLower, ".nvdb")
-#ifdef USE_OPENVDB
-                    && !boost::ends_with(filenameLower, ".vdb")
-#endif
-                    && !boost::ends_with(filenameLower, ".dat")
-                    && !boost::ends_with(filenameLower, ".raw")
-                    && !boost::ends_with(filenameLower, ".mhd")) {
-                sgl::Logfile::get()->writeError("The selected file name has an unknown extension.");
+            if (checkHasValidExtension(filenameLower)) {
+                fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(filename);
+                selectedDataSetIndex = 0;
+                customDataSetFileName = filename;
+                loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetFilename());
+            } else {
+                sgl::Logfile::get()->writeError(
+                        "The dropped file name has an unknown extension \""
+                        + sgl::FileUtils::get()->getFileExtension(filenameLower) + "\".");
             }
-            customDataSetFileName = filename;
-            loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetFilename());
         }
         IGFD_CloseDialog(fileDialogInstance);
     }
@@ -595,7 +590,7 @@ void MainApp::openFileDialog() {
 #ifdef USE_OPENVDB
             ".vdb,"
 #endif
-            ".dat,.raw,.mhd",
+            ".dat,.raw,.mhd,.nii",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
             ImGuiFileDialogFlags_None);
@@ -790,6 +785,37 @@ void MainApp::hasMoved() {
 void MainApp::onCameraReset() {
 }
 
+bool MainApp::checkHasValidExtension(const std::string& filenameLower) {
+    if (boost::ends_with(filenameLower, ".xyz")
+            || boost::ends_with(filenameLower, ".nvdb")
+#ifdef USE_OPENVDB
+            || boost::ends_with(filenameLower, ".vdb")
+#endif
+            || boost::ends_with(filenameLower, ".dat")
+            || boost::ends_with(filenameLower, ".raw")
+            || boost::ends_with(filenameLower, ".mhd")
+            || boost::ends_with(filenameLower, ".nii")) {
+        return true;
+    }
+    return false;
+}
+
+void MainApp::onFileDropped(const std::string& droppedFileName) {
+    std::string filenameLower = boost::to_lower_copy(droppedFileName);
+    if (checkHasValidExtension(filenameLower)) {
+        device->waitIdle();
+        fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(droppedFileName);
+        selectedDataSetIndex = 0;
+        customDataSetFileName = droppedFileName;
+        loadCloudDataSet(getSelectedDataSetFilename(), getSelectedDataSetFilename());
+    } else {
+        sgl::Logfile::get()->writeError(
+                "The dropped file name has an unknown extension \""
+                + sgl::FileUtils::get()->getFileExtension(filenameLower) + "\".");
+    }
+}
+
+
 
 // --- Visualization pipeline ---
 
@@ -819,6 +845,9 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
     }
 
     CloudDataPtr cloudData(new CloudData(&transferFunctionWindow));
+    if (selectedDataSetInformation.axes != glm::ivec3(0, 1, 2)) {
+        cloudData->setTransposeAxes(selectedDataSetInformation.axes);
+    }
 
     if (blockingDataLoading) {
         //bool dataLoaded = cloudData->loadFromFile(fileName, selectedDataSetInformation, transformationMatrixPtr);

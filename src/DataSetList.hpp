@@ -52,6 +52,9 @@ struct DataSetInformation {
     std::vector<DataSetInformationPtr> children;
     int sequentialIndex = 0;
 
+    // Can be used for transposing axes.
+    glm::ivec3 axes = { 0, 1, 2 };
+
     // Optional attributes.
     bool hasCustomTransform = false;
     glm::mat4 transformMatrix = sgl::matrixIdentity();

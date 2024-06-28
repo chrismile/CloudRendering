@@ -571,6 +571,9 @@ void initialize() {
 #endif
 
         renderer = new sgl::vk::Renderer(sgl::AppSettings::get()->getPrimaryDevice());
+        if (device->getComputeQueueIndex() != device->getGraphicsQueueIndex()) {
+            renderer->setUseComputeQueue(true);
+        }
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);
 
         // TODO: Make this configurable.
@@ -824,7 +827,8 @@ std::vector<int64_t> getVolumeVoxelSize() {
 }
 
 std::vector<double> getRenderBoundingBox() {
-    const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox();
+    const auto& aabb = vptRenderer->getCloudData()->getWorldSpaceBoundingBox(
+            vptRenderer->getVptPass()->getUseSparseGrid());
     return { aabb.min.x, aabb.max.x, aabb.min.y, aabb.max.y, aabb.min.z, aabb.max.z };
 }
 

@@ -49,6 +49,8 @@
 #include "nanovdb/util/GridBuilder.h"
 #include "nanovdb/util/IO.h"
 
+#include "Utils/nifti/nifti1.h"
+
 #include "CloudData.hpp"
 
 CloudData::CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow)
@@ -67,14 +69,83 @@ void CloudData::computeGridBounds() {
     float sy = float(gridSizeY) * voxelSizeY;
     float sz = float(gridSizeZ) * voxelSizeZ;
     float maxSize = std::max(sx, std::max(sy, sz));
-    boxMax = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
-    boxMin = -boxMax;
+    boxMaxDense = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
+    boxMinDense = -boxMaxDense;
     //uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
     //boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
     //boxMin = -boxMax;
 
-    gridMin = glm::vec3(0,0,0);
-    gridMax = glm::vec3(1,1,1);
+    gridMinDense = glm::vec3(0,0,0);
+    gridMaxDense = glm::vec3(1,1,1);
+    gridMinSparse = glm::vec3(0,0,0);
+    gridMaxSparse = glm::vec3(1,1,1);
+}
+
+template<class T>
+static void transposeScalarField(T* fieldEntryBuffer, uint32_t xs, uint32_t ys, uint32_t zs) {
+    auto* scalarFieldCopy = new T[xs * ys * zs];
+    if constexpr(std::is_same<T, HalfFloat>()) {
+        size_t bufferSize = xs * ys * zs;
+        for (size_t i = 0; i < bufferSize; i++) {
+            scalarFieldCopy[i] = fieldEntryBuffer[i];
+        }
+    } else {
+        memcpy(scalarFieldCopy, fieldEntryBuffer, sizeof(T) * xs * ys * zs);
+    }
+#ifdef USE_TBB
+    tbb::parallel_for(tbb::blocked_range<uint32_t>(0, zs), [&](auto const& r) {
+        for (auto z = r.begin(); z != r.end(); z++) {
+#else
+#if _OPENMP >= 201107
+#pragma omp parallel for shared(xs, ys, zs, fieldEntryBuffer, scalarFieldCopy) default(none)
+#endif
+    for (uint32_t z = 0; z < zs; z++) {
+#endif
+        for (uint32_t y = 0; y < ys; y++) {
+            for (uint32_t x = 0; x < xs; x++) {
+                uint32_t readPos = ((y)*xs*zs + (z)*xs + (x));
+                uint32_t writePos = ((z)*xs*ys + (y)*xs + (x));
+                fieldEntryBuffer[writePos] = scalarFieldCopy[readPos];
+            }
+        }
+    }
+#ifdef USE_TBB
+    });
+#endif
+    delete[] scalarFieldCopy;
+}
+
+void CloudData::setTransposeAxes(const glm::ivec3& axes) {
+    this->transposeAxes = axes;
+    transpose = true;
+}
+
+void CloudData::transposeIfNecessary() {
+    if (transpose) {
+        uint32_t dimensions[3] = { gridSizeX, gridSizeY, gridSizeZ };
+        float spacing[3] = { voxelSizeX, voxelSizeY, voxelSizeZ };
+        gridSizeX = dimensions[transposeAxes[0]];
+        gridSizeY = dimensions[transposeAxes[1]];
+        gridSizeZ = dimensions[transposeAxes[2]];
+        voxelSizeX = spacing[transposeAxes[0]];
+        voxelSizeY = spacing[transposeAxes[1]];
+        voxelSizeZ = spacing[transposeAxes[2]];
+
+        if (transposeAxes != glm::ivec3(0, 2, 1)) {
+            sgl::Logfile::get()->throwError(
+                    "Error in CloudData::transposeIfNecessary: At the moment, only transposing the "
+                    "Y and Z axis is supported.");
+        }
+        if (densityField->getScalarDataFormatNative() == ScalarDataFormat::FLOAT) {
+            transposeScalarField(densityField->dataFloat, gridSizeX, gridSizeY, gridSizeZ);
+        } else if (densityField->getScalarDataFormatNative() == ScalarDataFormat::BYTE) {
+            transposeScalarField(densityField->dataByte, gridSizeX, gridSizeY, gridSizeZ);
+        } else if (densityField->getScalarDataFormatNative() == ScalarDataFormat::SHORT) {
+            transposeScalarField(densityField->dataShort, gridSizeX, gridSizeY, gridSizeZ);
+        } else if (densityField->getScalarDataFormatNative() == ScalarDataFormat::FLOAT16) {
+            transposeScalarField(densityField->dataFloat16, gridSizeX, gridSizeY, gridSizeZ);
+        }
+    }
 }
 
 void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32_t _gridSizeZ, float* _densityField) {
@@ -90,12 +161,13 @@ void CloudData::setDensityField(uint32_t _gridSizeX, uint32_t _gridSizeY, uint32
     voxelSizeY = 1.0f;
     voxelSizeZ = 1.0f;
 
-    computeGridBounds();
-
     auto numEntries = size_t(_gridSizeX) * size_t(_gridSizeZ) * size_t(_gridSizeZ);
     densityField = std::make_shared<DensityField>(numEntries, _densityField);
     gridFilename = sgl::AppSettings::get()->getDataDirectory() + "CloudDataSets/clouds/tmp.xyz";
     gridName = "tmp";
+
+    transposeIfNecessary();
+    computeGridBounds();
 }
 
 void CloudData::setNanoVdbGridHandle(nanovdb::GridHandle<nanovdb::HostBuffer>&& handle) {
@@ -154,6 +226,8 @@ bool CloudData::loadFromFile(const std::string& filename) {
         return loadFromDatRawFile(filename);
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".mhd")) {
         return loadFromMhdRawFile(filename);
+    } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".nii")) {
+        return loadFromNiiFile(filename);
     } else {
         sgl::Logfile::get()->writeError(
                 "Error in CloudData::loadFromFile: The file \"" + filename + "\" has an unknown extension!");
@@ -184,8 +258,6 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     voxelSizeX = float(voxelSizeXDouble);
     voxelSizeY = float(voxelSizeYDouble);
     voxelSizeZ = float(voxelSizeZDouble);
-
-    computeGridBounds();
 
     size_t numGridEntries = size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ);
     auto* densityFieldFloat = new float[numGridEntries];
@@ -236,6 +308,9 @@ bool CloudData::loadFromXyzFile(const std::string& filename) {
     }
 
     densityField = std::make_shared<DensityField>(numGridEntries, densityFieldFloat);
+
+    transposeIfNecessary();
+    computeGridBounds();
 
     return true;
 }
@@ -411,8 +486,6 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
                 + rawFilePath + "\".");
     }
 
-    computeGridBounds();
-
     if (formatString == "float") {
         auto* densityFieldFloat = new float[totalSize];
         memcpy(densityFieldFloat, bufferRaw, sizeof(float) * totalSize);
@@ -444,6 +517,9 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
 #ifdef USE_TBB
     });
 #endif*/
+
+    transposeIfNecessary();
+    computeGridBounds();
 
     return true;
 }
@@ -709,8 +785,6 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
                 + rawFilePath + "\".");
     }
 
-    computeGridBounds();
-
     if (formatString == "MET_FLOAT") {
         auto* densityFieldFloat = new float[totalSize];
         memcpy(densityFieldFloat, bufferRaw, sizeof(float) * totalSize);
@@ -741,6 +815,125 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         densityField = std::make_shared<DensityField>(totalSize, densityFieldHalf);
     }
 
+    transposeIfNecessary();
+    computeGridBounds();
+
+    return true;
+}
+
+bool CloudData::loadFromNiiFile(const std::string& filename) {
+    uint8_t* buffer = nullptr;
+    size_t length = 0;
+    bool loaded = sgl::loadFileFromSource(filename, buffer, length, true);
+    if (!loaded) {
+        sgl::Logfile::get()->throwError(
+                "Error in CloudData::loadFromNiiFile: Couldn't open file \"" + filename + "\".");
+    }
+    if (length < sizeof(nifti_1_header)) {
+        sgl::Logfile::get()->throwError(
+                "Error in CloudData::loadFromNiiFile: Invalid file size for file \"" + filename + "\".");
+    }
+    nifti_1_header* header = reinterpret_cast<nifti_1_header*>(buffer);
+    auto dataOffset = ptrdiff_t(header->vox_offset);
+
+    std::string filenameRawLower = sgl::FileUtils::get()->getPureFilename(filename);
+    boost::to_lower(filenameRawLower);
+
+    if (header->dim[0] != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in CloudData::loadFromNiiFile: Invalid number of dimensions for file \""
+                + filename + "\".");
+    }
+
+    int xs = int(header->dim[1]);
+    int ys = int(header->dim[2]);
+    int zs = int(header->dim[3]);
+    float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
+    float cellStep = 1.0f / maxDimension;
+    voxelSizeX = voxelSizeY = voxelSizeZ = cellStep;
+    float sx = std::abs(header->srow_x[0]);
+    float sy = std::abs(header->srow_y[1]);
+    float sz = std::abs(header->srow_z[2]);
+    if (!std::isnan(sx) && !std::isnan(sy) && !std::isnan(sz) && sx != 0 && sy != 0 && sz != 0) {
+        voxelSizeX *= sx;
+        voxelSizeY *= sy;
+        voxelSizeZ *= sz;
+    }
+    gridSizeX = uint32_t(xs);
+    gridSizeY = uint32_t(ys);
+    gridSizeZ = uint32_t(zs);
+
+    ptrdiff_t imageSizeInBytes = header->bitpix / 8;
+    for (short i = 0; i < header->dim[0] && i < 7; i++) {
+        imageSizeInBytes *= ptrdiff_t(header->dim[i + 1]);
+    }
+    if (dataOffset + imageSizeInBytes > ptrdiff_t(length)) {
+        sgl::Logfile::get()->throwError(
+                "Error in CloudData::loadFromNiiFile: Invalid data size for file \"" + filename + "\".");
+    }
+
+    ScalarDataFormat dataFormat = ScalarDataFormat::FLOAT;
+    if (header->datatype == DT_FLOAT || header->datatype == DT_DOUBLE) {
+        dataFormat = ScalarDataFormat::FLOAT;
+    } else if (header->datatype == DT_SIGNED_SHORT) {
+        dataFormat = ScalarDataFormat::SHORT;
+    } else if (header->datatype == DT_UNSIGNED_CHAR) {
+        dataFormat = ScalarDataFormat::BYTE;
+    } else {
+        sgl::Logfile::get()->throwError(
+                "Error in CloudData::loadFromNiiFile: Invalid data type in file \"" + filename + "\".");
+    }
+
+    auto* scalarAttributeField = new uint8_t[imageSizeInBytes];
+    memcpy(scalarAttributeField, buffer + dataOffset, imageSizeInBytes);
+
+    if (header->datatype == DT_DOUBLE) {
+        auto* scalarAttributeFieldDouble = reinterpret_cast<double*>(scalarAttributeField);
+        scalarAttributeField = new uint8_t[imageSizeInBytes];
+        auto* scalarAttributeFieldFloat = reinterpret_cast<float*>(scalarAttributeField);
+        ptrdiff_t numEntries = imageSizeInBytes / ptrdiff_t(sizeof(double));
+        for (ptrdiff_t i = 0; i < numEntries; i++) {
+            scalarAttributeFieldFloat[i] = float(scalarAttributeFieldDouble[i]);
+        }
+        delete[] scalarAttributeFieldDouble;
+    }
+
+    // TODO: value = header->scl_slope * valueOld + header->scl_inter
+    if (std::abs(header->scl_slope - 1.0f) > 1e-4 && header->datatype != DT_FLOAT && header->datatype != DT_DOUBLE) {
+        auto* scalarAttributeFieldOld = scalarAttributeField;
+        scalarAttributeField = new uint8_t[xs * ys * zs * sizeof(float)];
+        auto* scalarAttributeFieldFloat = reinterpret_cast<float*>(scalarAttributeField);
+        if (dataFormat == ScalarDataFormat::FLOAT) {
+            auto* scalarAttributeFieldOldFloat = reinterpret_cast<float*>(scalarAttributeFieldOld);
+            int numEntries = xs * ys * zs;
+            for (int i = 0; i < numEntries; i++) {
+                scalarAttributeFieldFloat[i] = scalarAttributeFieldOldFloat[i];
+            }
+        } else if (dataFormat == ScalarDataFormat::SHORT) {
+            auto* scalarAttributeFieldOldShort = reinterpret_cast<int16_t*>(scalarAttributeFieldOld);
+            int numEntries = xs * ys * zs;
+            for (int i = 0; i < numEntries; i++) {
+                scalarAttributeFieldFloat[i] =
+                        float(scalarAttributeFieldOldShort[i]) * header->scl_slope + header->scl_inter;
+            }
+        } else if (dataFormat == ScalarDataFormat::BYTE) {
+            auto* scalarAttributeFieldOldByte = reinterpret_cast<uint8_t*>(scalarAttributeFieldOld);
+            int numEntries = xs * ys * zs;
+            for (int i = 0; i < numEntries; i++) {
+                scalarAttributeFieldFloat[i] =
+                        float(scalarAttributeFieldOldByte[i]) * header->scl_slope + header->scl_inter;
+            }
+        }
+        dataFormat = ScalarDataFormat::FLOAT;
+        delete[] scalarAttributeFieldOld;
+    }
+
+    densityField = std::make_shared<DensityField>(xs * ys * zs, reinterpret_cast<float*>(scalarAttributeField));
+    delete[] buffer;
+
+    transposeIfNecessary();
+    computeGridBounds();
+
     return true;
 }
 
@@ -760,6 +953,9 @@ DensityFieldPtr CloudData::getDenseDensityField() {
                     + "\" does not contain floating point data!");
             return {};
         }
+
+        boxMinDense = boxMinSparse;
+        boxMaxDense = boxMaxSparse;
 
         auto& tree = grid->tree();
         auto minGridVal = grid->indexBBox().min();
@@ -847,9 +1043,9 @@ void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max){
     seqMax = max;
     gotSeqBounds = true;
 
-    float maxDim = std::max(seqMax.x-seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
-    boxMin = (gridMin - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
-    boxMax = boxMin + (gridMax - gridMin) / (maxDim);
+    float maxDim = std::max(seqMax.x - seqMin.x, std::max(seqMax.y - seqMin.y, seqMax.z - seqMin.z));
+    boxMinSparse = (gridMinSparse - seqMin) / (maxDim) - glm::vec3 (0.5f, 0.5f, 0.5f);
+    boxMaxSparse = boxMinSparse + (gridMaxSparse - gridMinSparse) / (maxDim);
 }
 
 void CloudData::computeSparseGridMetadata() {
@@ -861,41 +1057,48 @@ void CloudData::computeSparseGridMetadata() {
                 "with value type float.");
     }
 
-    gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
-    gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
-    gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
-    voxelSizeX = float(grid->voxelSize()[0]);
-    voxelSizeY = float(grid->voxelSize()[1]);
-    voxelSizeZ = float(grid->voxelSize()[2]);
+    if (!dataSetFromDense) {
+        gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
+        gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
+        gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
+        voxelSizeX = float(grid->voxelSize()[0]);
+        voxelSizeY = float(grid->voxelSize()[1]);
+        voxelSizeZ = float(grid->voxelSize()[2]);
+    }
 
     auto nanoVdbBoundingBox = grid->worldBBox();
-    gridMin = glm::vec3(
+    gridMinSparse = glm::vec3(
             float(nanoVdbBoundingBox.min()[0]),
             float(nanoVdbBoundingBox.min()[1]),
             float(nanoVdbBoundingBox.min()[2]));
-    gridMax = glm::vec3(
+    gridMaxSparse = glm::vec3(
             float(nanoVdbBoundingBox.max()[0]),
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
-    glm::vec3 boundMin = gridMin;
-    glm::vec3 boundMax = gridMax;
+    glm::vec3 boundMin = gridMinSparse;
+    glm::vec3 boundMax = gridMaxSparse;
 
     if (gotSeqBounds) {
         boundMin = seqMin;
         boundMax = seqMax;
     }
 
-    // Normalize bounding box.
-    float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
-    boxMin = (gridMin - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
-    boxMax = boxMin + (gridMax - gridMin) / maxDim;
-    auto totalSize = boxMax - boxMin;
-    boxMax = totalSize * 0.5f;
-    boxMin = -boxMax;
+    if (!dataSetFromDense) {
+        // Normalize bounding box.
+        float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
+        boxMinSparse = (gridMinSparse - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
+        boxMaxSparse = boxMinSparse + (gridMaxSparse - gridMinSparse) / maxDim;
+        auto totalSize = boxMaxSparse - boxMinSparse;
+        boxMaxSparse = totalSize * 0.25f;
+        boxMinSparse = -boxMaxSparse;
+    } else {
+        boxMinSparse = boundMin;
+        boxMaxSparse = boundMax;
+    }
 
-    std::cout << boxMin.x << ", " << boxMin.y << ", " << boxMin.z << std::endl;
-    std::cout << boxMax.x << ", " << boxMax.y << ", " << boxMax.z << std::endl;
+    std::cout << boxMinSparse.x << ", " << boxMinSparse.y << ", " << boxMinSparse.z << std::endl;
+    std::cout << boxMaxSparse.x << ", " << boxMaxSparse.y << ", " << boxMaxSparse.z << std::endl;
 
     printSparseGridMetadata();
 }
@@ -937,11 +1140,17 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
             auto maxIdxZ = int32_t(gridSizeZ - 1);
             builder(gridSamplingOperation, nanovdb::CoordBBox(
                     nanovdb::Coord(0), nanovdb::Coord(maxIdxX, maxIdxY, maxIdxZ)));
-            double dx = double(boxMax.x - boxMin.x) / double(gridSizeX);
+            double dx = double(boxMaxDense.x - boxMinDense.x) / double(gridSizeX);
+            double dy = double(boxMaxDense.y - boxMinDense.y) / double(gridSizeY);
+            double dz = double(boxMaxDense.z - boxMinDense.z) / double(gridSizeZ);
+            if (dx != dy || dy != dz) {
+                sgl::Logfile::get()->writeWarning(
+                        "Warning in CloudData::getSparseDensityField: "
+                        "Mismatch in dx, dy, dz, but NanoVDB does not support non-uniform voxel sizes.");
+            }
             sparseGridHandle = builder.getHandle<>(
-                    dx, nanovdb::Vec3d(boxMin.x, boxMin.y, boxMin.z),
+                    dx, nanovdb::Vec3d(boxMinDense.x, boxMinDense.y, boxMinDense.z),
                     gridName, nanovdb::GridClass::FogVolume);
-            printSparseGridMetadata();
 
             /*auto* gridData = sparseGridHandle.grid<float>();
             const auto& rootNode = gridData->tree().getFirstNode<2>();
@@ -963,7 +1172,10 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
                 }
             }
         }
+
+        dataSetFromDense = true;
     }
+
     computeSparseGridMetadata();
 
     auto& buffer = sparseGridHandle.buffer();
