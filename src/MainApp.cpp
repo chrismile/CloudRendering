@@ -399,7 +399,6 @@ void MainApp::renderGui() {
                     focusedWindowIndex = 0;
                 }
                 sgl::ImGuiWrapper::get()->setWindowViewport(0, ImGui::GetWindowViewport());
-                sgl::ImGuiWrapper::get()->setWindowViewport(0, ImGui::GetWindowViewport());
                 sgl::ImGuiWrapper::get()->setWindowPosAndSize(0, ImGui::GetWindowPos(), ImGui::GetWindowSize());
 
                 ImVec2 sizeContent = ImGui::GetContentRegionAvail();
