@@ -48,6 +48,7 @@ os_arch="$(uname -m)"
 run_program=true
 debug=false
 glibcxx_debug=false
+clean=false
 build_dir_debug=".build_debug"
 build_dir_release=".build_release"
 use_vcpkg=false
@@ -72,6 +73,8 @@ do
         debug=true
     elif [ ${!i} = "--glibcxx-debug" ]; then
         glibcxx_debug=true
+    elif [ ${!i} = "--clean" ] || [ ${!i} = "clean" ]; then
+        clean=true
     elif [ ${!i} = "--vcpkg" ] || [ ${!i} = "--use-vcpkg" ]; then
         use_vcpkg=true
     elif [ ${!i} = "--conda" ] || [ ${!i} = "--use-conda" ]; then
@@ -119,6 +122,14 @@ do
         build_with_vkvg_support=true
     fi
 done
+
+if [ $clean = true ]; then
+    echo "------------------------"
+    echo " cleaning up old files  "
+    echo "------------------------"
+    rm -rf third_party/sgl/ third_party/vcpkg/ .build_release/ .build_debug/ Shipping/
+    git submodule update --init --recursive
+fi
 
 if [ $debug = true ]; then
     cmake_config="Debug"
@@ -252,8 +263,8 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
             || ! is_installed_pacman "mingw-w64-x86_64-shaderc" \
             || ! is_installed_pacman "mingw-w64-x86_64-opencl-headers" \
             || ! is_installed_pacman "mingw-w64-x86_64-opencl-icd" || ! is_installed_pacman "mingw-w64-x86_64-jsoncpp" \
-            || ! is_installed_pacman "mingw-w64-x86_64-openexr" || ! is_installed_pacman "mingw-w64-x86_64-tbb" \
-            || ! is_installed_pacman "mingw-w64-x86_64-blosc"; then
+            || ! is_installed_pacman "mingw-w64-x86_64-openexr" || ! is_installed_pacman "mingw-w64-x86_64-openvdb" \
+            || ! is_installed_pacman "mingw-w64-x86_64-tbb" || ! is_installed_pacman "mingw-w64-x86_64-blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
@@ -263,7 +274,8 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
         mingw64/mingw-w64-x86_64-vulkan-headers mingw64/mingw-w64-x86_64-vulkan-loader \
         mingw64/mingw-w64-x86_64-vulkan-validation-layers mingw64/mingw-w64-x86_64-shaderc \
         mingw64/mingw-w64-x86_64-opencl-headers mingw64/mingw-w64-x86_64-opencl-icd mingw64/mingw-w64-x86_64-jsoncpp \
-        mingw64/mingw-w64-x86_64-openexr mingw64/mingw-w64-x86_64-tbb mingw64/mingw-w64-x86_64-blosc
+        mingw64/mingw-w64-x86_64-openexr mingw64/mingw-w64-x86_64-openvdb mingw64/mingw-w64-x86_64-tbb \
+        mingw64/mingw-w64-x86_64-blosc
     fi
 elif $use_msys && command -v pacman &> /dev/null; then
     :
