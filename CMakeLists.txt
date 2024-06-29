@@ -241,8 +241,7 @@ if(WIN32)
 elseif(APPLE)
     add_executable(CloudRendering MACOSX_BUNDLE ${SOURCES})
 else()
-    add_executable(CloudRendering ${SOURCES}
-            src/CloudDataOpenVDB.cpp)
+    add_executable(CloudRendering ${SOURCES})
 endif()
 
 if(${USE_STATIC_STD_LIBRARIES})
