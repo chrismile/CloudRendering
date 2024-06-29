@@ -961,7 +961,7 @@ vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector
 }
 
 // 1.2.2 Optiomized Evaluation for fixed 2 PDFs (diffuse: 1/PI * sinThetaH * cosThetaH & specular: D * sinThetaH * cosTheta)
-vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, bool specularHit, out float pdfSamplingOut) {
+vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, bool specularHit, out float samplingPDF) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // ----------- Evaluating the BRDF
@@ -1002,9 +1002,9 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
     float cosThetaH = NdotH;
 
     if (specularHit) {
-        pdfSamplingOut = D * sinThetaH * cosThetaH;
+        samplingPDF = D;
     } else {
-        pdfSamplingOut = (1.0/M_PI) * sinThetaH * cosThetaH;
+        samplingPDF = (1.0/M_PI);
     }
 
     // ----------- Weighting in the PDF
@@ -1015,7 +1015,7 @@ vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVecto
 
 // 1.3 Combined call
 
-vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float pdfSamplingOut, out bool specularHit) {
+vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float samplingPDF, out bool specularHit) {
     // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
     // Base Vectors
     // Sample Cook Torrance BRDF
@@ -1029,7 +1029,7 @@ vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame
     // Sampling and evaluating
     vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame, specularHit);
     directionOut = lightVector;
-    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, pdfSamplingOut);
+    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, samplingPDF);
 }
 
 // 2. Disney BRDF
@@ -1350,9 +1350,10 @@ bool getIsoSurfaceHit(
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
     bool specularHit;
-    float pdfSamplingOut;
-    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, pdfSamplingOut, specularHit);
-    
+    float samplingPDF;
+    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, samplingPDF, specularHit);
+    colorOut *= dot(dirOut, surfaceNormal);
+
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
         if(specularHit == true) {
             useMIS = true;
@@ -1417,7 +1418,16 @@ bool getIsoSurfaceHit(
         // need to create a new function
         vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef)*dot(dirSkyboxNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
-        float pdfSamplingNee = pdfSamplingOut;
+        vec3 halfwayVector = normalize(dirOut + (-1.0*w));
+        float cosThetaH = dot(halfwayVector, surfaceNormal);
+        float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
+
+        vec3 halfwayVectorNee  = normalize(dirSkyboxNee + (-1.0*w));
+        float cosThetaHNee = dot(halfwayVectorNee, surfaceNormal);
+        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
+
+        float pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
+        float pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
 #endif
 
 #ifdef SURFACE_BRDF_DISNEY
@@ -1441,7 +1451,7 @@ bool getIsoSurfaceHit(
 
         vec3 halfwayVectorNee  = normalize(dirSkyboxNee + (-1.0*w));
         float cosThetaHNee = dot(halfwayVectorNee, normalVector);
-        float sinThetaHNee = sqrt(1.0/(cosThetaHNee*cosThetaHNee));
+        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
 
         float pdfSamplingOut;
         float pdfSamplingNee;
