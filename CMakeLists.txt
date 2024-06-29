@@ -219,7 +219,7 @@ if (OpenVDB_FOUND)
     MESSAGE(STATUS "OpenVDB found. Enabling OpenVDB data set loading support. Using includes from: ${OpenVDB_INCLUDE_DIRS}")
 else()
     MESSAGE(STATUS "OpenVDB not found. Disabling OpenVDB data set loading support.")
-    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudDataOpenVDB.hpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudDataOpenVDB.cpp)
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudDataOpenVDB.cpp)
 endif()
 
