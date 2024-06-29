@@ -1155,7 +1155,7 @@ vec3 evaluate_disney_2012(vec3 viewVector, vec3 lightVector, vec3 normalVector, 
     // diffuse PDF:
     // specular PDF:
     // clearcoat PDF:
-vec3 evaluate_disney_2012_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float th, float ax, float ay, vec3 x, vec3 y, bool specularHit, bool clearcoatHit, out float pdfSamplingOut) {
+vec3 evaluate_disney_2012_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float th, float ax, float ay, vec3 x, vec3 y, bool specularHit, bool clearcoatHit, out float samplingPDF) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
     // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
@@ -1207,7 +1207,7 @@ vec3 evaluate_disney_2012_importance_sampling(vec3 viewVector, vec3 lightVector,
     float g_specular = 1 / (theta_v + sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
     g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
 
-    float sinThetaH = length(cross(normalVector,halfwayVector))/(length(normalVector)*length(halfwayVector));\
+    float sinThetaH = sin(th);
     float cosThetaH = NdotH;
     //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
     // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
@@ -1224,18 +1224,18 @@ vec3 evaluate_disney_2012_importance_sampling(vec3 viewVector, vec3 lightVector,
 
     if (specularHit) {
         if(clearcoatHit) {
-            pdfSamplingOut = d_clearcoat * cosThetaH;
+            samplingPDF = d_clearcoat;
         } else {
-            pdfSamplingOut = d_specular * cosThetaH;
+            samplingPDF = d_specular;
         }
     } else {
-        pdfSamplingOut = (1.0/M_PI) * sinThetaH * cosThetaH;
+        samplingPDF = (1.0/M_PI);
     }
 
     return diffuse + specular + clear;
 }
 
-vec3 disney_2012(out vec3 directionOut, vec3 w, vec3 surfaceNormal, vec3 surfaceTangent, vec3 surfaceBitangent, mat3 frame, vec3 isoSurfaceColorDef, out float pdfSamplingOut, out bool specularHit, out bool clearcoatHit) {
+vec3 disney_2012(out vec3 directionOut, vec3 w, vec3 surfaceNormal, vec3 surfaceTangent, vec3 surfaceBitangent, mat3 frame, vec3 isoSurfaceColorDef, out float samplingPDF, out bool specularHit, out bool clearcoatHit) {
     // Sources:
     // Paper: https://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
     // BRDF: https://github.com/wdas/brdf/blob/main/src/brdfs/disney.brdf
@@ -1255,7 +1255,7 @@ vec3 disney_2012(out vec3 directionOut, vec3 w, vec3 surfaceNormal, vec3 surface
 
     vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, parameters.subsurface, viewVector, frame, ax, ay, normalVector, x, y, th, specularHit, clearcoatHit);
     directionOut = lightVector;
-    return evaluate_disney_2012_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, th, ax, ay, x, y, specularHit, clearcoatHit, pdfSamplingOut);
+    return evaluate_disney_2012_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, th, ax, ay, x, y, specularHit, clearcoatHit, samplingPDF);
 }
 
 // 2.4 Combined Call
@@ -1332,9 +1332,10 @@ bool getIsoSurfaceHit(
 #ifdef SURFACE_BRDF_DISNEY
     bool specularHit;
     bool clearcoatHit;
-    float pdfSamplingOut;
-    colorOut = disney_2012(dirOut, w, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, pdfSamplingOut, specularHit, clearcoatHit);
-    
+    float samplingPDF;
+    colorOut = disney_2012(dirOut, w, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, samplingPDF, specularHit, clearcoatHit);
+    colorOut *= dot(dirOut, normalize(surfaceNormal));
+
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
         if(specularHit == true) {
             useMIS = true;
@@ -1434,7 +1435,24 @@ bool getIsoSurfaceHit(
         vec3 y = normalize(surfaceBitangent);
         vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y)*dot(dirSkyboxNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
-        float pdfSamplingNee = pdfSamplingOut;
+        vec3 halfwayVector = normalize(dirOut + (-1.0*w));
+        float cosThetaH = dot(halfwayVector, normalVector);
+        float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
+
+        vec3 halfwayVectorNee  = normalize(dirSkyboxNee + (-1.0*w));
+        float cosThetaHNee = dot(halfwayVectorNee, normalVector);
+        float sinThetaHNee = sqrt(1.0/(cosThetaHNee*cosThetaHNee));
+
+        float pdfSamplingOut;
+        float pdfSamplingNee;
+        if (specularHit) {
+                pdfSamplingOut = samplingPDF * cosThetaH;
+                pdfSamplingNee = samplingPDF * cosThetaHNee;
+        } else {
+            pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
+            pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
+        }
+
 #endif
 
 if(useMIS){
