@@ -62,6 +62,7 @@ add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
 set(
         VPT_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudData.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/CloudDataOpenVDB.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/DensityField.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
