@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2021, Christoph Neuhauser
+ * Copyright (c) 2021-2024, Christoph Neuhauser
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -1182,38 +1182,3 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
     data = buffer.data();
     size = buffer.size();
 }
-
-#ifdef USE_OPENVDB
-#include <openvdb/openvdb.h>
-#include "nanovdb/util/OpenToNanoVDB.h"
-
-bool CloudData::loadFromVdbFile(const std::string& filename) {
-    openvdb::io::File file(filename);
-    file.open();
-    openvdb::GridBase::Ptr baseGrid;
-    bool foundGrid = false;
-    for (openvdb::io::File::NameIterator nameIter = file.beginName(); nameIter != file.endName(); ++nameIter) {
-        baseGrid = file.readGrid(nameIter.gridName());
-        foundGrid = true;
-        break;
-    }
-    file.close();
-
-    if (!foundGrid) {
-        sgl::Logfile::get()->writeError("Error in CloudData::loadFromVdbFile: File \"" + filename + "\" is empty.");
-        return false;
-    }
-    openvdb::FloatGrid::Ptr srcGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(baseGrid);
-
-    //sparseGridHandle = nanovdb::createNanoGrid(*srcGrid);
-    sparseGridHandle = nanovdb::openToNanoVDB(*srcGrid);
-
-    std::string filenameNvdb = sgl::FileUtils::get()->removeExtension(filename) + ".nvdb";
-    if (!sgl::FileUtils::get()->exists(filenameNvdb)) {
-        nanovdb::io::writeGrid(filenameNvdb, sparseGridHandle);
-    }
-
-    computeSparseGridMetadata();
-    return !sparseGridHandle.empty();
-}
-#endif
