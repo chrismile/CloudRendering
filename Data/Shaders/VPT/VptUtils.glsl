@@ -681,9 +681,9 @@ vec3 computeGradient(vec3 texCoords) {
     
     // Compute texel sizes
     ivec3 sizeTexture = textureSize(isoImage, 0);
-    float deltaX = 1.0/(sizeTexture[0] -1.0);
-    float deltaY = 1.0/(sizeTexture[1] - 1.0);
-    float deltaZ = 1.0/(sizeTexture[2] - 1.0);
+    float deltaX = 1.0/float(sizeTexture[0] -1.0);
+    float deltaY = 1.0/float(sizeTexture[1] - 1.0);
+    float deltaZ = 1.0/float(sizeTexture[2] - 1.0);
     
     // Compute the 6 nearest texel values
     float x0 = getNearestMultiple(x, deltaX, true);
@@ -715,7 +715,7 @@ vec3 computeGradient(vec3 texCoords) {
 
     // Trilinear interpolation of these 8 gradients
     // Index for interpolation
-    vec3 posIndex = vec3(x*(sizeTexture[0]-1.0),y*(sizeTexture[1]-1.0),z*(sizeTexture[2]-1.0));
+    vec3 posIndex = vec3(x*(float(sizeTexture[0])-1.0),y*(float(sizeTexture[1])-1.0),z*(float(sizeTexture[2])-1.0));
     ivec3 posIndexInt = ivec3(floor(posIndex));
     vec3 posIndexFrac = posIndex - vec3(posIndexInt);
 
@@ -725,7 +725,7 @@ vec3 computeGradient(vec3 texCoords) {
     vec3 t11 = mix(g011, g111, posIndexFrac.x);
 
     vec3 t0 = mix(t00, t10, posIndexFrac.y);
-    vec3 t1 = mix(t01, t11, posIndexFrac.z);
+    vec3 t1 = mix(t01, t11, posIndexFrac.y);
 
     return mix(t0, t1, posIndexFrac.z);
 #else
