@@ -638,9 +638,9 @@ float avgComponent(vec3 v) {
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
 vec3 getGradient(vec3 texCoords) {
-    const float dx = 1.0;
-    const float dy = 1.0;
-    const float dz = 1.0;
+    const float dx = 0.1;
+    const float dy = 0.1;
+    const float dz = 0.1;
     float gradX =
             (sampleIsoImageOffset(texCoords, ivec3(-1, 0, 0))
             - sampleIsoImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
@@ -672,9 +672,7 @@ float getNearestMultiple(float n, float x, bool smaller) {
     }
 }
 
-#define DIFFERENCES_NEIGHBOR
-vec3 computeGradient(vec3 texCoords) {
-#ifdef DIFFERENCES_NEIGHBOR
+float trilinearInterpolationDensity(vec3 texCoords) {
     float x = texCoords[0];
     float y = texCoords[1];
     float z = texCoords[2];
@@ -684,7 +682,7 @@ vec3 computeGradient(vec3 texCoords) {
     float deltaX = 1.0/float(sizeTexture[0] -1.0);
     float deltaY = 1.0/float(sizeTexture[1] - 1.0);
     float deltaZ = 1.0/float(sizeTexture[2] - 1.0);
-    
+
     // Compute the 6 nearest texel values
     float x0 = getNearestMultiple(x, deltaX, true);
     float x1 = getNearestMultiple(x, deltaX, false);
@@ -704,30 +702,50 @@ vec3 computeGradient(vec3 texCoords) {
     vec3 n011 = vec3(x0,y1,z1);
 
     // Compute gradients for these nearest edges
-    vec3 g000 = getGradient(n000);
-    vec3 g100 = getGradient(n100);
-    vec3 g110 = getGradient(n110);
-    vec3 g010 = getGradient(n010);
-    vec3 g001 = getGradient(n001);
-    vec3 g101 = getGradient(n101);
-    vec3 g111 = getGradient(n111);
-    vec3 g011 = getGradient(n011);
+    float d000 = sampleIsoImage(n000);
+    float d100 = sampleIsoImage(n100);
+    float d110 = sampleIsoImage(n110);
+    float d010 = sampleIsoImage(n010);
+    float d001 = sampleIsoImage(n001);
+    float d101 = sampleIsoImage(n101);
+    float d111 = sampleIsoImage(n111);
+    float d011 = sampleIsoImage(n011);
 
-    // Trilinear interpolation of these 8 gradients
-    // Index for interpolation
     vec3 posIndex = vec3(x*(float(sizeTexture[0])-1.0),y*(float(sizeTexture[1])-1.0),z*(float(sizeTexture[2])-1.0));
     ivec3 posIndexInt = ivec3(floor(posIndex));
     vec3 posIndexFrac = posIndex - vec3(posIndexInt);
 
-    vec3 t00 = mix(g000, g100, posIndexFrac.x);
-    vec3 t10 = mix(g010, g110, posIndexFrac.x);
-    vec3 t01 = mix(g001, g101, posIndexFrac.x);
-    vec3 t11 = mix(g011, g111, posIndexFrac.x);
+    float t00 = mix(d000, d100, posIndexFrac.x);
+    float t10 = mix(d010, d110, posIndexFrac.x);
+    float t01 = mix(d001, d101, posIndexFrac.x);
+    float t11 = mix(d011, d111, posIndexFrac.x);
 
-    vec3 t0 = mix(t00, t10, posIndexFrac.y);
-    vec3 t1 = mix(t01, t11, posIndexFrac.y);
+    float t0 = mix(t00, t10, posIndexFrac.y);
+    float t1 = mix(t01, t11, posIndexFrac.y);
 
     return mix(t0, t1, posIndexFrac.z);
+}
+
+#define DIFFERENCES_NEIGHBOR
+vec3 computeGradient(vec3 texCoords) {
+#ifdef DIFFERENCES_NEIGHBOR
+    const float dx = 0.015;
+    const float dy = 0.015;
+    const float dz = 0.015;
+
+    vec3 gX0 = vec3(-1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(-1.0,0.0,0.0));
+    vec3 gX1 = vec3(1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(1.0,0.0,0.0));
+    vec3 gY0 = vec3(0.0,-1.0,0.0)*trilinearInterpolationDensity(texCoords + dy*vec3(0.0,-1.0,0.0));
+    vec3 gY1 = vec3(0.0,1.0,0.0)*trilinearInterpolationDensity(texCoords + dy*vec3(0.0,1.0,0.0));
+    vec3 gZ0 = vec3(0.0,0.0,-1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,-1.0));
+    vec3 gZ1 = vec3(0.0,0.0,1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,1.0));
+
+    vec3 grad = (1.0/6.0)*(gX0 + gX1 + gY0 + gY1 + gZ0 + gZ1);
+    float gradLength = length(grad);
+    if (gradLength < 1e-3) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    return grad / gradLength;
 #else
     const float dx = parameters.voxelTexelSize.x * 0.01;
     const float dy = parameters.voxelTexelSize.y * 0.01;
