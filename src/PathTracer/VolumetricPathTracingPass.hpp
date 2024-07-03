@@ -325,6 +325,11 @@ private:
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
 
+    // Occupancy grid.
+    //const int occupancyGridSize = 8; // In 3D: 8*8*8.
+    //sgl::vk::ImageViewPtr occupancyGridImage;
+    //std::shared_ptr<OccupancyGridPass> occupancyGridPass;
+
     glm::mat4 previousViewProjMatrix;
 
     // Uniform buffer object storing the camera settings.
