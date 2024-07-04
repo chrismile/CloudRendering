@@ -28,6 +28,7 @@
 
 #extension GL_KHR_shader_subgroup_basic : require
 #extension GL_KHR_shader_subgroup_vote : require
+//#extension GL_EXT_debug_printf : enable
 
 layout(local_size_x = SUBGROUP_SIZE, local_size_y = 1, local_size_z = 1) in;
 
@@ -47,10 +48,19 @@ layout(binding = 1) uniform sampler3D gradientImage;
 layout(binding = 2) uniform sampler1DArray transferFunctionTexture;
 #endif
 
-layout (binding = 3, rgba8ui) uniform image3D occupancyGrid;
+layout (binding = 3, r8ui) uniform uimage3D occupancyGridImage;
+
+layout (binding = 4) uniform Parameters {
+    // Cloud properties.
+    float voxelValueMin;
+    float voxelValueMax;
+
+    // Isosurfaces.
+    float isoValue;
+} parameters;
 
 layout(push_constant) uniform PushConstants {
-    uint blockSize;
+    uint blockSize, numBlocksTotal;
 };
 
 #ifdef USE_NANOVDB
@@ -81,8 +91,8 @@ float texelFetchRaw(in ivec3 coord) {
 void main() {
     const uint localThreadIdx = gl_LocalInvocationID.x;
     const uint subgroupIdx = gl_WorkGroupID.x;
-    const uvec3 occupancyGridSize = uvec3(imageSize(occupancyGrid));
-    const uint numBlocksTotal = occupancyGridSize.x * occupancyGridSize.y * occupancyGridSize.z;
+    const uvec3 occupancyGridSize = uvec3(imageSize(occupancyGridImage));
+    //const uint numBlocksTotal = occupancyGridSize.x * occupancyGridSize.y * occupancyGridSize.z;
     if (subgroupIdx >= numBlocksTotal) {
         return;
     }
@@ -95,7 +105,7 @@ void main() {
     );
 
     const uint blockSizeLinearized = blockSize * blockSize * blockSize;
-    bool isOccupied = false;
+    bool isOccupied = true;
     for (uint blockLocalIdx = localThreadIdx; blockLocalIdx < blockSizeLinearized && !isOccupied; blockLocalIdx += SUBGROUP_SIZE) {
         uvec3 gridImageLocalOffset = uvec3(
                 blockLocalIdx % blockSize,
@@ -114,19 +124,21 @@ void main() {
             float density = densityRaw;
 #endif
 
+#if defined(USE_ISOSURFACE_RENDERING) || defined(USE_ISOSURFACES)
 #if defined(ISOSURFACE_TYPE_DENSITY)
             float isoDiff = densityRaw - parameters.isoValue;
 #elif defined(ISOSURFACE_TYPE_GRADIENT)
             float isoDiff = texelFetchIso(gridIdx) - parameters.isoValue;
 #endif
+            isOccupied = isOccupied || !subgroupAllEqual(isoDiff < 0.0);
+#endif
 
-            isOccupied |= subgroupAny(density > 1e-3);
-            isOccupied |= !subgroupAllEqual(isoDiff < 0.0);
+            isOccupied = isOccupied || subgroupAny(density > 1e-3);
         }
     }
 
     uint isOccupiedUint = isOccupied ? 1u : 0u;
     if (subgroupElect()) {
-        imageStore(occupancyGrid, occupancyGridIdx, ivec4(isOccupiedUint));
+        imageStore(occupancyGridImage, ivec3(gridImageSubgroupIdx), uvec4(isOccupiedUint));
     }
 }

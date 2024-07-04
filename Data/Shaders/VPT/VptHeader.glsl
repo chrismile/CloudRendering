@@ -195,6 +195,11 @@ layout(binding = 26) uniform sampler1DArray transferFunctionTexture;
 layout(binding = 27) uniform sampler3D gradientImage;
 #endif
 
+#ifdef USE_OCCUPANCY_GRID
+// The occupancy grid can be used for empty space skipping with next event tracking transmittance rays.
+layout(binding = 28, r8ui) uniform readonly uimage3D occupancyGridImage;
+#endif
+
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }

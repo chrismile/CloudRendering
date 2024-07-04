@@ -60,6 +60,7 @@
 #include "CloudData.hpp"
 #include "MomentUtils.hpp"
 #include "SuperVoxelGrid.hpp"
+#include "OccupancyGrid.hpp"
 #include "VolumetricPathTracingPass.hpp"
 
 VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera)
@@ -79,6 +80,7 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
             VMA_MEMORY_USAGE_GPU_ONLY);
 
     equalAreaPass = std::make_shared<OctahedralMappingPass>(renderer);
+    occupancyGridPass = std::make_shared<OccupancyGridPass>(renderer);
 
     if (sgl::AppSettings::get()->getSettings().getValueOpt(
             "vptEnvironmentMapImage", environmentMapFilenameGui)) {
@@ -697,6 +699,13 @@ void VolumetricPathTracingPass::setSparseGridInterpolationType(GridInterpolation
     setShaderDirty();
 }
 
+void VolumetricPathTracingPass::setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping) {
+    this->useEmptySpaceSkipping = _useEmptySpaceSkipping;
+    if (!this->useEmptySpaceSkipping) {
+        occupancyGridPass->setConfig({});
+    }
+}
+
 void VolumetricPathTracingPass::setCustomSeedOffset(uint32_t offset) {
     customSeedOffset = offset;
     setShaderDirty();
@@ -1235,6 +1244,11 @@ void VolumetricPathTracingPass::loadShader() {
         }
     }
 
+    if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+            && useEmptySpaceSkipping) {
+        customPreprocessorDefines.insert({ "USE_OCCUPANCY_GRID", "" });
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -1332,10 +1346,34 @@ void VolumetricPathTracingPass::createComputeData(
     }
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
 
+    if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+            && useEmptySpaceSkipping) {
+        setOccupancyGridConfig();
+        computeData->setStaticImageView(occupancyGridPass->getOccupancyGridImage(), "occupancyGridImage");
+    }
+
     auto* tfWindow = cloudData->getTransferFunctionWindow();
     if (tfWindow && tfWindow->getShowWindow()) {
         computeData->setStaticTexture(tfWindow->getTransferFunctionMapTextureVulkan(), "transferFunctionTexture");
     }
+}
+
+void VolumetricPathTracingPass::setOccupancyGridConfig() {
+    OccupancyGridConfig config{};
+    config.cloudData = cloudData;
+    config.useSparseGrid = useSparseGrid;
+    config.densityFieldTexture = densityFieldTexture;
+    config.nanoVdbBuffer = nanoVdbBuffer;
+    config.densityGradientFieldTexture = densityGradientFieldTexture;
+    config.useIsosurfaces = useIsosurfaces;
+    config.isoValue = isoValue;
+    config.isosurfaceType = isosurfaceType;
+    config.voxelValueMin = uniformData.voxelValueMin;
+    config.voxelValueMax = uniformData.voxelValueMax;
+    config.maxGradientVal = maxGradientVal;
+    config.minGradientVal = minGradientVal;
+    config.maxGradientVal = maxGradientVal;
+    occupancyGridPass->setConfig(config);
 }
 
 std::string VolumetricPathTracingPass::getCurrentEventName() {
@@ -1562,6 +1600,13 @@ void VolumetricPathTracingPass::_render() {
             renderer->transitionImageLayout(
                     blitScatterRayMomentTexturePass->getMomentTexture()->getImage(),
                     VK_IMAGE_LAYOUT_GENERAL);
+        }
+
+        if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+                && useEmptySpaceSkipping) {
+            // Update occupancy grid if necessary.
+            setOccupancyGridConfig();
+            occupancyGridPass->renderIfNecessary();
         }
 
         auto& imageSettings = resultImageView->getImage()->getImageSettings();
@@ -1996,6 +2041,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
 
             if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+                if (propertyEditor.addCheckbox("Skip Empty Space", &useEmptySpaceSkipping)) {
+                    this->setUseEmptySpaceSkipping(useEmptySpaceSkipping); //< Optionally deletes old data.
+                    optionChanged = true;
+                    setShaderDirty();
+                }
+
                 if (propertyEditor.addCheckbox("Use Headlight", &useHeadlight)) {
                     optionChanged = true;
                     setShaderDirty();
@@ -2010,7 +2061,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 }
             }
 
-            if (propertyEditor.addCheckbox("Use Emission", &useEmission)) {
+            if (propertyEditor.addCheckbox("Use Emission Grid", &useEmission)) {
                 optionChanged = true;
                 setGridData();
                 updateVptMode();

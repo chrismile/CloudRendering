@@ -65,6 +65,12 @@ MODULE_OP_API void setDenoiser(const std::string& denoiserName);
 MODULE_OP_API void setOutputForegroundMap(bool _shallOutputForegroundMap);
 MODULE_OP_API void setFeatureMapType(int64_t type);
 
+MODULE_OP_API void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
+
+MODULE_OP_API void setUseHeadlight(bool _useHeadlight);
+MODULE_OP_API void setHeadlightColor(std::vector<double> _headlightColor);
+MODULE_OP_API void setHeadlightIntensity(double _headlightIntensity);
+
 MODULE_OP_API void setUseIsosurfaces(bool _useIsosurfaces);
 MODULE_OP_API void setIsoValue(double _isoValue);
 MODULE_OP_API void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor);

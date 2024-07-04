@@ -82,6 +82,10 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::overwrite_camera_view_matrix", overwriteCameraViewMatrix);
     m.def("vpt::set_camera_FOVy", setCameraFOVy);
     m.def("vpt::set_feature_map_type", setFeatureMapType);
+    m.def("vpt::set_use_empty_space_skipping", setUseEmptySpaceSkipping);
+    m.def("vpt::set_use_headlight", setUseHeadlight);
+    m.def("vpt::set_headlight_color", setHeadlightColor);
+    m.def("vpt::set_headlight_intensity", setHeadlightIntensity);
     m.def("vpt::set_use_isosurfaces", setUseIsosurfaces);
     m.def("vpt::set_iso_value", setIsoValue);
     m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
@@ -689,6 +693,25 @@ void setOutputForegroundMap(bool _shallOutputForegroundMap) {
 void setFeatureMapType(int64_t type) {
     //std::cout << "setFeatureMapType to " << type << std::endl;
     vptRenderer->setFeatureMapType(FeatureMapTypeVpt(type));
+}
+
+void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping) {
+    vptRenderer->getVptPass()->setUseEmptySpaceSkipping(_useEmptySpaceSkipping);
+}
+
+void setUseHeadlight(bool _useHeadlight) {
+    vptRenderer->getVptPass()->setUseHeadlight(_useHeadlight);
+}
+
+void setHeadlightColor(std::vector<double> _headlightColor) {
+    glm::vec3 color = glm::vec3(0,0,0);
+    if (parseVector3(_headlightColor, color)) {
+        vptRenderer->getVptPass()->setHeadlightColor(color);
+    }
+}
+
+void setHeadlightIntensity(double _headlightIntensity) {
+    vptRenderer->getVptPass()->setHeadlightIntensity(float(_headlightIntensity));
 }
 
 

@@ -54,6 +54,7 @@ class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
 class OctahedralMappingPass;
 class OccupationVolumePass;
+class OccupancyGridPass;
 class CameraPoseLinePass;
 
 namespace IGFD {
@@ -133,6 +134,7 @@ public:
     void setUseSparseGrid(bool useSparse);
     [[nodiscard]] bool getUseSparseGrid() const { return useSparseGrid; }
     void setSparseGridInterpolationType(GridInterpolationType type);
+    void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
@@ -296,7 +298,7 @@ private:
     // Headlight data.
     bool useHeadlight = false;
     glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
-    float headlightIntensity = 2.0f;
+    float headlightIntensity = 0.5f;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     // Use the two passes below if a compute queue is used and raster-blitting is not available.
@@ -335,13 +337,13 @@ private:
     int numIsosurfaceSubdivisions = 2;
 
     // Occupancy grid.
-    //const int occupancyGridSize = 8; // In 3D: 8*8*8.
-    //sgl::vk::ImageViewPtr occupancyGridImage;
-    //std::shared_ptr<OccupancyGridPass> occupancyGridPass;
+    void setOccupancyGridConfig();
+    bool useEmptySpaceSkipping = false;
+    std::shared_ptr<OccupancyGridPass> occupancyGridPass;
 
     glm::mat4 previousViewProjMatrix;
 
-    // Uniform buffer object storing the camera settings.
+    // Uniform buffer object storing the scene and camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
         glm::mat4 previousViewProjMatrix;
