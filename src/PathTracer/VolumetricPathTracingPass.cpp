@@ -881,6 +881,28 @@ void VolumetricPathTracingPass::setEnvironmentMapIntensityFactor(float intensity
     this->environmentMapIntensityFactor = intensityFactor;
 }
 
+void VolumetricPathTracingPass::setUseHeadlight(bool _useHeadlight) {
+    if (useHeadlight != _useHeadlight) {
+        this->useHeadlight = _useHeadlight;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightColor(const glm::vec3& _headlightColor) {
+    if (headlightColor != _headlightColor) {
+        this->headlightColor = _headlightColor;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightIntensity(float _headlightIntensity) {
+    if (headlightIntensity != _headlightIntensity) {
+        this->headlightIntensity = _headlightIntensity;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setScatteringAlbedo(glm::vec3 albedo) {
     this->cloudScatteringAlbedo = albedo;
 }
@@ -1172,6 +1194,11 @@ void VolumetricPathTracingPass::loadShader() {
     if (envMapImageUsesLinearRgb) {
         customPreprocessorDefines.insert({ "ENV_MAP_IMAGE_USES_LINEAR_RGB", "" });
     }
+
+    if (useHeadlight) {
+        customPreprocessorDefines.insert({ "USE_HEADLIGHT", "" });
+    }
+
     if (flipYZCoordinates) {
         customPreprocessorDefines.insert({ "FLIP_YZ", "" });
     }
@@ -1441,6 +1468,9 @@ void VolumetricPathTracingPass::_render() {
             uniformData.voxelTexelSize = glm::vec3(1.0f) / glm::vec3(
                     cloudData->getGridSizeX() - 1, cloudData->getGridSizeY() - 1, cloudData->getGridSizeZ() - 1);
         }
+
+        uniformData.headlightColor = headlightColor;
+        uniformData.headlightIntensity = headlightIntensity;
 
         uniformData.isoSurfaceColor = isoSurfaceColor;
         uniformData.isoValue = isoValue;
@@ -1824,21 +1854,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
         }
 
-        if (propertyEditor.addCheckbox("Use Sparse Grid", &useSparseGrid)) {
-            optionChanged = true;
-            setGridData();
-            updateVptMode();
-            setShaderDirty();
-            setDataDirty();
-        }
-        if (propertyEditor.addCheckbox("Flip YZ", &flipYZCoordinates)) {
-            optionChanged = true;
-            setGridData();
-            updateVptMode();
-            setShaderDirty();
-            setDataDirty();
-        }
-
         if (!useIsosurfaces && propertyEditor.addCombo(
                 "Grid Interpolation", (int*)&gridInterpolationType,
                 GRID_INTERPOLATION_TYPE_NAMES, IM_ARRAYSIZE(GRID_INTERPOLATION_TYPE_NAMES))) {
@@ -1897,64 +1912,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
                 optionChanged = true;
             }
-        }
-
-
-
-        if (propertyEditor.addCheckbox("Use Emission", &useEmission)) {
-            optionChanged = true;
-            setGridData();
-            updateVptMode();
-            setShaderDirty();
-            setDataDirty();
-        }
-        if (propertyEditor.addSliderFloat(
-                "Emission Cap", &emissionCap, 0.0f, 1.0f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (propertyEditor.addSliderFloat(
-                "Emission Strength", &emissionStrength, 0.0f, 20.0f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        propertyEditor.addInputAction("Emission Grid", &emissionGridFilenameGui);
-        if (propertyEditor.addCheckbox("Load", &useEmission)) {
-            CloudDataPtr emissionCloudData(new CloudData);
-            bool dataLoaded = emissionCloudData->loadFromFile(emissionGridFilenameGui);
-            if (dataLoaded){
-                setEmissionData(emissionCloudData);
-            }
-            setShaderDirty();
-            reRender = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Open from Disk...")) {
-            IGFD_OpenModal(
-                    fileDialogInstance,
-                    "ChooseEmissionGrid", "Choose an Emission Grid",
-                    ".*",
-                    sgl::AppSettings::get()->getDataDirectory().c_str(),
-                    "", 1, nullptr,
-                    ImGuiFileDialogFlags_None);
-        }
-
-        bool shallRecreateMomentTextureA = false;
-        bool momentTypeChangedA = false;
-        bool shallRecreateMomentTextureB = false;
-        bool momentTypeChangedB = false;
-        optionChanged =
-                blitPrimaryRayMomentTexturePass->renderGuiPropertyEditorNodes(
-                        propertyEditor, shallRecreateMomentTextureA, momentTypeChangedA) || optionChanged;
-        optionChanged =
-                blitScatterRayMomentTexturePass->renderGuiPropertyEditorNodes(
-                        propertyEditor, shallRecreateMomentTextureB, momentTypeChangedB) || optionChanged;
-        if (shallRecreateMomentTextureA || shallRecreateMomentTextureB) {
-            setShaderDirty();
-            setDataDirty();
-        }
-        if (momentTypeChangedA || momentTypeChangedB) {
-            setShaderDirty();
         }
 
         if (vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox(
@@ -2020,6 +1977,96 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             setShaderDirty();
             reRender = true;
             frameInfo.frameCount = 0;
+        }
+
+        if (propertyEditor.beginNode("Advanced")) {
+            if (propertyEditor.addCheckbox("Use Sparse Grid", &useSparseGrid)) {
+                optionChanged = true;
+                setGridData();
+                updateVptMode();
+                setShaderDirty();
+                setDataDirty();
+            }
+            if (propertyEditor.addCheckbox("Flip YZ", &flipYZCoordinates)) {
+                optionChanged = true;
+                setGridData();
+                updateVptMode();
+                setShaderDirty();
+                setDataDirty();
+            }
+
+            if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+                if (propertyEditor.addCheckbox("Use Headlight", &useHeadlight)) {
+                    optionChanged = true;
+                    setShaderDirty();
+                }
+                if (useHeadlight) {
+                    if (propertyEditor.addColorEdit3("Headlight Color", &headlightColor.x)) {
+                        optionChanged = true;
+                    }
+                    if (propertyEditor.addSliderFloat("Headlight Intensity", &headlightIntensity, 0.0f, 10.0f)) {
+                        optionChanged = true;
+                    }
+                }
+            }
+
+            if (propertyEditor.addCheckbox("Use Emission", &useEmission)) {
+                optionChanged = true;
+                setGridData();
+                updateVptMode();
+                setShaderDirty();
+                setDataDirty();
+            }
+            if (propertyEditor.addSliderFloat(
+                    "Emission Cap", &emissionCap, 0.0f, 1.0f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat(
+                    "Emission Strength", &emissionStrength, 0.0f, 20.0f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            propertyEditor.addInputAction("Emission Grid", &emissionGridFilenameGui);
+            if (propertyEditor.addCheckbox("Load", &useEmission)) {
+                CloudDataPtr emissionCloudData(new CloudData);
+                bool dataLoaded = emissionCloudData->loadFromFile(emissionGridFilenameGui);
+                if (dataLoaded){
+                    setEmissionData(emissionCloudData);
+                }
+                setShaderDirty();
+                reRender = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Open from Disk...")) {
+                IGFD_OpenModal(
+                        fileDialogInstance,
+                        "ChooseEmissionGrid", "Choose an Emission Grid",
+                        ".*",
+                        sgl::AppSettings::get()->getDataDirectory().c_str(),
+                        "", 1, nullptr,
+                        ImGuiFileDialogFlags_None);
+            }
+
+            bool shallRecreateMomentTextureA = false;
+            bool momentTypeChangedA = false;
+            bool shallRecreateMomentTextureB = false;
+            bool momentTypeChangedB = false;
+            optionChanged =
+                    blitPrimaryRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                            propertyEditor, shallRecreateMomentTextureA, momentTypeChangedA) || optionChanged;
+            optionChanged =
+                    blitScatterRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                            propertyEditor, shallRecreateMomentTextureB, momentTypeChangedB) || optionChanged;
+            if (shallRecreateMomentTextureA || shallRecreateMomentTextureB) {
+                setShaderDirty();
+                setDataDirty();
+            }
+            if (momentTypeChangedA || momentTypeChangedB) {
+                setShaderDirty();
+            }
+
+            propertyEditor.endNode();
         }
 
         propertyEditor.endNode();

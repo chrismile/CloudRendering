@@ -154,15 +154,42 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
                     return vec3(0);
                 }
 
-                float pdf_nee_sky;
-                vec3 nee_w = importanceSampleSkybox(pdf_nee_sky);
-                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
+                float pdfLightNee; // only used for skybox.
+                vec3 dirLightNee;
+#ifdef USE_HEADLIGHT
+                // We are sampling the environment map or headlight with 50/50 chance.
+                bool isSamplingHeadlight = random() > 0.5;
+                if (isSamplingHeadlight) {
+                    dirLightNee = getHeadlightDirection(x);
+                } else {
+#endif
+                    dirLightNee = importanceSampleSkybox(pdfLightNee);
+#ifdef USE_HEADLIGHT
+                }
+#endif
+
+                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, dirLightNee);
                 w = next_w;
 
                 weights *= sigma_s / (majorant * Ps);
+
+#ifdef USE_HEADLIGHT
+                vec3 commonFactor = (2.0 * pdf_nee_phase) * min(weights, vec3(100000, 100000, 100000));
+                if (isSamplingHeadlight) {
+                    color +=
+                            commonFactor * calculateTransmittanceDistance(x, dirLightNee, distance(x, cameraPosition))
+                            * sampleHeadlight(x);
+                } else {
+                    color +=
+                            commonFactor / pdfLightNee * calculateTransmittance(x, dirLightNee)
+                            * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                }
+#else
+                // Normal NEE.
                 color +=
-                        (pdf_nee_phase / pdf_nee_sky * calculateTransmittance(x, nee_w))
-                        * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(nee_w) + sampleLight(nee_w));
+                        (pdf_nee_phase / pdfLightNee * calculateTransmittance(x, dirLightNee))
+                        * min(weights, vec3(100000, 100000, 100000)) * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+#endif
 
                 if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                     x += w*tMin;
@@ -236,7 +263,7 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
 #include "CheckIsosurfaceHit.glsl"
 
             x = xNew;
-            
+
             float sigma_a = PA * density;
             float sigma_s = PS * density;
             float sigma_n = majorant - parameters.extinction.x * density;
@@ -294,18 +321,42 @@ vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFir
                     return vec3(0);
                 }
 
-                float pdf_nee_sky;
-                vec3 nee_w = importanceSampleSkybox(pdf_nee_sky);
-                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, nee_w);
+                float pdfLightNee; // only used for skybox.
+                vec3 dirLightNee;
+#ifdef USE_HEADLIGHT
+                // We are sampling the environment map or headlight with 50/50 chance.
+                bool isSamplingHeadlight = random() > 0.5;
+                if (isSamplingHeadlight) {
+                    dirLightNee = getHeadlightDirection(x);
+                } else {
+#endif
+                    dirLightNee = importanceSampleSkybox(pdfLightNee);
+#ifdef USE_HEADLIGHT
+                }
+#endif
+
+                float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, dirLightNee);
                 w = next_w;
 
-                //float bw_nee = pdf_nee_sky * pdf_nee_sky / (pdf_nee_sky * pdf_nee_sky + pdf_nee_phase * pdf_nee_phase);
-                //vec3 colorNew =
-                //        bw_nee * calculateTransmittance(x, nee_w)
-                //        * (sampleSkybox(nee_w) + sampleLight(nee_w)) * pdf_nee_phase / pdf_nee_sky;
+#ifdef USE_HEADLIGHT
+                float commonFactor = 2.0 * pdf_nee_phase;
+                vec3 colorNew;
+                if (isSamplingHeadlight) {
+                    colorNew =
+                            (commonFactor * calculateTransmittanceDistance(x, dirLightNee, distance(x, cameraPosition)))
+                            * sampleHeadlight(x);
+                } else {
+                    colorNew =
+                            (commonFactor / pdfLightNee * calculateTransmittance(x, dirLightNee))
+                            * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                }
+#else
+                // Normal NEE.
                 vec3 colorNew =
-                        (pdf_nee_phase / pdf_nee_sky * calculateTransmittance(x, nee_w))
-                        * (sampleSkybox(nee_w) + sampleLight(nee_w));
+                        (pdf_nee_phase / pdfLightNee * calculateTransmittance(x, dirLightNee))
+                        * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+#endif
+
 #ifdef USE_ISOSURFACES
                 colorNew *= weights;
 #endif

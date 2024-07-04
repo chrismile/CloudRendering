@@ -353,6 +353,19 @@ vec3 sampleLight(in vec3 dir) {
 }
 #endif
 
+#ifdef USE_HEADLIGHT
+vec3 getHeadlightDirection(vec3 pos) {
+    const vec3 diff = cameraPosition - pos;
+    return diff / (length(diff) + 1e-5);
+    //return normalize(cameraPosition - pos);
+}
+vec3 sampleHeadlight(vec3 pos) {
+    const vec3 diff = cameraPosition - pos;
+    const float distFactor = max(dot(diff, diff), 1e-3);
+    return (parameters.headlightIntensity / distFactor) * parameters.headlightColor;
+}
+#endif
+
 #ifdef USE_NANOVDB
 pnanovdb_readaccessor_t createAccessor() {
     pnanovdb_buf_t buf = pnanovdb_buf_t(0);
@@ -796,10 +809,22 @@ bool getIsoSurfaceHit(
 #endif
 
 #if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
-    float pdfSkyboxNee;
-    vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
-    if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
-        float thetaNee = dot(surfaceNormal, dirSkyboxNee);
+    float pdfLightNee; // only used for skybox.
+    vec3 dirLightNee;
+#ifdef USE_HEADLIGHT
+    // We are sampling the environment map or headlight with 50/50 chance.
+    bool isSamplingHeadlight = random() > 0.5;
+    if (isSamplingHeadlight) {
+        dirLightNee = getHeadlightDirection(currentPoint);
+    } else {
+#endif
+        dirLightNee = importanceSampleSkybox(pdfLightNee);
+#ifdef USE_HEADLIGHT
+    }
+#endif
+
+    if (dot(surfaceNormal, dirLightNee) > 0.0) {
+        float thetaNee = dot(surfaceNormal, dirLightNee);
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
 #ifdef USE_MIS
@@ -827,7 +852,7 @@ bool getIsoSurfaceHit(
 #endif
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
-        vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
+        vec3 halfwayVectorNee = normalize(-w + dirLightNee);
         vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
 #endif
@@ -836,28 +861,43 @@ bool getIsoSurfaceHit(
 
 #ifdef USE_MIS
 
+        // TODO: Add support for headlight.
+
         // NEE with MIS.
         // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
         // instead of pdfSamplingOut and pdfSamplingNee.
         // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
-        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
         //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
         float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
-        float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
+        float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
         float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
         colorNee +=
-                throughput * rdfNee * weightNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
-                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+                throughput * rdfNee * weightNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
         colorNee +=
                 throughput * rdfOut * weightOut / pdfSamplingOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
                 * (sampleSkybox(dirOut) + sampleLight(dirOut));
 
 #else
 
+#ifdef USE_HEADLIGHT
+        vec3 commonFactor = 2.0 * throughput * rdfNee;
+        if (isSamplingHeadlight) {
+            colorNee +=
+                    commonFactor * calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition))
+                    * sampleHeadlight(currentPoint);
+        } else {
+            colorNee +=
+                    commonFactor / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                    * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+        }
+#else
         // Normal NEE.
         colorNee +=
-                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
-                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+                throughput * rdfNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+#endif
 
 #endif
     } else {

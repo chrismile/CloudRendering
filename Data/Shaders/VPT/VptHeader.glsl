@@ -80,6 +80,10 @@ layout (binding = 3) uniform Parameters {
     vec3 voxelTexelSize;
     float farDistance;
 
+    // Headlight.
+    vec3 headlightColor;
+    float headlightIntensity;
+
     // Isosurfaces.
     vec3 isoSurfaceColor;
     float isoValue;

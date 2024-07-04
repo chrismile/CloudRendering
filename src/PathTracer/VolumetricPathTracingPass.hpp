@@ -148,6 +148,10 @@ public:
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 
+    void setUseHeadlight(bool _useHeadlight);
+    void setHeadlightColor(const glm::vec3& _headlightColor);
+    void setHeadlightIntensity(float _headlightIntensity);
+
     void setScatteringAlbedo(glm::vec3 albedo);
     void setExtinctionScale(double extinctionScale);
     void setPhaseG(double phaseG);
@@ -289,6 +293,11 @@ private:
     bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
+    // Headlight data.
+    bool useHeadlight = false;
+    glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
+    float headlightIntensity = 2.0f;
+
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     // Use the two passes below if a compute queue is used and raster-blitting is not available.
     sgl::vk::BlitComputePassPtr resultImageBlitPass;
@@ -366,6 +375,10 @@ private:
 
         glm::vec3 voxelTexelSize;
         float farDistance;
+
+        // Headlight.
+        glm::vec3 headlightColor;
+        float headlightIntensity = 1.0f;
 
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;
