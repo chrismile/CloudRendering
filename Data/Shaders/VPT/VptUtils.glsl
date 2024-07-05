@@ -1334,7 +1334,7 @@ bool getIsoSurfaceHit(
     bool clearcoatHit;
     float samplingPDF;
     colorOut = disney_2012(dirOut, w, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, samplingPDF, specularHit, clearcoatHit);
-    colorOut *= dot(dirOut, normalize(surfaceNormal));
+    //colorOut *= dot(dirOut, normalize(surfaceNormal));
 
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
         if(specularHit == true) {
@@ -1352,7 +1352,7 @@ bool getIsoSurfaceHit(
     bool specularHit;
     float samplingPDF;
     colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, samplingPDF, specularHit);
-    colorOut *= dot(dirOut, surfaceNormal);
+    //colorOut *= dot(dirOut, surfaceNormal);
 
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
         if(specularHit == true) {
