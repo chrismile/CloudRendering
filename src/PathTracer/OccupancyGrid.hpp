@@ -59,6 +59,12 @@ public:
     explicit OccupancyGridPass(sgl::vk::Renderer* renderer);
     void renderIfNecessary();
     const sgl::vk::ImageViewPtr& getOccupancyGridImage();
+    [[nodiscard]] inline uint32_t getBlockSize() const { return occupancyGridSize; }
+    [[nodiscard]] inline glm::ivec3 getSuperVoxelSize() const { return glm::ivec3(int(getBlockSize())); }
+    [[nodiscard]] inline glm::ivec3 getSuperVoxelGridSize() const {
+        const auto& imageSettings = occupancyGridImage->getImage()->getImageSettings();
+        return { int(imageSettings.width), int(imageSettings.height), int(imageSettings.depth) };
+    }
 
     void setConfig(const OccupancyGridConfig& config);
 

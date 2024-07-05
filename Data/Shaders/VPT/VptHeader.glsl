@@ -76,7 +76,7 @@ layout (binding = 3) uniform Parameters {
     ivec3 superVoxelSize;
     ivec3 superVoxelGridSize;
 
-    //ivec3 gridResolution;
+    ivec3 gridResolution;
     vec3 voxelTexelSize;
     float farDistance;
 

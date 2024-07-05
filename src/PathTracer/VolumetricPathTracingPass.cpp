@@ -1496,15 +1496,22 @@ void VolumetricPathTracingPass::_render() {
         } else if (superVoxelGridDecompositionTracking) {
             uniformData.superVoxelSize = superVoxelGridDecompositionTracking->getSuperVoxelSize();
             uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
+        } else if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+                && useEmptySpaceSkipping) {
+            uniformData.superVoxelSize = occupancyGridPass->getSuperVoxelSize();
+            uniformData.superVoxelGridSize = occupancyGridPass->getSuperVoxelGridSize();
         }
 
         if (!useSparseGrid) {
             auto settings = densityFieldTexture->getImage()->getImageSettings();
             uniformData.voxelTexelSize =
                     glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
+            uniformData.gridResolution = glm::ivec3(int(settings.width), int(settings.height), int(settings.depth));
         } else {
             uniformData.voxelTexelSize = glm::vec3(1.0f) / glm::vec3(
                     cloudData->getGridSizeX() - 1, cloudData->getGridSizeY() - 1, cloudData->getGridSizeZ() - 1);
+            uniformData.gridResolution = glm::ivec3(
+                    int(cloudData->getGridSizeX()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeZ()));
         }
 
         uniformData.headlightColor = headlightColor;

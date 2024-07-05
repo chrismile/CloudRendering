@@ -118,8 +118,7 @@ void main() {
             float densityRaw = texelFetchRaw(gridIdx);
 
 #ifdef USE_TRANSFER_FUNCTION
-            vec4 densityEmission = texture(transferFunctionTexture, vec2(densityRaw, 0.0)).a;
-            float density = densityEmission.a;
+            float density = texture(transferFunctionTexture, vec2(densityRaw, 0.0)).a;
 #else
             float density = densityRaw;
 #endif

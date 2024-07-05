@@ -375,6 +375,7 @@ private:
         glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize; int pad9;
 
+        glm::ivec3 gridResolution; int pad10;
         glm::vec3 voxelTexelSize;
         float farDistance;
 
