@@ -729,9 +729,9 @@ float trilinearInterpolationDensity(vec3 texCoords) {
 #define DIFFERENCES_NEIGHBOR
 vec3 computeGradient(vec3 texCoords) {
 #ifdef DIFFERENCES_NEIGHBOR
-    const float dx = 0.015;
-    const float dy = 0.015;
-    const float dz = 0.015;
+    const float dx = 4.0 * parameters.voxelTexelSize.x;
+    const float dy = 4.0 * parameters.voxelTexelSize.y;
+    const float dz = 4.0 * parameters.voxelTexelSize.z;
 
     vec3 gX0 = vec3(-1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(-1.0,0.0,0.0));
     vec3 gX1 = vec3(1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(1.0,0.0,0.0));
@@ -740,7 +740,7 @@ vec3 computeGradient(vec3 texCoords) {
     vec3 gZ0 = vec3(0.0,0.0,-1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,-1.0));
     vec3 gZ1 = vec3(0.0,0.0,1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,1.0));
 
-    vec3 grad = (1.0/6.0)*(gX0 + gX1 + gY0 + gY1 + gZ0 + gZ1);
+    vec3 grad = 0.5*(gX0 + gX1 + gY0 + gY1 + gZ0 + gZ1);
     float gradLength = length(grad);
     if (gradLength < 1e-3) {
         return vec3(0.0, 0.0, 1.0);
