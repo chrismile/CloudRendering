@@ -510,10 +510,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
         vptPass->checkRecreateDenoiser();
         vptPass->render();
         if (i == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-            renderImageStaging->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             renderImageView->getImage()->copyToImage(
                     renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                     renderer->getVkCommandBuffer());
@@ -631,8 +629,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
         vptPass->render();
 
         if (frameIndex == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             renderImageView->getImage()->copyToBuffer(
                     outputImageBufferVk, renderer->getVkCommandBuffer());
         }
@@ -680,10 +677,8 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt f
             renderImageBlitPass->render();
         }
 
-        renderImageView->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-        renderImageStaging->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         renderImageView->getImage()->copyToImage(
                 renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                 renderer->getVkCommandBuffer());
@@ -792,8 +787,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
             renderImageBlitPass->render();
         }
 
-        renderImageView->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderImageView->getImage()->copyToBuffer(
                 outputImageBufferVk, renderer->getVkCommandBuffer());
     }

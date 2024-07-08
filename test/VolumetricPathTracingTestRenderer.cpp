@@ -127,10 +127,8 @@ float* VolumetricPathTracingTestRenderer::renderFrame(int numFrames) {
         renderer->beginCommandBuffer();
         vptPass->render();
         if (i == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-            renderImageStaging->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             renderImageView->getImage()->copyToImage(
                     renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                     renderer->getVkCommandBuffer());
