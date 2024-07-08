@@ -72,8 +72,8 @@ float calculateTransmittance(vec3 x, vec3 w) {
                     refineIsoSurfaceHit(x1, x0, currentScalarSign);
                     x = x1;
 #define USE_TRANSMITTANCE_DELTA_TRACKING
-#ifdef USE_TRANSFER_FUNCTION
-                    float opacity = 1.0 - sampleCloudGradientOpacity(x);
+#if defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION)
+                    float opacity = 1.0 - sampleIsoOpacityTF(x);
                     if (opacity < 1e-4) {
                         return 0;
                     }
@@ -200,8 +200,8 @@ float calculateTransmittance(vec3 x, vec3 w) {
                             refineIsoSurfaceHit(x1, x0, currentScalarSign);
                             x = x1;
 #define USE_TRANSMITTANCE_DELTA_TRACKING
-#ifdef USE_TRANSFER_FUNCTION
-                            float opacity = 1.0 - sampleCloudGradientOpacity(x);
+#if defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION)
+                            float opacity = 1.0 - sampleIsoOpacityTF(x);
                             if (opacity < 1e-4) {
                                 return 0;
                             }
@@ -328,8 +328,8 @@ float calculateTransmittanceDistance(vec3 x, vec3 w, float maxDist) {
                     refineIsoSurfaceHit(x1, x0, currentScalarSign);
                     x = x1;
 #define USE_TRANSMITTANCE_DELTA_TRACKING
-#ifdef USE_TRANSFER_FUNCTION
-                    float opacity = 1.0 - sampleCloudGradientOpacity(x);
+#if defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION)
+                    float opacity = 1.0 - sampleIsoOpacityTF(x);
                     if (opacity < 1e-4) {
                         return 0;
                     }

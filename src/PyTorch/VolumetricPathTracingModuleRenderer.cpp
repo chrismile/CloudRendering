@@ -131,7 +131,7 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
 
     transferFunctionWindow = new sgl::MultiVarTransferFunctionWindow;
     transferFunctionWindow->setShowWindow(false);
-    transferFunctionWindow->setAttributeNames({"Density", "Gradient"});
+    transferFunctionWindow->setAttributeNames({"Volume", "Isosurface"});
 
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
@@ -211,6 +211,11 @@ void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::str
         vptPass->loadEnvironmentMapImage(filename);
         vptPass->setUseEnvironmentMapFlag(true);
     }
+}
+
+void VolumetricPathTracingModuleRenderer::setUseBuiltinEnvironmentMap(const std::string& envMapName) {
+    vptPass->setUseEnvironmentMapFlag(false);
+    vptPass->setUseBuiltinEnvironmentMap(envMapName);
 }
 
 void VolumetricPathTracingModuleRenderer::setEnvironmentMapIntensityFactor(float intensityFactor) {

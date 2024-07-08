@@ -48,7 +48,7 @@ protected:
         renderer = new sgl::vk::Renderer(sgl::AppSettings::get()->getPrimaryDevice());
         transferFunctionWindow = new sgl::MultiVarTransferFunctionWindow;
         transferFunctionWindow->setShowWindow(false);
-        transferFunctionWindow->setAttributeNames({"Density", "Gradient"});
+        transferFunctionWindow->setAttributeNames({"Volume", "Isosurface"});
         vptRenderer0 = std::make_shared<VolumetricPathTracingTestRenderer>(renderer);
         vptRenderer1 = std::make_shared<VolumetricPathTracingTestRenderer>(renderer);
     }

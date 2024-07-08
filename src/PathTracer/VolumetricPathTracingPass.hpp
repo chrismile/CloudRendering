@@ -148,9 +148,11 @@ public:
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
+    void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 
     void setUseHeadlight(bool _useHeadlight);
+    void setUseHeadlightDistance(bool _useHeadlightDistance);
     void setHeadlightColor(const glm::vec3& _headlightColor);
     void setHeadlightIntensity(float _headlightIntensity);
 
@@ -173,6 +175,7 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+    void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
 
     // For debug rendering.
@@ -217,6 +220,7 @@ private:
     int superVoxelSize = 8;
     const bool clampToZeroBorder = true; ///< Whether to use a zero valued border for densityFieldTexture.
 
+    bool getNeedsGradientField();
     void setGridData();
     void updateGridSampler();
     bool useSparseGrid = false; ///< Use NanoVDB or a dense grid texture?
@@ -285,6 +289,7 @@ private:
     // Environment map data.
     bool isEnvironmentMapLoaded = false;
     bool useEnvironmentMapImage = false;
+    BuiltinEnvMap builtinEnvMap = BuiltinEnvMap::DEFAULT;
     bool envMapImageUsesLinearRgb = false;
     std::string environmentMapFilenameGui;
     std::string loadedEnvironmentMapFilename;
@@ -297,6 +302,7 @@ private:
 
     // Headlight data.
     bool useHeadlight = false;
+    bool useHeadlightDistance = true; ///< Whether to modulate headlight intensity by distance.
     glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float headlightIntensity = 0.5f;
 
@@ -333,6 +339,7 @@ private:
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
+    bool useIsosurfaceTf = false;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
 
@@ -352,8 +359,8 @@ private:
         // Cloud properties
         glm::vec3 boxMin; float voxelValueMin;
         glm::vec3 boxMax; float voxelValueMax;
-        glm::vec3 gridMin; float pad2;
-        glm::vec3 gridMax; float pad3;
+        glm::vec3 gridMin; float minGradientVal;
+        glm::vec3 gridMax; float maxGradientVal;
         glm::vec3 emissionBoxMin; float pad4;
         glm::vec3 emissionBoxMax; float pad5;
         glm::vec3 extinction; float pad6;

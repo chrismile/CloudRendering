@@ -137,7 +137,7 @@ MainApp::MainApp()
     transferFunctionWindow.setClearColor(clearColor);
     transferFunctionWindow.setUseLinearRGB(useLinearRGB);
     transferFunctionWindow.setShowWindow(false);
-    transferFunctionWindow.setAttributeNames({"Density", "Gradient"});
+    transferFunctionWindow.setAttributeNames({"Volume", "Isosurface"});
     coordinateAxesOverlayWidget.setClearColor(clearColor);
 
     if (usePerformanceMeasurementMode) {

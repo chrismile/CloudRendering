@@ -51,8 +51,8 @@ layout (binding = 3) uniform Parameters {
     // Cloud properties.
     vec3 boxMin; float voxelValueMin;
     vec3 boxMax; float voxelValueMax;
-    vec3 gridMin;
-    vec3 gridMax;
+    vec3 gridMin; float minGradientVal;
+    vec3 gridMax; float maxGradientVal;
     vec3 emissionBoxMin;
     vec3 emissionBoxMax;
     vec3 extinction;
@@ -191,7 +191,7 @@ const float ABSORBANCE_MAX_VALUE = 10.0;
 layout(binding = 26) uniform sampler1DArray transferFunctionTexture;
 #endif
 
-#if defined(ISOSURFACE_TYPE_GRADIENT)
+#if defined(ISOSURFACE_TYPE_GRADIENT) || (defined(ISOSURFACE_TYPE_DENSITY) && defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION))
 layout(binding = 27) uniform sampler3D gradientImage;
 #endif
 

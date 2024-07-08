@@ -285,7 +285,9 @@ vec3 sRGBToLinearRGB(in vec3 linearRGB) {
     return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
 }
 
+
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
+
 vec3 sampleSkybox(in vec3 dir) {
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
@@ -311,7 +313,10 @@ vec3 sampleSkybox(in vec3 dir) {
 vec3 sampleLight(in vec3 dir) {
     return vec3(0.0);
 }
-#else
+
+#else // !defined(USE_ENVIRONMENT_MAP_IMAGE)
+
+#ifdef USE_ENVIRONMENT_MAP_DEFAULT
 vec3 sampleSkybox(in vec3 dir) {
     vec3 L = dir;
 
@@ -351,7 +356,17 @@ vec3 sampleLight(in vec3 dir) {
     float phongNorm = (N + 1) / (2 * 3.14159);
     return parameters.sunIntensity * pow(max(0, dot(dir, parameters.sunDirection)), N) * phongNorm;
 }
+#else // defined(USE_ENVIRONMENT_MAP_BLACK)
+vec3 sampleSkybox(in vec3 dir) {
+    return vec3(0.0);
+}
+vec3 sampleLight(in vec3 dir) {
+    return vec3(0.0);
+}
 #endif
+
+#endif // USE_ENVIRONMENT_MAP_DEFAULT
+
 
 #ifdef USE_HEADLIGHT
 vec3 getHeadlightDirection(vec3 pos) {
@@ -360,9 +375,13 @@ vec3 getHeadlightDirection(vec3 pos) {
     //return normalize(cameraPosition - pos);
 }
 vec3 sampleHeadlight(vec3 pos) {
+#ifdef USE_HEADLIGHT_DISTANCE
     const vec3 diff = cameraPosition - pos;
     const float distFactor = max(dot(diff, diff), 1e-3);
     return (parameters.headlightIntensity / distFactor) * parameters.headlightColor;
+#else
+    return parameters.headlightIntensity * parameters.headlightColor;
+#endif
 }
 #endif
 
@@ -534,16 +553,6 @@ vec4 sampleCloudDensityEmission(in vec3 pos) {
     //return texture(transferFunctionTexture, densityRaw);
     return texture(transferFunctionTexture, vec2(densityRaw, 0.0));
 }
-vec4 sampleCloudGradientColor(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, vec2(densityRaw, 1.0));
-}
-float sampleCloudGradientOpacity(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, vec2(densityRaw, 1.0)).a;
-}
 float sampleCloudDirect(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
@@ -553,7 +562,7 @@ float sampleCloudDirect(in vec3 pos) {
     float densityRaw = sampleCloudRaw(coord);
     return densityRaw;
 }
-#else
+#else // !defined(USE_TRANSFER_FUNCTION)
 float sampleCloud(in vec3 pos) {
     // Transform world position to density grid position.
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
@@ -567,10 +576,8 @@ float sampleCloud(in vec3 pos) {
 #define sampleCloudDirect sampleCloud
 #endif
 
-#if defined(ISOSURFACE_TYPE_DENSITY)
-#define sampleCloudIso sampleCloudDirect
-#elif defined(ISOSURFACE_TYPE_GRADIENT)
-float sampleCloudIso(in vec3 pos) {
+#if defined(ISOSURFACE_TYPE_GRADIENT) || (defined(ISOSURFACE_TYPE_DENSITY) && defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION))
+float sampleCloudGradient(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
     coord = coord.xzy;
@@ -581,6 +588,30 @@ float sampleCloudIso(in vec3 pos) {
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
 #endif
     return texture(gradientImage, coord).x;
+}
+#endif
+
+#if defined(ISOSURFACE_TYPE_DENSITY)
+#define sampleCloudIso sampleCloudDirect
+#elif defined(ISOSURFACE_TYPE_GRADIENT)
+#define sampleCloudIso sampleCloudGradient
+#endif
+
+/**
+ * sampleIsoColorTF/sampleIsoOpacityTF use the opposite entry of the
+ */
+#if defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION)
+vec4 sampleIsoColorTF(in vec3 pos) {
+#if defined(ISOSURFACE_TYPE_DENSITY)
+    float densityRaw = (sampleCloudGradient(pos) - parameters.minGradientVal) / (parameters.maxGradientVal - parameters.minGradientVal);
+#else // defined(ISOSURFACE_TYPE_GRADIENT)
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    float densityRaw = sampleCloudRaw(coord);
+#endif
+    return texture(transferFunctionTexture, vec2(densityRaw, 1.0));
+}
+float sampleIsoOpacityTF(in vec3 pos) {
+    return sampleIsoColorTF(pos).a;
 }
 #endif
 
@@ -745,12 +776,12 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
 }
 
 
-#if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
+#if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
 #define DEFINE_ISO_SURFACE_COLOR float isoSurfaceOpacity = 1.0;
 #else // defined(ISOSURFACE_TYPE_GRADIENT)
 #define DEFINE_ISO_SURFACE_COLOR \
-vec4 isoSurfaceColorAll = sampleCloudGradientColor(currentPoint); \
+vec4 isoSurfaceColorAll = sampleIsoColorTF(currentPoint); \
 vec3 isoSurfaceColorDef = isoSurfaceColorAll.rgb; \
 float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #endif

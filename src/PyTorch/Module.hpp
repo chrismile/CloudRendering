@@ -39,6 +39,7 @@ MODULE_OP_API void loadCloudFile(const std::string& filename);
 MODULE_OP_API void loadEmissionFile(const std::string& filename);
 
 MODULE_OP_API void loadEnvironmentMap(const std::string& filename);
+MODULE_OP_API void setUseBuiltinEnvironmentMap(const std::string& envMapName);
 MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 
 MODULE_OP_API void setScatteringAlbedo(std::vector<double> albedo);
@@ -68,6 +69,7 @@ MODULE_OP_API void setFeatureMapType(int64_t type);
 MODULE_OP_API void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
 
 MODULE_OP_API void setUseHeadlight(bool _useHeadlight);
+MODULE_OP_API void setUseHeadlightDistance(bool _useHeadlightDistance);
 MODULE_OP_API void setHeadlightColor(std::vector<double> _headlightColor);
 MODULE_OP_API void setHeadlightIntensity(double _headlightIntensity);
 
@@ -76,6 +78,7 @@ MODULE_OP_API void setIsoValue(double _isoValue);
 MODULE_OP_API void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor);
 MODULE_OP_API void setIsosurfaceType(const std::string& _isosurfaceType);
 MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
+MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
 
 MODULE_OP_API void setSeedOffset(int64_t offset);

@@ -92,4 +92,12 @@ struct CameraPose {
     float viewportHeight;
 };
 
+/// Built-in procedural environment maps (no importance sampling supported).
+enum class BuiltinEnvMap {
+    DEFAULT, BLACK
+};
+const char* const BUILTIN_ENV_MAP_NAMES[] = {
+        "Default", "Black"
+};
+
 #endif //CLOUDRENDERING_RENDERSETTINGS_HPP
