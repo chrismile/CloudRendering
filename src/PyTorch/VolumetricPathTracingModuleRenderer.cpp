@@ -122,9 +122,7 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     camera = std::make_shared<sgl::Camera>();
     camera->setNearClipDistance(1.0f / 512.0f); // 0.001953125f
     camera->setFarClipDistance(80.0f);
-    camera->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
-    camera->setYaw(-sgl::PI / 2.0f); //< around y axis
-    camera->setPitch(0.0f); //< around x axis
+    camera->resetOrientation();
     camera->setPosition(glm::vec3(0.0f, 0.0f, 0.8f));
     camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
     camera->resetLookAtLocation();
