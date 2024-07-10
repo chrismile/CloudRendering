@@ -1473,7 +1473,7 @@ bool getIsoSurfaceHit(
 #ifdef SURFACE_BRDF_COOK_TORRANCE
         // TODO: Call brdf for viewVector and vector to sun, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
-        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef);
+        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef) * dot(dirLightNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, surfaceNormal);
@@ -1500,7 +1500,7 @@ bool getIsoSurfaceHit(
         vec3 normalVector = normalize(surfaceNormal);
         vec3 x = normalize(surfaceTangent);
         vec3 y = normalize(surfaceBitangent);
-        vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y);
+        vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y) * dot(dirLightNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, normalVector);
