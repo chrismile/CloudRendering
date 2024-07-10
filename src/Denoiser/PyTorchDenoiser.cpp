@@ -194,8 +194,7 @@ void PyTorchDenoiser::denoise() {
     if (pyTorchDevice == PyTorchDevice::CPU) {
         for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
             const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
-            featureMap->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             featureMap->getImage()->copyToBuffer(
                     renderImageStagingBuffers.at(i), renderer->getVkCommandBuffer());
         }
@@ -243,15 +242,13 @@ void PyTorchDenoiser::denoise() {
         timelineValue++;
 
         if (false) {
-            inputImageVulkan->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(inputImageVulkan->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             inputImageVulkan->getImage()->copyToBuffer(
                     inputImageBufferVk, renderer->getVkCommandBuffer());
         } else {
             for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
                 const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
-                featureMap->getImage()->transitionImageLayout(
-                        VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+                renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_GENERAL);
             }
             // Use shader that combines all feature maps.
             featureCombinePass->render();
@@ -448,16 +445,13 @@ void PyTorchDenoiser::denoise() {
         postRenderCommandBuffer->pushWaitSemaphore(
                 denoiseFinishedSemaphore, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT);
 
-        outputImageVulkan->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         outputImageVulkan->getImage()->copyFromBuffer(
                 outputImageBufferVk, renderer->getVkCommandBuffer());
 
         if (addBackground) {
-            backgroundImage->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
-            outputImageVulkan->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(backgroundImage, VK_IMAGE_LAYOUT_GENERAL);
+            renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
 
             backgroundAddPass->render();
         }
@@ -535,6 +529,9 @@ void PyTorchDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 
         sgl::vk::CommandPoolType commandPoolType;
         commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+        if (!swapchain) {
+            commandPoolType.queueFamilyIndex = device->getComputeQueueIndex();
+        }
         for (size_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
             postRenderCommandBuffers.push_back(std::make_shared<sgl::vk::CommandBuffer>(device, commandPoolType));
 #ifdef USE_TIMELINE_SEMAPHORES

@@ -60,6 +60,7 @@
 #include "CloudData.hpp"
 #include "MomentUtils.hpp"
 #include "SuperVoxelGrid.hpp"
+#include "OccupancyGrid.hpp"
 #include "VolumetricPathTracingPass.hpp"
 
 VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera)
@@ -79,12 +80,23 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
             VMA_MEMORY_USAGE_GPU_ONLY);
 
     equalAreaPass = std::make_shared<OctahedralMappingPass>(renderer);
+    occupancyGridPass = std::make_shared<OccupancyGridPass>(renderer);
 
     if (sgl::AppSettings::get()->getSettings().getValueOpt(
             "vptEnvironmentMapImage", environmentMapFilenameGui)) {
         useEnvironmentMapImage = true;
         sgl::AppSettings::get()->getSettings().getValueOpt("vptUseEnvironmentMap", useEnvironmentMapImage);
         loadEnvironmentMapImage(environmentMapFilenameGui);
+    }
+    std::string builtinEnvironmentMapString;
+    if (sgl::AppSettings::get()->getSettings().getValueOpt(
+            "builtinEnvironmentMap", builtinEnvironmentMapString)) {
+        for (int i = 0; i < IM_ARRAYSIZE(BUILTIN_ENV_MAP_NAMES); i++) {
+            if (builtinEnvironmentMapString == BUILTIN_ENV_MAP_NAMES[i]) {
+                builtinEnvMap = BuiltinEnvMap(i);
+                break;
+            }
+        }
     }
 
     blitResultRenderPass = std::make_shared<sgl::vk::BlitRenderPass>(renderer);
@@ -109,6 +121,8 @@ VolumetricPathTracingPass::~VolumetricPathTracingPass() {
         sgl::AppSettings::get()->getSettings().addKeyValue(
                 "vptUseEnvironmentMap", useEnvironmentMapImage);
     }
+    sgl::AppSettings::get()->getSettings().addKeyValue(
+            "builtinEnvironmentMap", BUILTIN_ENV_MAP_NAMES[int(builtinEnvMap)]);
 }
 
 void VolumetricPathTracingPass::createDenoiser() {
@@ -469,6 +483,10 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     }
 }*/
 
+bool VolumetricPathTracingPass::getNeedsGradientField() {
+    return isosurfaceType == IsosurfaceType::GRADIENT || (useIsosurfaceTf && isosurfaceType == IsosurfaceType::DENSITY);
+}
+
 void VolumetricPathTracingPass::setGridData() {
     nanoVdbBuffer = {};
     densityFieldTexture = {};
@@ -560,7 +578,7 @@ void VolumetricPathTracingPass::setGridData() {
                     emissionData->getDenseDensityField()->getDataNative());
         }
 
-        if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
+        if (useIsosurfaces && getNeedsGradientField()) {
             auto xs = size_t(cloudData->getGridSizeX());
             auto ys = size_t(cloudData->getGridSizeY());
             auto zs = size_t(cloudData->getGridSizeZ());
@@ -701,6 +719,13 @@ void VolumetricPathTracingPass::setSparseGridInterpolationType(GridInterpolation
     setShaderDirty();
 }
 
+void VolumetricPathTracingPass::setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping) {
+    this->useEmptySpaceSkipping = _useEmptySpaceSkipping;
+    if (!this->useEmptySpaceSkipping) {
+        occupancyGridPass->setConfig({});
+    }
+}
+
 void VolumetricPathTracingPass::setCustomSeedOffset(uint32_t offset) {
     customSeedOffset = offset;
     setShaderDirty();
@@ -747,7 +772,7 @@ void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
             updateGridSampler();
         }
         setShaderDirty();
-        if (isosurfaceType == IsosurfaceType::GRADIENT) {
+        if (getNeedsGradientField() && !densityGradientFieldTexture) {
             setGridData();
         }
         reRender = true;
@@ -775,7 +800,9 @@ void VolumetricPathTracingPass::setIsosurfaceType(IsosurfaceType _isosurfaceType
     if (isosurfaceType != _isosurfaceType) {
         isosurfaceType = _isosurfaceType;
         setShaderDirty();
-        setGridData();
+        if (getNeedsGradientField() && !densityGradientFieldTexture) {
+            setGridData();
+        }
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -785,6 +812,18 @@ void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
     if (surfaceBrdf != _surfaceBrdf) {
         surfaceBrdf = _surfaceBrdf;
         setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setUseIsosurfaceTf(bool _useIsosurfaceTf) {
+    if (useIsosurfaceTf != _useIsosurfaceTf) {
+        useIsosurfaceTf = _useIsosurfaceTf;
+        setShaderDirty();
+        if (getNeedsGradientField() && !densityGradientFieldTexture) {
+            setGridData();
+        }
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -881,8 +920,48 @@ void VolumetricPathTracingPass::setUseEnvironmentMapFlag(bool useEnvironmentMap)
     this->useEnvironmentMapImage = useEnvironmentMap;
 }
 
+void VolumetricPathTracingPass::setUseBuiltinEnvironmentMap(const std::string& envMapName) {
+    for (int i = 0; i < IM_ARRAYSIZE(BUILTIN_ENV_MAP_NAMES); i++) {
+        if (envMapName == BUILTIN_ENV_MAP_NAMES[i]) {
+            useEnvironmentMapImage = false;
+            builtinEnvMap = BuiltinEnvMap(i);
+            break;
+        }
+    }
+}
+
 void VolumetricPathTracingPass::setEnvironmentMapIntensityFactor(float intensityFactor) {
     this->environmentMapIntensityFactor = intensityFactor;
+}
+
+void VolumetricPathTracingPass::setUseHeadlight(bool _useHeadlight) {
+    if (useHeadlight != _useHeadlight) {
+        this->useHeadlight = _useHeadlight;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
+void VolumetricPathTracingPass::setUseHeadlightDistance(bool _useHeadlightDistance) {
+    if (useHeadlightDistance != _useHeadlightDistance) {
+        this->useHeadlightDistance = _useHeadlightDistance;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightColor(const glm::vec3& _headlightColor) {
+    if (headlightColor != _headlightColor) {
+        this->headlightColor = _headlightColor;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightIntensity(float _headlightIntensity) {
+    if (headlightIntensity != _headlightIntensity) {
+        this->headlightIntensity = _headlightIntensity;
+        frameInfo.frameCount = 0;
+    }
 }
 
 void VolumetricPathTracingPass::setScatteringAlbedo(glm::vec3 albedo) {
@@ -1169,6 +1248,12 @@ void VolumetricPathTracingPass::loadShader() {
     }
     if (useEnvironmentMapImage && isEnvironmentMapLoaded) {
         customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_IMAGE", "" });
+    } else {
+        if (builtinEnvMap == BuiltinEnvMap::DEFAULT) {
+            customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_DEFAULT", "" });
+        } else if (builtinEnvMap == BuiltinEnvMap::BLACK) {
+            customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_BLACK", "" });
+        }
     }
     if (uniformData.useLinearRGB) {
         customPreprocessorDefines.insert({ "USE_LINEAR_RGB", "" });
@@ -1176,6 +1261,14 @@ void VolumetricPathTracingPass::loadShader() {
     if (envMapImageUsesLinearRgb) {
         customPreprocessorDefines.insert({ "ENV_MAP_IMAGE_USES_LINEAR_RGB", "" });
     }
+
+    if (useHeadlight) {
+        customPreprocessorDefines.insert({ "USE_HEADLIGHT", "" });
+    }
+    if (useHeadlightDistance) {
+        customPreprocessorDefines.insert({ "USE_HEADLIGHT_DISTANCE", "" });
+    }
+
     if (flipYZCoordinates) {
         customPreprocessorDefines.insert({ "FLIP_YZ", "" });
     }
@@ -1196,6 +1289,9 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_ISOSURFACES", "" });
         if (vptMode != VptMode::ISOSURFACE_RENDERING) {
             customPreprocessorDefines.insert({ "NUM_ISOSURFACE_SUBDIVISIONS", std::to_string(numIsosurfaceSubdivisions) });
+            if (useIsosurfaceTf) {
+                customPreprocessorDefines.insert({ "ISOSURFACE_USE_TF", "" });
+            }
         }
         if (surfaceBrdf == SurfaceBrdf::LAMBERTIAN) {
             customPreprocessorDefines.insert({ "SURFACE_BRDF_LAMBERTIAN", "" });
@@ -1216,6 +1312,11 @@ void VolumetricPathTracingPass::loadShader() {
         }
     }
 
+    if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+            && useEmptySpaceSkipping) {
+        customPreprocessorDefines.insert({ "USE_OCCUPANCY_GRID", "" });
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -1233,7 +1334,7 @@ void VolumetricPathTracingPass::createComputeData(
         if (useEmission && emissionFieldTexture){
             computeData->setStaticTexture(emissionFieldTexture, "emissionImage");
         }
-        if (useIsosurfaces && isosurfaceType == IsosurfaceType::GRADIENT) {
+        if (useIsosurfaces && getNeedsGradientField()) {
             computeData->setStaticTexture(densityGradientFieldTexture, "gradientImage");
         }
         if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING) {
@@ -1313,10 +1414,34 @@ void VolumetricPathTracingPass::createComputeData(
     }
     computeData->setStaticBuffer(momentUniformDataBuffer, "MomentUniformData");
 
+    if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+            && useEmptySpaceSkipping) {
+        setOccupancyGridConfig();
+        computeData->setStaticImageView(occupancyGridPass->getOccupancyGridImage(), "occupancyGridImage");
+    }
+
     auto* tfWindow = cloudData->getTransferFunctionWindow();
     if (tfWindow && tfWindow->getShowWindow()) {
         computeData->setStaticTexture(tfWindow->getTransferFunctionMapTextureVulkan(), "transferFunctionTexture");
     }
+}
+
+void VolumetricPathTracingPass::setOccupancyGridConfig() {
+    OccupancyGridConfig config{};
+    config.cloudData = cloudData;
+    config.useSparseGrid = useSparseGrid;
+    config.densityFieldTexture = densityFieldTexture;
+    config.nanoVdbBuffer = nanoVdbBuffer;
+    config.densityGradientFieldTexture = densityGradientFieldTexture;
+    config.useIsosurfaces = useIsosurfaces;
+    config.isoValue = isoValue;
+    config.isosurfaceType = isosurfaceType;
+    config.voxelValueMin = uniformData.voxelValueMin;
+    config.voxelValueMax = uniformData.voxelValueMax;
+    config.maxGradientVal = maxGradientVal;
+    config.minGradientVal = minGradientVal;
+    config.maxGradientVal = maxGradientVal;
+    occupancyGridPass->setConfig(config);
 }
 
 std::string VolumetricPathTracingPass::getCurrentEventName() {
@@ -1418,6 +1543,8 @@ void VolumetricPathTracingPass::_render() {
         if (uniformData.voxelValueMin == uniformData.voxelValueMax) {
             uniformData.voxelValueMin = 0.0f;
         }
+        uniformData.minGradientVal = minGradientVal;
+        uniformData.maxGradientVal = maxGradientVal;
 
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;
@@ -1439,16 +1566,26 @@ void VolumetricPathTracingPass::_render() {
         } else if (superVoxelGridDecompositionTracking) {
             uniformData.superVoxelSize = superVoxelGridDecompositionTracking->getSuperVoxelSize();
             uniformData.superVoxelGridSize = superVoxelGridDecompositionTracking->getSuperVoxelGridSize();
+        } else if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+                && useEmptySpaceSkipping) {
+            uniformData.superVoxelSize = occupancyGridPass->getSuperVoxelSize();
+            uniformData.superVoxelGridSize = occupancyGridPass->getSuperVoxelGridSize();
         }
 
         if (!useSparseGrid) {
             auto settings = densityFieldTexture->getImage()->getImageSettings();
             uniformData.voxelTexelSize =
                     glm::vec3(1.0f) / glm::vec3(settings.width - 1, settings.height - 1, settings.depth - 1);
+            uniformData.gridResolution = glm::ivec3(int(settings.width), int(settings.height), int(settings.depth));
         } else {
             uniformData.voxelTexelSize = glm::vec3(1.0f) / glm::vec3(
                     cloudData->getGridSizeX() - 1, cloudData->getGridSizeY() - 1, cloudData->getGridSizeZ() - 1);
+            uniformData.gridResolution = glm::ivec3(
+                    int(cloudData->getGridSizeX()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeZ()));
         }
+
+        uniformData.headlightColor = headlightColor;
+        uniformData.headlightIntensity = headlightIntensity;
 
         uniformData.isoSurfaceColor = isoSurfaceColor;
         uniformData.isoValue = isoValue;
@@ -1553,6 +1690,13 @@ void VolumetricPathTracingPass::_render() {
             renderer->transitionImageLayout(
                     blitScatterRayMomentTexturePass->getMomentTexture()->getImage(),
                     VK_IMAGE_LAYOUT_GENERAL);
+        }
+
+        if ((vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL)
+                && useEmptySpaceSkipping) {
+            // Update occupancy grid if necessary.
+            setOccupancyGridConfig();
+            occupancyGridPass->renderIfNecessary();
         }
 
         auto& imageSettings = resultImageView->getImage()->getImageSettings();
@@ -1781,18 +1925,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         propertyEditor.addCustomWidgets("#Feature Samples");
         ImGui::InputInt("##samplesPerFrame", &numFeatureMapSamplesPerFrame);
 
-        if (propertyEditor.addSliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
-            optionChanged = true;
-        }
-        if (propertyEditor.addSliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
-            optionChanged = true;
-        }
-        if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x, ImGuiColorEditFlags_Float)) {
-            optionChanged = true;
-        }
-        if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {
-            optionChanged = true;
-        }
         if (propertyEditor.addCombo(
                 "Feature Map", (int*)&featureMapType, VPT_FEATURE_MAP_NAMES,
                 IM_ARRAYSIZE(VPT_FEATURE_MAP_NAMES))) {
@@ -1852,37 +1984,120 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             setShaderDirty();
             setDataDirty();
         }
-        if (propertyEditor.addCheckbox("Flip YZ", &flipYZCoordinates)) {
-            optionChanged = true;
-            setGridData();
-            updateVptMode();
-            setShaderDirty();
-            setDataDirty();
-        }
 
-        if (!useIsosurfaces && propertyEditor.addCombo(
-                "Grid Interpolation", (int*)&gridInterpolationType,
-                GRID_INTERPOLATION_TYPE_NAMES, IM_ARRAYSIZE(GRID_INTERPOLATION_TYPE_NAMES))) {
-            optionChanged = true;
-            if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING || vptMode == VptMode::DECOMPOSITION_TRACKING) {
-                updateVptMode();
+        if (propertyEditor.beginNode("Volume Properties")) {
+            if (propertyEditor.addSliderFloat("Extinction Scale", &cloudExtinctionScale, 1.0f, 2048.0f)) {
+                optionChanged = true;
             }
-            updateGridSampler();
-            setShaderDirty();
+            if (propertyEditor.addSliderFloat3("Extinction Base", &cloudExtinctionBase.x, 0.01f, 1.0f)) {
+                optionChanged = true;
+            }
+            if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x, ImGuiColorEditFlags_Float)) {
+                optionChanged = true;
+            }
+            if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {
+                optionChanged = true;
+            }
+            if (!useIsosurfaces && propertyEditor.addCombo(
+                    "Grid Interpolation", (int*)&gridInterpolationType,
+                    GRID_INTERPOLATION_TYPE_NAMES, IM_ARRAYSIZE(GRID_INTERPOLATION_TYPE_NAMES))) {
+                optionChanged = true;
+                if (vptMode == VptMode::RESIDUAL_RATIO_TRACKING || vptMode == VptMode::DECOMPOSITION_TRACKING) {
+                    updateVptMode();
+                }
+                updateGridSampler();
+                setShaderDirty();
+            }
+
+            propertyEditor.endNode();
         }
 
 
+        if (propertyEditor.beginNode("Environment Map")) {
+            if (propertyEditor.addCheckbox(
+                    "Use Env. Map Image", &useEnvironmentMapImage)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (useEnvironmentMapImage){
+                propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
+                if (propertyEditor.addButton("", "Load")) {
+                    loadEnvironmentMapImage(environmentMapFilenameGui);
+                    setShaderDirty();
+                    reRender = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Open from Disk...")) {
+                    IGFD_OpenModal(
+                            fileDialogInstance,
+                            "ChooseEnvironmentMapImage", "Choose an Environment Map Image",
+                            ".*,.png,.exr",
+                            sgl::AppSettings::get()->getDataDirectory().c_str(),
+                            "", 1, nullptr,
+                            ImGuiFileDialogFlags_None);
+                }
+                if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
+                        "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
+                    reRender = true;
+                    frameInfo.frameCount = 0;
+                }
 
-        if (propertyEditor.addCheckbox(
-                "Use Env. Map Image", &useEnvironmentMapImage)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
+                if (useEnvironmentMapImage && propertyEditor.addCheckbox(
+                        "Env. Map Linear RGB", &envMapImageUsesLinearRgb)) {
+                    setShaderDirty();
+                    reRender = true;
+                    frameInfo.frameCount = 0;
+                }
+            } else {
+                if (propertyEditor.addCombo(
+                        "Built-In Env. Map", (int*)&builtinEnvMap,
+                        BUILTIN_ENV_MAP_NAMES, IM_ARRAYSIZE(BUILTIN_ENV_MAP_NAMES))) {
+                    setShaderDirty();
+                    reRender = true;
+                    frameInfo.frameCount = 0;
+                }
+                if (builtinEnvMap != BuiltinEnvMap::BLACK) {
+                    if (propertyEditor.addColorEdit3("Sunlight Color", &sunlightColor.x)) {
+                        optionChanged = true;
+                    }
+                    if (propertyEditor.addSliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
+                        optionChanged = true;
+                    }
+                    if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
+                        optionChanged = true;
+                    }
+                }
+            }
+
+            propertyEditor.endNode();
         }
-        if (useEnvironmentMapImage){
-            propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
-            if (propertyEditor.addButton("", "Load")) {
-                loadEnvironmentMapImage(environmentMapFilenameGui);
+
+        if (propertyEditor.beginNode("Emission Grid")) {
+            if (propertyEditor.addCheckbox("Use Emission Grid", &useEmission)) {
+                optionChanged = true;
+                setGridData();
+                updateVptMode();
+                setShaderDirty();
+                setDataDirty();
+            }
+            if (propertyEditor.addSliderFloat(
+                    "Emission Cap", &emissionCap, 0.0f, 1.0f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (propertyEditor.addSliderFloat(
+                    "Emission Strength", &emissionStrength, 0.0f, 20.0f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            propertyEditor.addInputAction("Emission Grid", &emissionGridFilenameGui);
+            if (propertyEditor.addCheckbox("Load", &useEmission)) {
+                CloudDataPtr emissionCloudData(new CloudData);
+                bool dataLoaded = emissionCloudData->loadFromFile(emissionGridFilenameGui);
+                if (dataLoaded){
+                    setEmissionData(emissionCloudData);
+                }
                 setShaderDirty();
                 reRender = true;
             }
@@ -1890,157 +2105,157 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             if (ImGui::Button("Open from Disk...")) {
                 IGFD_OpenModal(
                         fileDialogInstance,
-                        "ChooseEnvironmentMapImage", "Choose an Environment Map Image",
-                        ".*,.png,.exr",
+                        "ChooseEmissionGrid", "Choose an Emission Grid",
+                        ".*",
                         sgl::AppSettings::get()->getDataDirectory().c_str(),
                         "", 1, nullptr,
                         ImGuiFileDialogFlags_None);
             }
-            if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
-                    "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
+
+            propertyEditor.endNode();
+        }
+
+        if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+            if (propertyEditor.beginNode("Headlight")) {
+                if (propertyEditor.addCheckbox("Use Headlight", &useHeadlight)) {
+                    optionChanged = true;
+                    setShaderDirty();
+                }
+                if (useHeadlight) {
+                    if (propertyEditor.addCheckbox("Use Headlight Distance", &useHeadlightDistance)) {
+                        optionChanged = true;
+                        setShaderDirty();
+                    }
+                    if (propertyEditor.addColorEdit3("Headlight Color", &headlightColor.x)) {
+                        optionChanged = true;
+                    }
+                    if (propertyEditor.addSliderFloat("Headlight Intensity", &headlightIntensity, 0.0f, 10.0f)) {
+                        optionChanged = true;
+                    }
+                }
+
+                propertyEditor.endNode();
+            }
+        }
+
+        if (propertyEditor.beginNode("Isosurfaces")) {
+            if (vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox(
+                    "Use Isosurfaces", &useIsosurfaces)) {
+                if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
+                    gridInterpolationType = GridInterpolationType::TRILINEAR;
+                    updateGridSampler();
+                }
+                setShaderDirty();
+                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                    setGridData();
+                }
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            float isoValMin = isosurfaceType == IsosurfaceType::DENSITY ? 0.0f : minGradientVal;
+            float isoValMax = isosurfaceType == IsosurfaceType::DENSITY ? 1.0f : maxGradientVal;
+            if (useIsosurfaces && propertyEditor.addSliderFloat("Iso Value", &isoValue, isoValMin, isoValMax)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING
+                    && propertyEditor.addCheckbox("Use Isosurface TF", &useIsosurfaceTf)) {
+                setShaderDirty();
+                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                    setGridData();
+                }
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (useIsosurfaces && (!useIsosurfaceTf || vptMode == VptMode::ISOSURFACE_RENDERING)) {
+                if (propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
+                    reRender = true;
+                    frameInfo.frameCount = 0;
+                }
+            }
+            if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
+                    "#Isosurface Subdivisions", &numIsosurfaceSubdivisions, 1, 8)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
+                    "Step Width", &isoStepWidth, 0.1f, 1.0f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
+                    "AO Dist.", &maxAoDist, 0.01f, 0.1f)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
+                    "#AO Samples", &numAoSamples, 1, 16)) {
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox("Use AO Dist.", &useAoDist)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (useIsosurfaces && propertyEditor.addCombo(
+                    "Isosurface Field", (int*)&isosurfaceType,
+                    ISOSURFACE_TYPE_NAMES, IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES))) {
+                setShaderDirty();
+                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                    setGridData();
+                }
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+            if (useIsosurfaces && propertyEditor.addCombo(
+                    "Surface BRDF", (int*)&surfaceBrdf, SURFACE_BRDF_NAMES, IM_ARRAYSIZE(SURFACE_BRDF_NAMES))) {
+                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
 
-            if (useEnvironmentMapImage && propertyEditor.addCheckbox(
-                    "Env. Map Linear RGB", &envMapImageUsesLinearRgb)) {
-                reRender = true;
-                frameInfo.frameCount = 0;
+            propertyEditor.endNode();
+        }
+
+        if (propertyEditor.beginNode("Advanced")) {
+            if (propertyEditor.addCheckbox("Flip YZ", &flipYZCoordinates)) {
+                optionChanged = true;
+                setGridData();
+                updateVptMode();
+                setShaderDirty();
+                setDataDirty();
+            }
+
+            if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
+                if (propertyEditor.addCheckbox("Skip Empty Space", &useEmptySpaceSkipping)) {
+                    this->setUseEmptySpaceSkipping(useEmptySpaceSkipping); //< Optionally deletes old data.
+                    optionChanged = true;
+                    setShaderDirty();
+                }
+            }
+
+            bool shallRecreateMomentTextureA = false;
+            bool momentTypeChangedA = false;
+            bool shallRecreateMomentTextureB = false;
+            bool momentTypeChangedB = false;
+            optionChanged =
+                    blitPrimaryRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                            propertyEditor, shallRecreateMomentTextureA, momentTypeChangedA) || optionChanged;
+            optionChanged =
+                    blitScatterRayMomentTexturePass->renderGuiPropertyEditorNodes(
+                            propertyEditor, shallRecreateMomentTextureB, momentTypeChangedB) || optionChanged;
+            if (shallRecreateMomentTextureA || shallRecreateMomentTextureB) {
+                setShaderDirty();
+                setDataDirty();
+            }
+            if (momentTypeChangedA || momentTypeChangedB) {
                 setShaderDirty();
             }
-        } else {
-            if (propertyEditor.addColorEdit3("Sunlight Color", &sunlightColor.x)) {
-                optionChanged = true;
-            }
-            if (propertyEditor.addSliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
-                optionChanged = true;
-            }
-            if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
-                optionChanged = true;
-            }
-        }
 
-
-
-        if (propertyEditor.addCheckbox("Use Emission", &useEmission)) {
-            optionChanged = true;
-            setGridData();
-            updateVptMode();
-            setShaderDirty();
-            setDataDirty();
-        }
-        if (propertyEditor.addSliderFloat(
-                "Emission Cap", &emissionCap, 0.0f, 1.0f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (propertyEditor.addSliderFloat(
-                "Emission Strength", &emissionStrength, 0.0f, 20.0f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        propertyEditor.addInputAction("Emission Grid", &emissionGridFilenameGui);
-        if (propertyEditor.addCheckbox("Load", &useEmission)) {
-            CloudDataPtr emissionCloudData(new CloudData);
-            bool dataLoaded = emissionCloudData->loadFromFile(emissionGridFilenameGui);
-            if (dataLoaded){
-                setEmissionData(emissionCloudData);
-            }
-            setShaderDirty();
-            reRender = true;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Open from Disk...")) {
-            IGFD_OpenModal(
-                    fileDialogInstance,
-                    "ChooseEmissionGrid", "Choose an Emission Grid",
-                    ".*",
-                    sgl::AppSettings::get()->getDataDirectory().c_str(),
-                    "", 1, nullptr,
-                    ImGuiFileDialogFlags_None);
-        }
-
-        bool shallRecreateMomentTextureA = false;
-        bool momentTypeChangedA = false;
-        bool shallRecreateMomentTextureB = false;
-        bool momentTypeChangedB = false;
-        optionChanged =
-                blitPrimaryRayMomentTexturePass->renderGuiPropertyEditorNodes(
-                        propertyEditor, shallRecreateMomentTextureA, momentTypeChangedA) || optionChanged;
-        optionChanged =
-                blitScatterRayMomentTexturePass->renderGuiPropertyEditorNodes(
-                        propertyEditor, shallRecreateMomentTextureB, momentTypeChangedB) || optionChanged;
-        if (shallRecreateMomentTextureA || shallRecreateMomentTextureB) {
-            setShaderDirty();
-            setDataDirty();
-        }
-        if (momentTypeChangedA || momentTypeChangedB) {
-            setShaderDirty();
-        }
-
-        if (vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox(
-                "Use Isosurfaces", &useIsosurfaces)) {
-            if (gridInterpolationType != GridInterpolationType::TRILINEAR) {
-                gridInterpolationType = GridInterpolationType::TRILINEAR;
-                updateGridSampler();
-            }
-            setShaderDirty();
-            if (isosurfaceType == IsosurfaceType::GRADIENT) {
-                setGridData();
-            }
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        float isoValMin = isosurfaceType == IsosurfaceType::DENSITY ? 0.0f : minGradientVal;
-        float isoValMax = isosurfaceType == IsosurfaceType::DENSITY ? 1.0f : maxGradientVal;
-        if (useIsosurfaces && propertyEditor.addSliderFloat("Iso Value", &isoValue, isoValMin, isoValMax)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (useIsosurfaces && propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
-                "#Isosurface Subdivisions", &numIsosurfaceSubdivisions, 1, 8)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
-                "Step Width", &isoStepWidth, 0.1f, 1.0f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderFloat(
-                "AO Dist.", &maxAoDist, 0.01f, 0.1f)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addSliderInt(
-                "#AO Samples", &numAoSamples, 1, 16)) {
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (vptMode == VptMode::ISOSURFACE_RENDERING && propertyEditor.addCheckbox("Use AO Dist.", &useAoDist)) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (useIsosurfaces && propertyEditor.addCombo(
-                "Isosurface Field", (int*)&isosurfaceType,
-                ISOSURFACE_TYPE_NAMES, IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES))) {
-            setShaderDirty();
-            setGridData();
-            reRender = true;
-            frameInfo.frameCount = 0;
-        }
-        if (useIsosurfaces && propertyEditor.addCombo(
-                "Surface BRDF", (int*)&surfaceBrdf, SURFACE_BRDF_NAMES, IM_ARRAYSIZE(SURFACE_BRDF_NAMES))) {
-            setShaderDirty();
-            reRender = true;
-            frameInfo.frameCount = 0;
+            propertyEditor.endNode();
         }
 
         if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::DISNEY && propertyEditor.beginNode("Disney BRDF Parameters")) {

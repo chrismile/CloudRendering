@@ -122,16 +122,14 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     camera = std::make_shared<sgl::Camera>();
     camera->setNearClipDistance(1.0f / 512.0f); // 0.001953125f
     camera->setFarClipDistance(80.0f);
-    camera->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
-    camera->setYaw(-sgl::PI / 2.0f); //< around y axis
-    camera->setPitch(0.0f); //< around x axis
+    camera->resetOrientation();
     camera->setPosition(glm::vec3(0.0f, 0.0f, 0.8f));
     camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
     camera->resetLookAtLocation();
 
     transferFunctionWindow = new sgl::MultiVarTransferFunctionWindow;
     transferFunctionWindow->setShowWindow(false);
-    transferFunctionWindow->setAttributeNames({"Density", "Gradient"});
+    transferFunctionWindow->setAttributeNames({"Volume", "Isosurface"});
 
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
@@ -211,6 +209,11 @@ void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::str
         vptPass->loadEnvironmentMapImage(filename);
         vptPass->setUseEnvironmentMapFlag(true);
     }
+}
+
+void VolumetricPathTracingModuleRenderer::setUseBuiltinEnvironmentMap(const std::string& envMapName) {
+    vptPass->setUseEnvironmentMapFlag(false);
+    vptPass->setUseBuiltinEnvironmentMap(envMapName);
 }
 
 void VolumetricPathTracingModuleRenderer::setEnvironmentMapIntensityFactor(float intensityFactor) {
@@ -505,10 +508,8 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCpu(uint32_t numFrames) {
         vptPass->checkRecreateDenoiser();
         vptPass->render();
         if (i == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-            renderImageStaging->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             renderImageView->getImage()->copyToImage(
                     renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                     renderer->getVkCommandBuffer());
@@ -626,8 +627,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
         vptPass->render();
 
         if (frameIndex == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             renderImageView->getImage()->copyToBuffer(
                     outputImageBufferVk, renderer->getVkCommandBuffer());
         }
@@ -675,10 +675,8 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCpu(FeatureMapTypeVpt f
             renderImageBlitPass->render();
         }
 
-        renderImageView->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-        renderImageStaging->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         renderImageView->getImage()->copyToImage(
                 renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                 renderer->getVkCommandBuffer());
@@ -787,8 +785,7 @@ float* VolumetricPathTracingModuleRenderer::getFeatureMapCuda(FeatureMapTypeVpt 
             renderImageBlitPass->render();
         }
 
-        renderImageView->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderImageView->getImage()->copyToBuffer(
                 outputImageBufferVk, renderer->getVkCommandBuffer());
     }

@@ -86,6 +86,7 @@ public:
     void setEmissionData(const CloudDataPtr& cloudData);
 
     void loadEnvironmentMapImage(const std::string& filename);
+    void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 
     void setScatteringAlbedo(glm::vec3 albedo);

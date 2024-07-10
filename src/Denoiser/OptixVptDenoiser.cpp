@@ -367,6 +367,9 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     denoiseFinishedSemaphores.clear();
     sgl::vk::CommandPoolType commandPoolType;
     commandPoolType.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    if (!swapchain) {
+        commandPoolType.queueFamilyIndex = device->getComputeQueueIndex();
+    }
     for (size_t frameIdx = 0; frameIdx < numImages; frameIdx++) {
         postRenderCommandBuffers.push_back(std::make_shared<sgl::vk::CommandBuffer>(device, commandPoolType));
 #ifdef USE_TIMELINE_SEMAPHORES
@@ -418,34 +421,29 @@ void OptixVptDenoiser::denoise() {
     uint32_t frameIndex = swapchain ? swapchain->getImageIndex() : 0;
     timelineValue++;
 
-    inputImageVulkan->getImage()->transitionImageLayout(
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+    renderer->transitionImageLayout(inputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     inputImageVulkan->getImage()->copyToBuffer(
             inputImageBufferVk, renderer->getVkCommandBuffer());
 
     if (useAlbedo && albedoImageVulkan) {
-        albedoImageVulkan->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(albedoImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         albedoImageVulkan->getImage()->copyToBuffer(
                 albedoImageBufferVk, renderer->getVkCommandBuffer());
     }
 
     if (useNormalMap && normalImageVulkan) {
         if (normalImageVulkan->getImage()->getImageSettings().format == VK_FORMAT_R32G32B32_SFLOAT) {
-            normalImageVulkan->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(normalImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
             normalImageVulkan->getImage()->copyToBuffer(
                     normalImageBufferVk, renderer->getVkCommandBuffer());
         } else {
-            normalImageVulkan->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_GENERAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(normalImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
             normalBlitPass->render();
         }
     }
 
     if (getUseFeatureMap(FeatureMapType::FLOW) && flowImageVulkan) {
-        flowImageVulkan->getImage()->transitionImageLayout(
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
+        renderer->transitionImageLayout(flowImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         flowImageVulkan->getImage()->copyToBuffer(
                 flowImageBufferVk, renderer->getVkCommandBuffer());
     }
@@ -480,8 +478,7 @@ void OptixVptDenoiser::denoise() {
     //        VK_ACCESS_MEMORY_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
     //        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
     //        outputImageBufferVk);
-    outputImageVulkan->getImage()->transitionImageLayout(
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+    renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     outputImageVulkan->getImage()->copyFromBuffer(outputImageBufferVk, renderer->getVkCommandBuffer());
 }
 

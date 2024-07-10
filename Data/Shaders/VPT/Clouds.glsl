@@ -41,7 +41,7 @@
 pnanovdb_readaccessor_t accessor;
 #endif
 
-#ifdef USE_ISOSURFACES
+#if defined(USE_ISOSURFACES) || defined(USE_HEADLIGHT)
 vec3 cameraPosition;
 #endif
 
@@ -85,7 +85,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     vec3 x, w;
     createCameraRay(screenCoord, x, w);
 
-#ifdef USE_ISOSURFACES
+#if defined(USE_ISOSURFACES) || defined(USE_HEADLIGHT)
     cameraPosition = x;
 #endif
 

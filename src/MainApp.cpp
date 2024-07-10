@@ -137,7 +137,7 @@ MainApp::MainApp()
     transferFunctionWindow.setClearColor(clearColor);
     transferFunctionWindow.setUseLinearRGB(useLinearRGB);
     transferFunctionWindow.setShowWindow(false);
-    transferFunctionWindow.setAttributeNames({"Density", "Gradient"});
+    transferFunctionWindow.setAttributeNames({"Volume", "Isosurface"});
     coordinateAxesOverlayWidget.setClearColor(clearColor);
 
     if (usePerformanceMeasurementMode) {
@@ -398,7 +398,6 @@ void MainApp::renderGui() {
                 if (ImGui::IsWindowFocused()) {
                     focusedWindowIndex = 0;
                 }
-                sgl::ImGuiWrapper::get()->setWindowViewport(0, ImGui::GetWindowViewport());
                 sgl::ImGuiWrapper::get()->setWindowViewport(0, ImGui::GetWindowViewport());
                 sgl::ImGuiWrapper::get()->setWindowPosAndSize(0, ImGui::GetWindowPos(), ImGui::GetWindowSize());
 

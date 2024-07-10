@@ -285,7 +285,9 @@ vec3 sRGBToLinearRGB(in vec3 linearRGB) {
     return mix(pow((linearRGB + 0.055) / 1.055, vec3(2.4)), linearRGB / 12.92, lessThanEqual(linearRGB, vec3(0.04045)));
 }
 
+
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
+
 vec3 sampleSkybox(in vec3 dir) {
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
@@ -311,7 +313,10 @@ vec3 sampleSkybox(in vec3 dir) {
 vec3 sampleLight(in vec3 dir) {
     return vec3(0.0);
 }
-#else
+
+#else // !defined(USE_ENVIRONMENT_MAP_IMAGE)
+
+#ifdef USE_ENVIRONMENT_MAP_DEFAULT
 vec3 sampleSkybox(in vec3 dir) {
     vec3 L = dir;
 
@@ -350,6 +355,33 @@ vec3 sampleLight(in vec3 dir) {
     int N = 10;
     float phongNorm = (N + 1) / (2 * 3.14159);
     return parameters.sunIntensity * pow(max(0, dot(dir, parameters.sunDirection)), N) * phongNorm;
+}
+#else // defined(USE_ENVIRONMENT_MAP_BLACK)
+vec3 sampleSkybox(in vec3 dir) {
+    return vec3(0.0);
+}
+vec3 sampleLight(in vec3 dir) {
+    return vec3(0.0);
+}
+#endif
+
+#endif // USE_ENVIRONMENT_MAP_DEFAULT
+
+
+#ifdef USE_HEADLIGHT
+vec3 getHeadlightDirection(vec3 pos) {
+    const vec3 diff = cameraPosition - pos;
+    return diff / (length(diff) + 1e-5);
+    //return normalize(cameraPosition - pos);
+}
+vec3 sampleHeadlight(vec3 pos) {
+#ifdef USE_HEADLIGHT_DISTANCE
+    const vec3 diff = cameraPosition - pos;
+    const float distFactor = max(dot(diff, diff), 1e-3);
+    return (parameters.headlightIntensity / distFactor) * parameters.headlightColor;
+#else
+    return parameters.headlightIntensity * parameters.headlightColor;
+#endif
 }
 #endif
 
@@ -521,16 +553,6 @@ vec4 sampleCloudDensityEmission(in vec3 pos) {
     //return texture(transferFunctionTexture, densityRaw);
     return texture(transferFunctionTexture, vec2(densityRaw, 0.0));
 }
-vec4 sampleCloudGradientColor(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, vec2(densityRaw, 1.0));
-}
-float sampleCloudGradientOpacity(in vec3 pos) {
-    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    float densityRaw = sampleCloudRaw(coord);
-    return texture(transferFunctionTexture, vec2(densityRaw, 1.0)).a;
-}
 float sampleCloudDirect(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
@@ -540,7 +562,7 @@ float sampleCloudDirect(in vec3 pos) {
     float densityRaw = sampleCloudRaw(coord);
     return densityRaw;
 }
-#else
+#else // !defined(USE_TRANSFER_FUNCTION)
 float sampleCloud(in vec3 pos) {
     // Transform world position to density grid position.
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
@@ -554,10 +576,8 @@ float sampleCloud(in vec3 pos) {
 #define sampleCloudDirect sampleCloud
 #endif
 
-#if defined(ISOSURFACE_TYPE_DENSITY)
-#define sampleCloudIso sampleCloudDirect
-#elif defined(ISOSURFACE_TYPE_GRADIENT)
-float sampleCloudIso(in vec3 pos) {
+#if defined(ISOSURFACE_TYPE_GRADIENT) || (defined(ISOSURFACE_TYPE_DENSITY) && defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION))
+float sampleCloudGradient(in vec3 pos) {
     vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
 #if defined(FLIP_YZ)
     coord = coord.xzy;
@@ -568,6 +588,30 @@ float sampleCloudIso(in vec3 pos) {
     coord += vec3(random() - 0.5, random() - 0.5, random() - 0.5) / dim;
 #endif
     return texture(gradientImage, coord).x;
+}
+#endif
+
+#if defined(ISOSURFACE_TYPE_DENSITY)
+#define sampleCloudIso sampleCloudDirect
+#elif defined(ISOSURFACE_TYPE_GRADIENT)
+#define sampleCloudIso sampleCloudGradient
+#endif
+
+/**
+ * sampleIsoColorTF/sampleIsoOpacityTF use the opposite entry of the
+ */
+#if defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION)
+vec4 sampleIsoColorTF(in vec3 pos) {
+#if defined(ISOSURFACE_TYPE_DENSITY)
+    float densityRaw = (sampleCloudGradient(pos) - parameters.minGradientVal) / (parameters.maxGradientVal - parameters.minGradientVal);
+#else // defined(ISOSURFACE_TYPE_GRADIENT)
+    vec3 coord = (pos - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    float densityRaw = sampleCloudRaw(coord);
+#endif
+    return texture(transferFunctionTexture, vec2(densityRaw, 1.0));
+}
+float sampleIsoOpacityTF(in vec3 pos) {
+    return sampleIsoColorTF(pos).a;
 }
 #endif
 
@@ -654,9 +698,9 @@ vec3 computeGradient(vec3 texCoords) {
             (sampleIsoImageOffset(texCoords, ivec3(0, 0, -1))
             - sampleIsoImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
 #else
-    const float dx = parameters.voxelTexelSize.x * 0.01;
-    const float dy = parameters.voxelTexelSize.y * 0.01;
-    const float dz = parameters.voxelTexelSize.z * 0.01;
+    const float dx = parameters.voxelTexelSize.x * 1;
+    const float dy = parameters.voxelTexelSize.y * 1;
+    const float dz = parameters.voxelTexelSize.z * 1;
     float gradX =
             (sampleIsoImage(texCoords - vec3(dx, 0.0, 0.0))
             - sampleIsoImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
@@ -1260,12 +1304,12 @@ vec3 disney_2012(out vec3 directionOut, vec3 w, vec3 surfaceNormal, vec3 surface
 
 // 2.4 Combined Call
 
-#if defined(ISOSURFACE_TYPE_DENSITY) || !defined(USE_TRANSFER_FUNCTION)
+#if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
 #define DEFINE_ISO_SURFACE_COLOR float isoSurfaceOpacity = 1.0;
 #else // defined(ISOSURFACE_TYPE_GRADIENT)
 #define DEFINE_ISO_SURFACE_COLOR \
-vec4 isoSurfaceColorAll = sampleCloudGradientColor(currentPoint); \
+vec4 isoSurfaceColorAll = sampleIsoColorTF(currentPoint); \
 vec3 isoSurfaceColorDef = isoSurfaceColorAll.rgb; \
 float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #endif
@@ -1367,10 +1411,23 @@ bool getIsoSurfaceHit(
 // Next Event Tracking NEE Start
 
 #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
-    float pdfSkyboxNee;
-    vec3 dirSkyboxNee = importanceSampleSkybox(pdfSkyboxNee);
-    if (dot(surfaceNormal, dirSkyboxNee) > 0.0) {
-        float thetaNee = dot(surfaceNormal, dirSkyboxNee);
+    float pdfLightNee; // only used for skybox.
+    vec3 dirLightNee;
+    
+    #ifdef USE_HEADLIGHT
+    // We are sampling the environment map or headlight with 50/50 chance.
+    bool isSamplingHeadlight = random() > 0.5;
+    if (isSamplingHeadlight) {
+        dirLightNee = getHeadlightDirection(currentPoint);
+    } else {
+    #endif
+        dirLightNee = importanceSampleSkybox(pdfLightNee);
+    #ifdef USE_HEADLIGHT
+    }
+    #endif
+
+    if (dot(surfaceNormal, dirLightNee) > 0.0) {
+        float thetaNee = dot(surfaceNormal, dirLightNee);
 
 #ifdef SURFACE_BRDF_LAMBERTIAN
 #ifdef UNIFORM_SAMPLING
@@ -1407,22 +1464,22 @@ bool getIsoSurfaceHit(
         // NEE Blinn Phong RDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
-        vec3 halfwayVectorNee = normalize(-w + dirSkyboxNee);
+        vec3 halfwayVectorNee = normalize(-w + dirLightNee);
         vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
         colorOut = rdfOut / pdfSamplingOut;
 #endif
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
-        // TODO: Call brdf for viewVector and vector to sun dirSkyBoxNee, but this must take NEE sampling into account and not the brdf importance sampling
+        // TODO: Call brdf for viewVector and vector to sun, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
-        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef)*dot(dirSkyboxNee, normalize(surfaceNormal));
+        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef);
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, surfaceNormal);
         float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
 
-        vec3 halfwayVectorNee  = normalize(dirSkyboxNee + (-1.0*w));
+        vec3 halfwayVectorNee  = normalize(dirLightNee + (-1.0*w));
         float cosThetaHNee = dot(halfwayVectorNee, surfaceNormal);
         float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
 
@@ -1443,13 +1500,13 @@ bool getIsoSurfaceHit(
         vec3 normalVector = normalize(surfaceNormal);
         vec3 x = normalize(surfaceTangent);
         vec3 y = normalize(surfaceBitangent);
-        vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirSkyboxNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y)*dot(dirSkyboxNee, normalize(surfaceNormal));
+        vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y);
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, normalVector);
         float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
 
-        vec3 halfwayVectorNee  = normalize(dirSkyboxNee + (-1.0*w));
+        vec3 halfwayVectorNee  = normalize(dirLightNee + (-w));
         float cosThetaHNee = dot(halfwayVectorNee, normalVector);
         float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
 
@@ -1470,22 +1527,36 @@ if(useMIS){
         // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
         // instead of pdfSamplingOut and pdfSamplingNee.
         // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
-        //float weightNee = pdfSkyboxNee * pdfSkyboxNee / (pdfSkyboxNee * pdfSkyboxNee + pdfSamplingNee * pdfSamplingNee);
+        //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
         //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
         float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
-        float weightNee = pdfSkyboxNee / (pdfSkyboxNee + pdfSamplingNee);
+        float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
         float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
         colorNee +=
-                throughput * rdfNee * weightNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
-                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+                throughput * rdfNee * weightNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
         colorNee +=
                 throughput * weightOut * colorOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
                 * (sampleSkybox(dirOut) + sampleLight(dirOut));
 } else {
     // Normal NEE.
+    #ifdef USE_HEADLIGHT
+        vec3 commonFactor = 2.0 * throughput * rdfNee;
+        if (isSamplingHeadlight) {
+            colorNee +=
+                    commonFactor * calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition))
+                    * sampleHeadlight(currentPoint);
+        } else {
+            colorNee +=
+                    commonFactor / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                    * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+        }
+    #else
+        // Normal NEE.
         colorNee +=
-                throughput * rdfNee / pdfSkyboxNee * calculateTransmittance(currentPoint + dirSkyboxNee * 1e-4, dirSkyboxNee)
-                * (sampleSkybox(dirSkyboxNee) + sampleLight(dirSkyboxNee));
+                throughput * rdfNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+    #endif
 }
     } else {
     // Abort Next Event Tracking if Skybox sample is behind the surface
