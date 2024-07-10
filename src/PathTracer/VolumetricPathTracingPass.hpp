@@ -54,6 +54,7 @@ class SuperVoxelGridResidualRatioTracking;
 class SuperVoxelGridDecompositionTracking;
 class OctahedralMappingPass;
 class OccupationVolumePass;
+class OccupancyGridPass;
 class CameraPoseLinePass;
 
 namespace IGFD {
@@ -133,6 +134,7 @@ public:
     void setUseSparseGrid(bool useSparse);
     [[nodiscard]] bool getUseSparseGrid() const { return useSparseGrid; }
     void setSparseGridInterpolationType(GridInterpolationType type);
+    void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
     void setCustomSeedOffset(uint32_t offset); //< Additive offset for the random seed in the VPT shader.
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
@@ -146,7 +148,13 @@ public:
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
+    void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
+
+    void setUseHeadlight(bool _useHeadlight);
+    void setUseHeadlightDistance(bool _useHeadlightDistance);
+    void setHeadlightColor(const glm::vec3& _headlightColor);
+    void setHeadlightIntensity(float _headlightIntensity);
 
     void setScatteringAlbedo(glm::vec3 albedo);
     void setExtinctionScale(double extinctionScale);
@@ -167,6 +175,7 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+    void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
 
     // For debug rendering.
@@ -202,7 +211,7 @@ private:
     std::string emissionGridFilenameGui;
 
     void updateVptMode();
-    VptMode vptMode = VptMode::DELTA_TRACKING;
+    VptMode vptMode = VptMode::NEXT_EVENT_TRACKING;
     CompositionModel compositionModel = CompositionModel::ALPHA_BLENDING; ///< only for VptMode::RAY_MARCHING_EMISSION_ABSORPTION.
     SpectralDeltaTrackingCollisionProbability sdtCollisionProbability =
             SpectralDeltaTrackingCollisionProbability::PATH_HISTORY_AVG_BASED;
@@ -211,6 +220,7 @@ private:
     int superVoxelSize = 8;
     const bool clampToZeroBorder = true; ///< Whether to use a zero valued border for densityFieldTexture.
 
+    bool getNeedsGradientField();
     void setGridData();
     void updateGridSampler();
     bool useSparseGrid = false; ///< Use NanoVDB or a dense grid texture?
@@ -279,6 +289,7 @@ private:
     // Environment map data.
     bool isEnvironmentMapLoaded = false;
     bool useEnvironmentMapImage = false;
+    BuiltinEnvMap builtinEnvMap = BuiltinEnvMap::DEFAULT;
     bool envMapImageUsesLinearRgb = false;
     std::string environmentMapFilenameGui;
     std::string loadedEnvironmentMapFilename;
@@ -288,6 +299,12 @@ private:
     float environmentMapIntensityFactor = 1;
     bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
+
+    // Headlight data.
+    bool useHeadlight = false;
+    bool useHeadlightDistance = true; ///< Whether to modulate headlight intensity by distance.
+    glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
+    float headlightIntensity = 0.5f;
 
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     // Use the two passes below if a compute queue is used and raster-blitting is not available.
@@ -321,9 +338,15 @@ private:
     bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
-    SurfaceBrdf surfaceBrdf = SurfaceBrdf::DISNEY;
+    SurfaceBrdf surfaceBrdf = SurfaceBrdf::DISNEY;\
+    bool useIsosurfaceTf = false;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
+
+    // Occupancy grid.
+    void setOccupancyGridConfig();
+    bool useEmptySpaceSkipping = false;
+    std::shared_ptr<OccupancyGridPass> occupancyGridPass;
 
     glm::mat4 previousViewProjMatrix;
 
@@ -348,8 +371,8 @@ private:
         // Cloud properties
         glm::vec3 boxMin; float voxelValueMin;
         glm::vec3 boxMax; float voxelValueMax;
-        glm::vec3 gridMin; float pad2;
-        glm::vec3 gridMax; float pad3;
+        glm::vec3 gridMin; float minGradientVal;
+        glm::vec3 gridMax; float maxGradientVal;
         glm::vec3 emissionBoxMin; float pad4;
         glm::vec3 emissionBoxMax; float pad5;
         glm::vec3 extinction; float pad6;
@@ -371,8 +394,13 @@ private:
         glm::ivec3 superVoxelSize; int pad8;
         glm::ivec3 superVoxelGridSize; int pad9;
 
+        glm::ivec3 gridResolution; int pad10;
         glm::vec3 voxelTexelSize;
         float farDistance;
+
+        // Headlight.
+        glm::vec3 headlightColor;
+        float headlightIntensity = 1.0f;
 
         // Isosurfaces.
         glm::vec3 isoSurfaceColor;

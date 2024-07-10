@@ -36,9 +36,7 @@ VolumetricPathTracingTestRenderer::VolumetricPathTracingTestRenderer(sgl::vk::Re
     camera = std::make_shared<sgl::Camera>();
     camera->setNearClipDistance(0.01f);
     camera->setFarClipDistance(100.0f);
-    camera->setOrientation(glm::quat(1.0f, 0.0f, 0.0f, 0.0f));
-    camera->setYaw(-sgl::PI / 2.0f); //< around y axis
-    camera->setPitch(0.0f); //< around x axis
+    camera->resetOrientation();
     camera->setPosition(glm::vec3(0.0f, 0.0f, 0.8f));
     camera->setFOVy(std::atan(1.0f / 2.0f) * 2.0f);
     camera->resetLookAtLocation();
@@ -127,10 +125,8 @@ float* VolumetricPathTracingTestRenderer::renderFrame(int numFrames) {
         renderer->beginCommandBuffer();
         vptPass->render();
         if (i == numFrames - 1) {
-            renderImageView->getImage()->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, renderer->getVkCommandBuffer());
-            renderImageStaging->transitionImageLayout(
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, renderer->getVkCommandBuffer());
+            renderer->transitionImageLayout(renderImageView, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            renderer->transitionImageLayout(renderImageStaging, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
             renderImageView->getImage()->copyToImage(
                     renderImageStaging, VK_IMAGE_ASPECT_COLOR_BIT,
                     renderer->getVkCommandBuffer());

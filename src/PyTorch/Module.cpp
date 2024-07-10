@@ -63,6 +63,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::load_volume_file", loadCloudFile);
     m.def("vpt::load_emission_file", loadEmissionFile);
     m.def("vpt::load_environment_map", loadEnvironmentMap);
+    m.def("vpt::set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
     m.def("vpt::set_scattering_albedo", setScatteringAlbedo);
     m.def("vpt::set_extinction_base", setExtinctionBase);
@@ -82,11 +83,17 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::overwrite_camera_view_matrix", overwriteCameraViewMatrix);
     m.def("vpt::set_camera_FOVy", setCameraFOVy);
     m.def("vpt::set_feature_map_type", setFeatureMapType);
+    m.def("vpt::set_use_empty_space_skipping", setUseEmptySpaceSkipping);
+    m.def("vpt::set_use_headlight", setUseHeadlight);
+    m.def("vpt::set_use_headlight_distance", setUseHeadlightDistance);
+    m.def("vpt::set_headlight_color", setHeadlightColor);
+    m.def("vpt::set_headlight_intensity", setHeadlightIntensity);
     m.def("vpt::set_use_isosurfaces", setUseIsosurfaces);
     m.def("vpt::set_iso_value", setIsoValue);
     m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
     m.def("vpt::set_isosurface_type", setIsosurfaceType);
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
+    m.def("vpt::set_use_isosurface_tf", setUseIsosurfaceTf);
     m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
@@ -619,6 +626,10 @@ void loadEnvironmentMap(const std::string& filename) {
     vptRenderer->loadEnvironmentMapImage(filename);
 }
 
+void setUseBuiltinEnvironmentMap(const std::string& envMapName) {
+    vptRenderer->setUseBuiltinEnvironmentMap(envMapName);
+}
+
 void setEnvironmentMapIntensityFactor(double intensityFactor) {
     //std::cout << "setEnvironmentMapIntensityFactor to " << intensityFactor << std::endl;
     vptRenderer->setEnvironmentMapIntensityFactor(intensityFactor);
@@ -691,6 +702,29 @@ void setFeatureMapType(int64_t type) {
     vptRenderer->setFeatureMapType(FeatureMapTypeVpt(type));
 }
 
+void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping) {
+    vptRenderer->getVptPass()->setUseEmptySpaceSkipping(_useEmptySpaceSkipping);
+}
+
+void setUseHeadlight(bool _useHeadlight) {
+    vptRenderer->getVptPass()->setUseHeadlight(_useHeadlight);
+}
+
+void setUseHeadlightDistance(bool _useHeadlightDistance) {
+    vptRenderer->getVptPass()->setUseHeadlightDistance(_useHeadlightDistance);
+}
+
+void setHeadlightColor(std::vector<double> _headlightColor) {
+    glm::vec3 color = glm::vec3(0,0,0);
+    if (parseVector3(_headlightColor, color)) {
+        vptRenderer->getVptPass()->setHeadlightColor(color);
+    }
+}
+
+void setHeadlightIntensity(double _headlightIntensity) {
+    vptRenderer->getVptPass()->setHeadlightIntensity(float(_headlightIntensity));
+}
+
 
 void setUseIsosurfaces(bool _useIsosurfaces) {
     vptRenderer->getVptPass()->setUseIsosurfaces(_useIsosurfaces);
@@ -723,6 +757,10 @@ void setSurfaceBrdf(const std::string& _surfaceBrdf) {
             break;
         }
     }
+}
+
+void setUseIsosurfaceTf(bool _useIsosurfaceTf) {
+    vptRenderer->getVptPass()->setUseIsosurfaceTf(_useIsosurfaceTf);
 }
 
 void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
