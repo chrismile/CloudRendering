@@ -431,10 +431,19 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
             shallRecreateFeatureMaps = true;
         }
     } else {
-        if (useFirstXRenderer || useFirstWRenderer || useNormalRenderer
-                || useCloudOnlyRenderer || useBackgroundRenderer || useDepthRenderer
-                || useDensityRenderer || useReprojUVRenderer || useDepthBlendedRenderer
-                || useTransmittanceVolumeRenderer) {
+        if (useFirstXRenderer != (featureMapType == FeatureMapTypeVpt::FIRST_X || featureMapSet.find(FeatureMapTypeVpt::FIRST_X) != featureMapSet.end())
+                || useFirstWRenderer != (featureMapType == FeatureMapTypeVpt::FIRST_W || featureMapSet.find(FeatureMapTypeVpt::FIRST_W) != featureMapSet.end())
+                || useNormalRenderer != (featureMapType == FeatureMapTypeVpt::NORMAL || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end())
+                || useCloudOnlyRenderer != (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY || featureMapSet.find(FeatureMapTypeVpt::CLOUD_ONLY) != featureMapSet.end())
+                || useBackgroundRenderer != (featureMapType == FeatureMapTypeVpt::BACKGROUND || featureMapSet.find(FeatureMapTypeVpt::BACKGROUND) != featureMapSet.end())
+                || useDepthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH) != featureMapSet.end())
+                || useDensityRenderer != (featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end())
+                || useReprojUVRenderer != (featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
+                || useDepthBlendedRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())
+                || useFlowRenderer != (featureMapType == FeatureMapTypeVpt::FLOW || featureMapSet.find(FeatureMapTypeVpt::FLOW) != featureMapSet.end())
+                || useDepthNablaRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end())
+                || useDepthFwidthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end())
+                || useTransmittanceVolumeRenderer != (featureMapType == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME || featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) != featureMapSet.end())) {
             shallRecreateFeatureMaps = true;
         }
     }
