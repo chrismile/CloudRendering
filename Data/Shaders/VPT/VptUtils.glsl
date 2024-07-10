@@ -1621,15 +1621,43 @@ if(useMIS){
         // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
         //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
         //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
+        
+        // TODO: Auch weightOut is falsch beim Headlight
         float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+
         float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
+        
         float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
+        
+    #ifdef USE_HEADLIGHT
+        //vec3 commonFactor = 2.0 * throughput * rdfNee;
+        if (isSamplingHeadlight) {
+            weightNee = 1.0;
+            weightOut = 1.0;
+            
+            colorNee +=
+                        2.0 * throughput * rdfNee * weightNee * calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition))
+                        * sampleHeadlight(currentPoint);
+        } else {
+            colorNee +=
+                        2.0 * throughput * rdfNee * weightNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
+                        * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+            colorNee +=
+                        2.0 * throughput * weightOut * colorOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
+                        * (sampleSkybox(dirOut) + sampleLight(dirOut));
+        }
+
+    #else
+
         colorNee +=
                 throughput * rdfNee * weightNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
                 * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
         colorNee +=
                 throughput * weightOut * colorOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
                 * (sampleSkybox(dirOut) + sampleLight(dirOut));
+        
+    #endif
+
 } else {
     // Normal NEE.
     #ifdef USE_HEADLIGHT
@@ -1644,7 +1672,6 @@ if(useMIS){
                     * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
         }
     #else
-        // Normal NEE.
         colorNee +=
                 throughput * rdfNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
                 * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
