@@ -193,7 +193,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
 
     // Sheen
-    // TODO: Add Fresnel Sschlick for theta d
     float f_h = pow((1 - theta_d), 5.0);
     vec3 sheen = f_h * parameters.sheen * col_sheen;
 
@@ -211,9 +210,7 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 
     float sinThetaH = sin(th);
     float cosThetaH = NdotH;
-    //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
-    // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
-    // However the sinTheta Termn should usually be needed, theta however it not available in the specular sampling function.
+
     vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sin(th)/ NdotH;
 
     // Clearcoat
@@ -255,7 +252,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
 
     // Base colors and values
     vec3 baseColor = isoSurfaceColor;
-    // vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
+
     vec3 col = baseColor;
     float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
 
@@ -274,7 +271,6 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
 
     // Sheen
-    // TODO: Add Fresnel Sschlick for theta d
     float f_h = pow((1 - theta_d), 5.0);
     vec3 sheen = f_h * parameters.sheen * col_sheen;
 
@@ -292,9 +288,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
 
     float sinThetaH = sqrt(1-(NdotH*NdotH));
-    //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
-    // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
-    // However the sinTheta Termn should usually be needed, theta however it not available in the specular sampling function.
+
     vec3 specular = f_specular * d_specular * g_specular * 4 * NdotL * VdotH * sinThetaH;
 
     // Clearcoat
@@ -303,6 +297,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
         
     float clear = parameters.clearcoat*f_clearcoat*g_clearcoat * NdotL * VdotH * sinThetaH;
+    
     // Result        
     return diffuse + specular + clear;
 }
@@ -312,7 +307,6 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
     float ax = max(0.001, sqr(parameters.roughness) / aspect);
     float ay = max(0.001, sqr(parameters.roughness) * aspect);
 
-    // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
     vec3 halfwayVector = normalize(dirOut + viewVector);
     float cosThetaH = dot(halfwayVector, normalVector);
     float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
