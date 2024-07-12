@@ -206,6 +206,21 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     return colorOut;
 }
 
+vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, vec3 isoSurfaceColor, bool useMIS, float samplingPDF, flags hitFlags, out float pdfSamplingOut, out float pdfSamplingNee) {
+        vec3 halfwayVector = normalize(dirOut + viewVector);
+        float cosThetaH = dot(halfwayVector, normalVector);
+        float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
+
+        vec3 halfwayVectorNee  = normalize(dirNee + viewVector);
+        float cosThetaHNee = dot(halfwayVectorNee, normalVector);
+        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
+
+        pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
+        pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
+
+        return evaluateBrdfPdf(viewVector, dirNee, normalVector, isoSurfaceColor) * dot(dirNee, normalVector);
+}
+
 // Combined Call to importance sample and evaluate BRDF
 
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {

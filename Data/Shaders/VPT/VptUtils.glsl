@@ -980,93 +980,10 @@ bool getIsoSurfaceHit(
     #endif
 
     if (dot(surfaceNormal, dirLightNee) > 0.0) {
-        float thetaNee = dot(surfaceNormal, dirLightNee);
-
-    #ifdef SURFACE_BRDF_LAMBERTIAN
-    #ifdef UNIFORM_SAMPLING
-        float pdfSamplingNee;
-        if(useMIS) {
-            pdfSamplingNee = 1.0 / (2.0 * M_PI);
-        }
-        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-    #else
-        float pdfSamplingNee;
-        if(useMIS) {
-            pdfSamplingNee = thetaNee / M_PI;
-        }
-        float pdfSamplingOut = dot(dirOut, surfaceNormal) / M_PI;
-    #endif
-        vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
-    #endif
-
-        // NEE Blinn Phong RDF
-    #ifdef SURFACE_BRDF_BLINN_PHONG
-        float pdfSamplingNee;
-        if(useMIS) {
-            pdfSamplingNee = 1.0 / (2.0 * M_PI);
-        }
-        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-        
-        // http://www.thetenthplanet.de/archives/255
-        const float n = 10.0;
-        float norm = clamp(
-            (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
-            (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-        vec3 halfwayVectorNee = normalize(-w + dirLightNee);
-        vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
-    #endif
-
-    #ifdef SURFACE_BRDF_COOK_TORRANCE
-        // TODO: Call brdf for viewVector and vector to sun, but this must take NEE sampling into account and not the brdf importance sampling
-        // need to create a new function
-        vec3 rdfNee = evaluateBrdfPdf(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef) * dot(dirLightNee, normalize(surfaceNormal));
-        // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
-        vec3 halfwayVector = normalize(dirOut + (-1.0*w));
-        float cosThetaH = dot(halfwayVector, surfaceNormal);
-        float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
-
-        vec3 halfwayVectorNee  = normalize(dirLightNee + (-1.0*w));
-        float cosThetaHNee = dot(halfwayVectorNee, surfaceNormal);
-        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
-
-        float pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
-        float pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
-    #endif
-
-    #ifdef SURFACE_BRDF_DISNEY
-        // (vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float ax, float ay, vec3 x, vec3 y)
-        float aspect = sqrt(1 - parameters.anisotropic * 0.9);
-        float ax = max(0.001, sqr(parameters.roughness) / aspect);
-        float ay = max(0.001, sqr(parameters.roughness) * aspect);
-
-        // Base Vectors
-        // Sample Disney BRDF
-        // vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, vec3 viewVector, mat3 frameMatrix, float ax, float ay)
-        vec3 viewVector = normalize(-w);
-        vec3 normalVector = normalize(surfaceNormal);
-        vec3 x = normalize(surfaceTangent);
-        vec3 y = normalize(surfaceBitangent);
-        vec3 rdfNee = evaluateBrdfPdf(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y) * dot(dirLightNee, normalize(surfaceNormal));
-        // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
-        vec3 halfwayVector = normalize(dirOut + (-1.0*w));
-        float cosThetaH = dot(halfwayVector, normalVector);
-        float sinThetaH = sqrt(1.0/(cosThetaH*cosThetaH));
-
-        vec3 halfwayVectorNee  = normalize(dirLightNee + (-w));
-        float cosThetaHNee = dot(halfwayVectorNee, normalVector);
-        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
-
         float pdfSamplingOut;
         float pdfSamplingNee;
-        if (hitFlags.specularHit) {
-                pdfSamplingOut = samplingPDF * cosThetaH;
-                pdfSamplingNee = samplingPDF * cosThetaHNee;
-        } else {
-            pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
-            pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
-        }
 
-    #endif
+        vec3 rdfNee = evaluateBrdfNee(normalize(-w),dirOut, dirLightNee, surfaceNormal, surfaceTangent, surfaceBitangent, isoSurfaceColorDef, useMIS, samplingPDF, hitFlags, pdfSamplingOut, pdfSamplingNee);
 
     if(useMIS){
      // NEE with MIS.
@@ -1077,11 +994,11 @@ bool getIsoSurfaceHit(
         //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
         
         // TODO: Auch weightOut is falsch beim Headlight
-        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
+        float pdfLightOut = evaluateSkyboxPDF(dirOut);
 
         float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
         
-        float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
+        float weightOut = pdfSamplingOut / (pdfLightOut + pdfSamplingOut);
         
     #ifdef USE_HEADLIGHT
         //vec3 commonFactor = 2.0 * throughput * rdfNee;
@@ -1131,12 +1048,6 @@ bool getIsoSurfaceHit(
                 * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
     #endif
     }
-    } else {
-    // Abort Next Event Tracking if Skybox sample is behind the surface
-    // Just compute colorOut and no colorNEE
-    #endif
-
-    #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     }
     #endif
 // Next Event Tracking NEE End

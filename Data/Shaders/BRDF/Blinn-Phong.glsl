@@ -30,6 +30,19 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     return 2.0 * M_PI * isoSurfaceColor * (pow(max(dot(normalVector, halfwayVector), 0.0), n) / norm);
 }
 
+vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, vec3 isoSurfaceColor, bool useMIS, float samplingPDF, flags hitFlags, out float pdfSamplingOut, out float pdfSamplingNee) {
+    pdfSamplingNee = 1.0 / (2.0 * M_PI);
+    pdfSamplingOut = 1.0 / (2.0 * M_PI);
+        
+    // http://www.thetenthplanet.de/archives/255
+    const float n = 10.0;
+    float norm = clamp(
+        (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
+        (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
+    vec3 halfwayVectorNee = normalize(viewVector + dirNee);
+    return isoSurfaceColor * (pow(max(dot(normalVector, halfwayVectorNee), 0.0), n) / norm);
+}
+
 // Combined Call to importance sample and evaluate BRDF
 
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {
