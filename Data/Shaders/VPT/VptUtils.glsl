@@ -879,7 +879,6 @@ struct flags{
     bool clearcoatHit;
 };
 
-// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L40
 float sqr(float x) {
     return x * x;
 }
@@ -917,11 +916,10 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 //#define USE_MIS // only for specular BRDF sampling
 
 
-bool getIsoSurfaceHit(vec3 currentPoint, inout vec3 w, inout vec3 throughput
-#if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || \
-    defined(USE_NEXT_EVENT_TRACKING)
-                      ,
-                      inout vec3 colorNee
+bool getIsoSurfaceHit(
+        vec3 currentPoint, inout vec3 w, inout vec3 throughput
+#if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
+                      , inout vec3 colorNee
 #endif
 ) {
     // -------------- Abort Conditions ------------------
@@ -939,10 +937,8 @@ bool getIsoSurfaceHit(vec3 currentPoint, inout vec3 w, inout vec3 throughput
     flags hitFlags = flags(false, false);
     bool useMIS = false;
 
-    vec3 texCoords = (currentPoint - parameters.boxMin) /
-                     (parameters.boxMax - parameters.boxMin);
-    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) +
-                parameters.gridMin;
+    vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
 
     if (dot(w, surfaceNormal) > 0.0) {
@@ -1007,14 +1003,9 @@ bool getIsoSurfaceHit(vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #ifdef BRDF_SUPPORTS_SPECULAR
         if (useMIS) {
             // NEE with MIS.
-            // TODO: If dirOut is importance sampled from BRDF instead of cos
-            // term, use brdfOut and brdfNee instead of pdfSamplingOut and
-            // pdfSamplingNee. Power heuristic with beta=2:
-            // https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
-            // float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee *
-            // pdfLightNee + pdfSamplingNee * pdfSamplingNee); float weightOut =
-            // pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut +
-            // pdfSamplingOut * pdfSamplingOut);
+            // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
+            //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
+            //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfLightOut * pdfLightOut + pdfSamplingOut * pdfSamplingOut);
 
             // TODO: Auch weightOut is falsch beim Headlight
             float pdfLightOut = evaluateSkyboxPDF(dirOut);
