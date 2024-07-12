@@ -889,6 +889,14 @@ float sqr(float x) {
 #include "Cook-Torrance.glsl"
 #endif
 
+#ifdef SURFACE_BRDF_LAMBERTIAN
+#include "Lambertian.glsl"
+#endif
+
+#ifdef SURFACE_BRDF_BLINN_PHONG
+#include "Blinn-Phong.glsl"
+#endif
+
 
 #if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
@@ -910,7 +918,7 @@ bool getIsoSurfaceHit(
         , inout vec3 colorNee
 #endif
 ) {
-
+    
     flags hitFlags = flags(false,false);
 
     bool useMIS = false;
@@ -941,7 +949,7 @@ bool getIsoSurfaceHit(
 
     // frame, surfaceNormal, w, 
 
-// -------------- BRDF ------------------
+    // -------------- BRDF ------------------
 
 #ifdef SURFACE_BRDF_LAMBERTIAN
     // Lambertian BRDF is: R / pi
@@ -955,17 +963,9 @@ bool getIsoSurfaceHit(
     float thetaOut = dot(surfaceNormal, dirOut);
 #endif
 
-#ifdef SURFACE_BRDF_BLINN_PHONG
-    // http://www.thetenthplanet.de/archives/255
-    const float n = 10.0;
-    float norm = clamp(
-            (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
-            (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-    dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 halfwayVectorOut = normalize(-w + dirOut);
-#endif
+    // BRDF Evaluation
 
-#if  defined(SURFACE_BRDF_DISNEY) || defined(SURFACE_BRDF_COOK_TORRANCE)
+#if  defined(SURFACE_BRDF_DISNEY) || defined(SURFACE_BRDF_COOK_TORRANCE) || defined(SURFACE_BRDF_BLINN_PHONG)
 
     float samplingPDF;
     colorOut = computeBrdf(-w, dirOut, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, hitFlags, samplingPDF);
@@ -1037,10 +1037,12 @@ bool getIsoSurfaceHit(
         // NEE Blinn Phong RDF
 #ifdef SURFACE_BRDF_BLINN_PHONG
         // http://www.thetenthplanet.de/archives/255
+        const float n = 10.0;
+        float norm = clamp(
+            (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
+            (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
         vec3 halfwayVectorNee = normalize(-w + dirLightNee);
-        vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
-        colorOut = rdfOut / pdfSamplingOut;
 #endif
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
@@ -1173,12 +1175,6 @@ if(useMIS){
         // Sampling PDF: cos(theta) / pi
         colorOut = isoSurfaceColorDef;
 #endif
-#endif
-
-#ifdef SURFACE_BRDF_BLINN_PHONG
-        // http://www.thetenthplanet.de/archives/255
-        float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
-        colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
 #endif
 
 #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
