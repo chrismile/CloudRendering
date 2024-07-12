@@ -32,17 +32,17 @@
 
 // ---------- BRDF Interface ----------
 
-// Compute Importance Sampled light vector
+// Compute importance-sampled light vector.
 vec3 sampleBrdf(mat3 frame, out flags hitFlags) {
     hitFlags.specularHit = false;
     hitFlags.clearcoatHit = false;
     return frame * sampleHemisphere(vec2(random(), random()));
 }
 
-// Evaluate BRDF with compensation of Importance Sampling and a fixed sampling PDF
+// Evaluate BRDF with compensation of importance sampling and a fixed sampling PDF
 
 
-// Evaluate BRDF and prepare for Importance Sampling compensation
+// Evaluate BRDF and prepare for importance sampling compensation
 vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor) {
     // http://www.thetenthplanet.de/archives/255
     vec3 halfwayVector = normalize(viewVector + lightVector);
@@ -67,10 +67,10 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
     return isoSurfaceColor * (pow(max(dot(normalVector, halfwayVectorNee), 0.0), n) / norm);
 }
 
-// Combined Call to importance sample and evaluate BRDF
+// Combined call to importance sample and evaluate BRDF
 
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {
-    
+
     lightVector = sampleBrdf(frame, hitFlags);
     return evaluateBrdf(viewVector, lightVector, normalVector, isoSurfaceColor);
 }
