@@ -947,25 +947,7 @@ bool getIsoSurfaceHit(
     vec3 colorOut;
     vec3 dirOut;
 
-    // frame, surfaceNormal, w, 
-
     // -------------- BRDF ------------------
-
-#ifdef SURFACE_BRDF_LAMBERTIAN
-    // Lambertian BRDF is: R / pi
-#ifdef UNIFORM_SAMPLING
-    // Sampling PDF: 1/(2pi)
-    dirOut = frame * sampleHemisphere(vec2(random(), random()));
-#else
-    // Sampling PDF: cos(theta) / pi
-    dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
-#endif
-    float thetaOut = dot(surfaceNormal, dirOut);
-#endif
-
-    // BRDF Evaluation
-
-#if  defined(SURFACE_BRDF_DISNEY) || defined(SURFACE_BRDF_COOK_TORRANCE) || defined(SURFACE_BRDF_BLINN_PHONG)
 
     float samplingPDF;
     colorOut = computeBrdf(-w, dirOut, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, hitFlags, samplingPDF);
@@ -979,11 +961,9 @@ bool getIsoSurfaceHit(
         }
     #endif
 
-#endif
+    // -------------- Next Event Tracking (NEE) ------------------
 
-// Next Event Tracking NEE Start
-
-#if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+    #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     float pdfLightNee; // only used for skybox.
     vec3 dirLightNee;
     
@@ -1002,40 +982,31 @@ bool getIsoSurfaceHit(
     if (dot(surfaceNormal, dirLightNee) > 0.0) {
         float thetaNee = dot(surfaceNormal, dirLightNee);
 
-#ifdef SURFACE_BRDF_LAMBERTIAN
-#ifdef UNIFORM_SAMPLING
+    #ifdef SURFACE_BRDF_LAMBERTIAN
+    #ifdef UNIFORM_SAMPLING
         float pdfSamplingNee;
         if(useMIS) {
             pdfSamplingNee = 1.0 / (2.0 * M_PI);
         }
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-#else
+    #else
         float pdfSamplingNee;
         if(useMIS) {
             pdfSamplingNee = thetaNee / M_PI;
         }
-        float pdfSamplingOut = thetaOut / M_PI;
-#endif
-#endif
-        // NEE Blinn Phong PDF
-#ifdef SURFACE_BRDF_BLINN_PHONG
+        float pdfSamplingOut = dot(dirOut, surfaceNormal) / M_PI;
+    #endif
+        vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
+    #endif
+
+        // NEE Blinn Phong RDF
+    #ifdef SURFACE_BRDF_BLINN_PHONG
         float pdfSamplingNee;
         if(useMIS) {
             pdfSamplingNee = 1.0 / (2.0 * M_PI);
         }
         float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-#endif
-
-#ifdef SURFACE_BRDF_LAMBERTIAN
-        //vec3 brdfOut = isoSurfaceColorDef / M_PI;
-        //vec3 brdfNee = isoSurfaceColorDef / M_PI;
-        vec3 rdfOut = isoSurfaceColorDef / M_PI * thetaOut;
-        vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
-        colorOut = rdfOut / pdfSamplingOut;
-
-#endif
-        // NEE Blinn Phong RDF
-#ifdef SURFACE_BRDF_BLINN_PHONG
+        
         // http://www.thetenthplanet.de/archives/255
         const float n = 10.0;
         float norm = clamp(
@@ -1043,9 +1014,9 @@ bool getIsoSurfaceHit(
             (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
         vec3 halfwayVectorNee = normalize(-w + dirLightNee);
         vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
-#endif
+    #endif
 
-#ifdef SURFACE_BRDF_COOK_TORRANCE
+    #ifdef SURFACE_BRDF_COOK_TORRANCE
         // TODO: Call brdf for viewVector and vector to sun, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
         vec3 rdfNee = evaluateBrdfPdf(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef) * dot(dirLightNee, normalize(surfaceNormal));
@@ -1060,9 +1031,9 @@ bool getIsoSurfaceHit(
 
         float pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
         float pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
-#endif
+    #endif
 
-#ifdef SURFACE_BRDF_DISNEY
+    #ifdef SURFACE_BRDF_DISNEY
         // (vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float ax, float ay, vec3 x, vec3 y)
         float aspect = sqrt(1 - parameters.anisotropic * 0.9);
         float ax = max(0.001, sqr(parameters.roughness) / aspect);
@@ -1095,9 +1066,9 @@ bool getIsoSurfaceHit(
             pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
         }
 
-#endif
+    #endif
 
-if(useMIS){
+    if(useMIS){
      // NEE with MIS.
         // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
         // instead of pdfSamplingOut and pdfSamplingNee.
@@ -1141,7 +1112,7 @@ if(useMIS){
         
     #endif
 
-} else {
+    } else {
     // Normal NEE.
     #ifdef USE_HEADLIGHT
         vec3 commonFactor = 2.0 * throughput * rdfNee;
@@ -1159,27 +1130,15 @@ if(useMIS){
                 throughput * rdfNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
                 * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
     #endif
-}
+    }
     } else {
     // Abort Next Event Tracking if Skybox sample is behind the surface
     // Just compute colorOut and no colorNEE
-#endif
+    #endif
 
-// This Part until the } (exclusive) is not part of NEE
-#if defined(SURFACE_BRDF_LAMBERTIAN)
-        // Lambertian BRDF is: R / pi
-#ifdef UNIFORM_SAMPLING
-        // Sampling PDF: 1/(2pi)
-        colorOut = 2.0 * isoSurfaceColorDef * thetaOut;
-#else
-        // Sampling PDF: cos(theta) / pi
-        colorOut = isoSurfaceColorDef;
-#endif
-#endif
-
-#if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
+    #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
     }
-#endif
+    #endif
 // Next Event Tracking NEE End
 
 

@@ -19,7 +19,7 @@ vec3 sampleBrdf(mat3 frame, out flags hitFlags) {
 
 
 // Evaluate BRDF and prepare for Importance Sampling compensation
-vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor, float samplingPDF) {
+vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor) {
     // http://www.thetenthplanet.de/archives/255
     vec3 halfwayVector = normalize(viewVector + lightVector);
     const float n = 10.0;
@@ -35,5 +35,5 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {
     
     lightVector = sampleBrdf(frame, hitFlags);
-    return evaluateBrdf(viewVector, lightVector, normalVector, isoSurfaceColor, samplingPDF);
+    return evaluateBrdf(viewVector, lightVector, normalVector, isoSurfaceColor);
 }
