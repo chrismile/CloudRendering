@@ -1,4 +1,25 @@
 /**
+ * This file contains code snippets from:
+ * https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf
+ * These code snippets are marked in the code below and subject to the following license.
+ *
+ * Copyright Disney Enterprises, Inc.  All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License
+ * and the following modification to it: Section 6 Trademarks.
+ * deleted and replaced with:
+ *
+ * 6. Trademarks. This License does not grant permission to use the
+ * trade names, trademarks, service marks, or product names of the
+ * Licensor and its affiliates, except as required for reproducing
+ * the content of the NOTICE file.
+ *
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * The rest of the code is licensed as follows.
+ *
  * MIT License
  *
  * Copyright (c) 2024, Christoph Neuhauser, Jonas Itt
@@ -21,23 +42,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-
-/**
-* Copyright Disney Enterprises, Inc.  All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License
-* and the following modification to it: Section 6 Trademarks.
-* deleted and replaced with:
-*
-* 6. Trademarks. This License does not grant permission to use the
-* trade names, trademarks, service marks, or product names of the
-* Licensor and its affiliates, except as required for reproducing
-* the content of the NOTICE file.
-*
-* You may obtain a copy of the License at
-* http://www.apache.org/licenses/LICENSE-2.0
-*/
 
 #define BRDF_SUPPORTS_SPECULAR
 
@@ -90,8 +94,8 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     theta_h = theta;
 
     // Pronblem:
-    // sqrt macht Problem für negativ
-    // NMormalize macht problem für nahe 0
+    // sqrt macht Problem fÃ¼r negativ
+    // NMormalize macht problem fÃ¼r nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
