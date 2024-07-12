@@ -868,27 +868,14 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
 }
 
 // -------------- BRDF Helper Functions ------------------
+struct flags{
+    bool specularHit;
+    bool clearcoatHit;
+};
 
 // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L40
 float sqr(float x) {
     return x * x;
-}
-
-// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L49C1-L55C2
-float GTR1(float NdotH, float a)
-{
-    if (a >= 1) return 1 / PI;
-    float a2 = a * a;
-    float t = 1 + (a2 - 1) * NdotH * NdotH;
-    return (a2 - 1) / (PI * log(a2) * t);
-}
-
-// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L69C1-L74C2
-float smithG_GGX(float NdotV, float alphaG)
-{
-    float a = alphaG * alphaG;
-    float b = NdotV * NdotV;
-    return 1 / (NdotV + sqrt(a + b - a * b));
 }
 
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
@@ -942,57 +929,6 @@ vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    return lightVector;
-}
-
-vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
-    // Generate random u and v between 0.0 and 1.0
-    float u = random();
-    float v = random();
-    float alpha2 = alpha * alpha;
-
-    // Compute spherical angles
-    float theta = acos(sqrt((1 - pow(alpha2, (1- u)))/(1-alpha2)));
-    float phi = 2 * M_PI * v;
-    theta_h = theta;
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
-
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    return lightVector;
-}
-
-vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
-    // Generate random u and v between 0.0 and 1.0
-    float u = random();
-    float v = random();
-
-    // Compute spherical angles
-    float theta = asin(sqrt(u));
-    float phi = 2 * M_PI * v;
-    theta_h = theta;
-
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
-
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    return lightVector;
-}
-
-vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
-    float u = clamp(random(),0.05, 0.95);
-    float v = clamp(random(),0.05, 0.95);
-    float phi = atan((ay/ax) * tan(2*M_PI*u));
-    float theta = acos(sqrt((1-v)/(1+((cos(phi)*cos(phi)/(ax*ax))+(sin(phi)*sin(phi)/(ay*ay)))*v)));
-    theta_h = theta;
-
-    // Pronblem:
-    // sqrt macht Problem für negativ
-    // NMormalize macht problem für nahe 0
-    vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
 }
@@ -1168,233 +1104,13 @@ vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame
     return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, samplingPDF);
 }
 
-// 2. Disney BRDF
 
-// 2.1 Sampling
-vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, float subsurface, vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h, out bool specularHit, out bool clearcoatHit) {
-    // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
-    
-    // Calculate probabilies for sampling the lobes
-    //float metal = metallic;
-    //float spec = (1.0 - roughness) * (1.0 + specular);
-    //float dielectric = (1.0 - metallic);
+#ifdef SURFACE_BRDF_DISNEY
 
-    //float specularW = metal + spec;
-    //float diffuseW = dielectric;
-    
-    float metal = metallic;
-    float spec = (1.0 + specular) * (1.0 - roughness);
-    float dielectric = (1.0 - metallic) * (1.0 + roughness);
+#include "Disney2012.glsl"
 
-    float specularW = metal + spec;
-    float diffuseW = dielectric + subsurface;
-    float clearcoatW = clamp(clearcoat, 0.0, 1.0);
+#endif
 
-    float norm = 1.0/(specularW + diffuseW + clearcoatW);
-
-    float specularP = specularW * norm;
-    float diffuseP = diffuseW * norm;
-    float clearcoatP = clearcoatW * norm;
-
-    float u = random();
-    if(u < specularP) {
-        specularHit = true;
-        clearcoatHit = false;
-        return sample_specular_disney(viewVector, frameMatrix, ax, ay, normalVector, tangentVector, bitangentVector, theta_h);
-    } else if (u < specularP + diffuseP) {
-        specularHit = false;
-        clearcoatHit = false;
-        return sample_diffuse_disney(viewVector, frameMatrix, theta_h);
-    } else {
-        specularHit = true;
-        clearcoatHit = true;
-
-        float alpha = mix(.1, .001, clearcoatGloss);
-        return sample_clearcoat_disney(viewVector, frameMatrix, alpha, theta_h);
-    }
-}
-
-// 2.2 Evaluation
-
-// 2.2.1 Evaluation for variable importance sampling PDF
-vec3 evaluate_disney_2012(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float ax, float ay, vec3 x, vec3 y) {
-    vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
-
-    // Base Angles
-    float theta_h = dot(halfwayVector, normalVector);
-    float theta_d = dot(lightVector, halfwayVector);
-    float theta_v = dot(viewVector, normalVector);
-    float theta_l = dot(lightVector, normalVector);
-
-    float NdotL = dot(lightVector, normalVector);
-    float VdotH = dot(viewVector, halfwayVector);
-    float NdotH = dot(halfwayVector, normalVector);
-
-    // Base colors and values
-    vec3 baseColor = isoSurfaceColorDef;
-    // vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
-    vec3 col = baseColor;
-    float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
-
-    vec3 col_tint = lum > 0 ? col/lum: vec3(1.0);
-    vec3 col_spec0 = mix(parameters.specular*0.08*mix(vec3(1.0),col_tint,parameters.specularTint), col, parameters.metallic);
-    vec3 col_sheen = mix(vec3(1.0),col_tint,parameters.sheenTint);
-    // Diffuse
-    
-    // Base Diffuse
-    float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
-    float f_d = (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
-    
-    // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
-    float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
-    float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
-
-    // Sheen
-    // TODO: Add Fresnel Sschlick for theta d
-    float f_h = pow((1 - theta_d), 5.0);
-    vec3 sheen = f_h * parameters.sheen * col_sheen;
-
-    vec3 diffuse = (col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
-    diffuse *= (1.0/M_PI);
-    
-    // Specular F (Schlick Fresnel Approximation)
-    vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
-    
-    // GTR2
-    float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
-
-    // Specular G Smith G GGX
-    float g_specular = 1 / (theta_v + sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
-    g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
-
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
-    //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
-    // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
-    // However the sinTheta Termn should usually be needed, theta however it not available in the specular sampling function.
-    vec3 specular = f_specular * d_specular * g_specular * 4 * NdotL * VdotH * sinThetaH;
-
-    // Clearcoat
-    float f_clearcoat = mix(0.04,1.0,f_h);
-    float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
-    float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
-        
-    float clear = parameters.clearcoat*f_clearcoat*g_clearcoat * NdotL * VdotH * sinThetaH;
-    // Result        
-    return diffuse + specular + clear;
-
-}
-
-// 2.2.2 Optimized Evaluation for fixed importance sampling PDFs
-    // diffuse PDF:
-    // specular PDF:
-    // clearcoat PDF:
-vec3 evaluate_disney_2012_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, float th, float ax, float ay, vec3 x, vec3 y, bool specularHit, bool clearcoatHit, out float samplingPDF) {
-    vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
-
-    // Base Angles
-    float theta_h = dot(halfwayVector, normalVector);
-    float theta_d = dot(lightVector, halfwayVector);
-    float theta_v = dot(viewVector, normalVector);
-    float theta_l = dot(lightVector, normalVector);
-
-    float NdotL = dot(lightVector, normalVector);
-    float VdotH = dot(viewVector, halfwayVector);
-    float NdotH = dot(halfwayVector, normalVector);
-
-    // Base colors and values
-    vec3 baseColor = isoSurfaceColorDef;
-    // vec3(pow(baseColor[0], 2.2), pow(baseColor[1], 2.2), pow(baseColor[2], 2.2));
-    vec3 col = baseColor;
-    float lum = 0.3 * col[0] + 0.6 * col[1] + 0.1 * col[2];
-
-    vec3 col_tint = lum > 0 ? col/lum: vec3(1.0);
-    vec3 col_spec0 = mix(parameters.specular*0.08*mix(vec3(1.0),col_tint,parameters.specularTint), col, parameters.metallic);
-    vec3 col_sheen = mix(vec3(1.0),col_tint,parameters.sheenTint);
-    // Diffuse
-    
-    // Base Diffuse
-    float f_d90 = 0.5 + 2 * parameters.roughness * pow(cos(theta_d), 2);
-    float f_d = (1 + (f_d90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1 + (f_d90 - 1) * (pow(1 - cos(theta_v), 5.0)));
-    
-    // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
-    float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
-    float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
-
-    // Sheen
-    // TODO: Add Fresnel Sschlick for theta d
-    float f_h = pow((1 - theta_d), 5.0);
-    vec3 sheen = f_h * parameters.sheen * col_sheen;
-
-    vec3 diffuse = (col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
-    
-    // Specular F (Schlick Fresnel Approximation)
-    vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
-    
-    // GTR2
-    float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
-
-    // Specular G Smith G GGX
-    float g_specular = 1 / (theta_v + sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
-    g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
-
-    float sinThetaH = sin(th);
-    float cosThetaH = NdotH;
-    //vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sinThetaH / NdotH;
-    // sinthetaH currently casues a problem, since it is 0 when roughness + 0.0 and metallic = 1.0
-    // However the sinTheta Termn should usually be needed, theta however it not available in the specular sampling function.
-    vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sin(th)/ NdotH;
-
-    // Clearcoat
-    float f_clearcoat = mix(0.04,1.0,f_h);
-    float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
-    float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
-        
-    float clear = parameters.clearcoat*f_clearcoat*g_clearcoat*NdotL*VdotH * sin(th)/NdotH;
-    // Result
-
-    if (specularHit) {
-        if(clearcoatHit) {
-            samplingPDF = d_clearcoat;
-        } else {
-            samplingPDF = d_specular;
-        }
-    } else {
-        samplingPDF = (1.0/M_PI);
-    }
-
-    return diffuse + specular + clear;
-}
-
-vec3 disney_2012(out vec3 directionOut, vec3 w, vec3 surfaceNormal, vec3 surfaceTangent, vec3 surfaceBitangent, mat3 frame, vec3 isoSurfaceColorDef, out float samplingPDF, out bool specularHit, out bool clearcoatHit) {
-    // Sources:
-    // Paper: https://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
-    // BRDF: https://github.com/wdas/brdf/blob/main/src/brdfs/disney.brdf
-    // Specular D (2 lobes using GTR model)
-    float aspect = sqrt(1 - parameters.anisotropic * 0.9);
-    float ax = max(0.001, sqr(parameters.roughness) / aspect);
-    float ay = max(0.001, sqr(parameters.roughness) * aspect);
-
-    // Base Vectors
-    // Sample Disney BRDF
-    // vec3 sample_disney2012(float metallic, float specular, float clearcoat, float clearcoatGloss, float roughness, vec3 viewVector, mat3 frameMatrix, float ax, float ay)
-    vec3 viewVector = normalize(-w);
-    vec3 normalVector = normalize(surfaceNormal);
-    vec3 x = normalize(surfaceTangent);
-    vec3 y = normalize(surfaceBitangent);
-    float th;
-
-    vec3 lightVector = sample_disney2012(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, parameters.subsurface, viewVector, frame, ax, ay, normalVector, x, y, th, specularHit, clearcoatHit);
-    directionOut = lightVector;
-    return evaluate_disney_2012_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, th, ax, ay, x, y, specularHit, clearcoatHit, samplingPDF);
-}
-
-// 2.4 Combined Call
 
 #if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
@@ -1409,16 +1125,22 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #define UNIFORM_SAMPLING
 //#define USE_MIS // only for specular BRDF sampling
 
+
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
         , inout vec3 colorNee
 #endif
 ) {
+
+    flags hitFlags = flags(false,false);
+
     bool useMIS = false;
+    
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     vec3 surfaceNormal = computeGradient(texCoords);
+    
     if (dot(w, surfaceNormal) > 0.0) {
         surfaceNormal = -surfaceNormal;
     }
@@ -1466,14 +1188,13 @@ bool getIsoSurfaceHit(
 #endif
 
 #ifdef SURFACE_BRDF_DISNEY
-    bool specularHit;
-    bool clearcoatHit;
+
     float samplingPDF;
-    colorOut = disney_2012(dirOut, w, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, samplingPDF, specularHit, clearcoatHit);
-    //colorOut *= dot(dirOut, normalize(surfaceNormal));
+    colorOut = computeBrdf(-w, dirOut, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, hitFlags, samplingPDF);
+    
 
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
-        if(specularHit == true) {
+        if(hitFlags.specularHit == true) {
             useMIS = true;
         } else {
             useMIS = false;
@@ -1592,7 +1313,7 @@ bool getIsoSurfaceHit(
         vec3 normalVector = normalize(surfaceNormal);
         vec3 x = normalize(surfaceTangent);
         vec3 y = normalize(surfaceBitangent);
-        vec3 rdfNee = evaluate_disney_2012(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y) * dot(dirLightNee, normalize(surfaceNormal));
+        vec3 rdfNee = evaluateBrdfPdf(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef, ax, ay, x, y) * dot(dirLightNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, normalVector);
@@ -1604,7 +1325,7 @@ bool getIsoSurfaceHit(
 
         float pdfSamplingOut;
         float pdfSamplingNee;
-        if (specularHit) {
+        if (hitFlags.specularHit) {
                 pdfSamplingOut = samplingPDF * cosThetaH;
                 pdfSamplingNee = samplingPDF * cosThetaHNee;
         } else {

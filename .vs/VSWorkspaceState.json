@@ -8,9 +8,11 @@
   "ExpandedNodes": [
     "",
     "\\.build",
+    "\\Data",
+    "\\Data\\Shaders",
     "\\Data\\TransferFunctions",
     "\\third_party"
   ],
-  "SelectedNode": "\\third_party",
+  "SelectedNode": "\\Data\\Shaders\\BRDF",
   "PreviewInSolutionExplorer": false
 }
