@@ -878,237 +878,15 @@ float sqr(float x) {
     return x * x;
 }
 
-// Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1-F0) * pow((1.0 - cosTheta), 5.0);
-}
-
-// Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-float D_GGX(float NdotH, float roughness) {
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
-    float NdotH2 = NdotH * NdotH;
-    float b = (NdotH2 * (alpha2 - 1.0) + 1.0);
-    return (1 / M_PI) * alpha2 / (b * b);
-}
-
-vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
-    // https://www.youtube.com/watch?v=MkFS6lw6aEs
-    // Generate random u and v between 0.0 and 1.0
-    float u = random();
-    float v = random();
-
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
-
-    // Compute spherical angles
-    float theta = acos(sqrt((1-u)/(u*(alpha2 - 1.0)+1.0)));
-    float phi = 2 * M_PI * v;
-    
-    //pdf_ggx = cos(theta);
-    // Compute halfway vector h
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
-
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    return lightVector;
-}
-
-vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
-    // Generate random u and v between 0.0 and 1.0
-    float u = random();
-    float v = random();
-
-    // Compute spherical angles
-    float theta = asin(sqrt(u));
-    float phi = 2 * M_PI * v;
-
-    // pdf
-    //pdf_diffuse = (sin(theta)*cos(theta)/M_PI);
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
-
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    return lightVector;
-}
-
-float D_Beckmann(float NdotH, float roughness) {
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
-    float first = 1.0 / (M_PI*alpha2*pow(NdotH,4.0));
-    float ex = exp((NdotH*NdotH -1)/(alpha2*NdotH*NdotH));
-    return first*ex;
-}
-
-// Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-float G1_GGX_Schlick(float NdotV, float roughness) {
-    float alpha = roughness * roughness;
-    float k = alpha / 2.0;
-    return max(NdotV, 0.001) / (NdotV * (1.0 - k) + k);
-}
-
-// Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-float G_Smith(float NdotV, float NdotL, float roughness) {
-    return G1_GGX_Schlick(NdotL, roughness) * G1_GGX_Schlick(NdotV, roughness);
-}
-
 // -------------- BRDF Functions ------------------
-
-// 1. Cook Torrance
-
-// 1.1 Sampling
-vec3 sample_cook_torrance(float metallic, float specular, float roughness, vec3 viewVector, mat3 frameMatrix, out bool specularHit) {
-    // Idea adapted from https://schuttejoe.github.io/post/disneybsdf/
-    // Calculate probabilies for sampling the lobes
-    float metal = metallic;
-    float spec = (1.0 - roughness) * (1.0 + specular);
-    float dielectric = (1.0 - metallic);
-
-    float specularW = metal + spec;
-    float diffuseW = dielectric;
-
-    float norm = 1.0/(specularW + diffuseW);
-
-    float specularP = specularW * norm;
-    float diffuseP = diffuseW * norm;
-
-    float u = random();
-
-    if(u < specularP) {
-        specularHit = true;
-        return sample_GGX(viewVector, roughness, frameMatrix);
-    } else {
-        specularHit = false;
-        return sample_Lambertian(viewVector, frameMatrix);
-    }
-}
-
-// 1.2 Evaluation
-// 1.2.1 Evaluation (for a variable importance sampling PDF)
-vec3 evaluate_cook_torrance(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
-    vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // ----------- Evaluating the BRDF
-    // Base Angles
-    float NdotH = dot(halfwayVector, normalVector);
-    float LdotH = dot(lightVector, halfwayVector);
-    float VdotN = dot(viewVector, normalVector);
-    float LdotN = dot(lightVector, normalVector);
-    float LdotV = dot(lightVector, normalVector);
-    float VdotH = dot(viewVector, halfwayVector);
-
-    vec3 baseColor = isoSurfaceColorDef;
-    // Diffuse:
-    // Specular F: Schlick Fresnel Approximation
-    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
-    f0 = mix(f0, baseColor, parameters.metallic);
-
-    vec3 F = fresnelSchlick(VdotH, f0);
-    // Specular D: GGX Distribuition
-    
-    float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
-    // Speuclar G: G_Smith with G_1Smith-GGX
-    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
-    // Result
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
-    vec3 spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
-    
-    // Diffuse Part
-    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
-    vec3 rhoD = baseColor;
-    rhoD *= sinThetaH * NdotH;
-    
-    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
-    rhoD *= vec3(1.0) - F;
-    rhoD *= (1.0 - parameters.metallic);
-    rhoD *= (1.0 / M_PI);
-
-    vec3 diff = rhoD;
-    //diff /= pdf_diffuse;
-
-    // ----------- Weighting in the PDF
-    vec3 colorOut = diff + spec;
-    return colorOut;
-}
-
-// 1.2.2 Optiomized Evaluation for fixed 2 PDFs (diffuse: 1/PI * sinThetaH * cosThetaH & specular: D * sinThetaH * cosTheta)
-vec3 evaluate_cook_torrance_importance_sampling(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, bool specularHit, out float samplingPDF) {
-    vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // ----------- Evaluating the BRDF
-    // Base Angles
-    float NdotH = dot(halfwayVector, normalVector);
-    float LdotH = dot(lightVector, halfwayVector);
-    float VdotN = dot(viewVector, normalVector);
-    float LdotN = dot(lightVector, normalVector);
-    float LdotV = dot(lightVector, normalVector);
-    float VdotH = dot(viewVector, halfwayVector);
-
-    vec3 baseColor = isoSurfaceColorDef;
-    // Diffuse:
-    // Specular F: Schlick Fresnel Approximation
-    vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
-    f0 = mix(f0, baseColor, parameters.metallic);
-
-    vec3 F = fresnelSchlick(VdotH, f0);
-    // Specular D: GGX Distribuition
-    
-    float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
-    // Speuclar G: G_Smith with G_1Smith-GGX
-    float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
-    // Result
-    vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
-    
-    // Diffuse Part
-    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
-    vec3 rhoD = baseColor;
-    
-    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
-    rhoD *= vec3(1.0) - F;
-    rhoD *= (1.0 - parameters.metallic);
-    vec3 diff = rhoD;
-    // Whitout importance sampling: rhoD *= (1.0 / M_PI)
-    //diff /= pdf_diffuse;
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
-    float cosThetaH = NdotH;
-
-    if (specularHit) {
-        samplingPDF = D;
-    } else {
-        samplingPDF = (1.0/M_PI);
-    }
-
-    // ----------- Weighting in the PDF
-    vec3 colorOut = diff + spec;
-    return colorOut;
-}
-
-
-// 1.3 Combined call
-
-vec3 cook_torrance(out vec3 directionOut, vec3 w, vec3 surfaceNormal, mat3 frame, vec3 isoSurfaceColorDef, out float samplingPDF, out bool specularHit) {
-    // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
-    // Base Vectors
-    // Sample Cook Torrance BRDF
-    float roughness = clamp(parameters.roughness,0.05, 1.0);
-    vec3 viewVector = normalize(-w);
-    vec3 normalVector = normalize(surfaceNormal);
-
-    // ----------- Importance Sampling
-    // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
-
-    // Sampling and evaluating
-    vec3 lightVector = sample_cook_torrance(parameters.metallic, parameters.specular, roughness, viewVector, frame, specularHit);
-    directionOut = lightVector;
-    return evaluate_cook_torrance_importance_sampling(viewVector, lightVector, normalVector, isoSurfaceColorDef, specularHit, samplingPDF);
-}
 
 
 #ifdef SURFACE_BRDF_DISNEY
-
 #include "Disney2012.glsl"
+#endif
 
+#ifdef SURFACE_BRDF_COOK_TORRANCE
+#include "Cook-Torrance.glsl"
 #endif
 
 
@@ -1187,7 +965,7 @@ bool getIsoSurfaceHit(
     vec3 halfwayVectorOut = normalize(-w + dirOut);
 #endif
 
-#ifdef SURFACE_BRDF_DISNEY
+#if  defined(SURFACE_BRDF_DISNEY) || defined(SURFACE_BRDF_COOK_TORRANCE)
 
     float samplingPDF;
     colorOut = computeBrdf(-w, dirOut, surfaceNormal, surfaceTangent, surfaceBitangent, frame, isoSurfaceColorDef, hitFlags, samplingPDF);
@@ -1195,24 +973,6 @@ bool getIsoSurfaceHit(
 
     #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
         if(hitFlags.specularHit == true) {
-            useMIS = true;
-        } else {
-            useMIS = false;
-        }
-    #endif
-
-#endif
-
-// Cook Torrance BRDF
-
-#ifdef SURFACE_BRDF_COOK_TORRANCE
-    bool specularHit;
-    float samplingPDF;
-    colorOut = cook_torrance(dirOut, w, surfaceNormal, frame, isoSurfaceColorDef, samplingPDF, specularHit);
-    //colorOut *= dot(dirOut, surfaceNormal);
-
-    #if (defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)))
-        if(specularHit == true) {
             useMIS = true;
         } else {
             useMIS = false;
@@ -1286,7 +1046,7 @@ bool getIsoSurfaceHit(
 #ifdef SURFACE_BRDF_COOK_TORRANCE
         // TODO: Call brdf for viewVector and vector to sun, but this must take NEE sampling into account and not the brdf importance sampling
         // need to create a new function
-        vec3 rdfNee = evaluate_cook_torrance(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef) * dot(dirLightNee, normalize(surfaceNormal));
+        vec3 rdfNee = evaluateBrdfPdf(normalize(-w), dirLightNee, normalize(surfaceNormal), isoSurfaceColorDef) * dot(dirLightNee, normalize(surfaceNormal));
         // TODO: Difference between pdfSamplingNee and pdfSkyboxNee and pdfSamplingOut
         vec3 halfwayVector = normalize(dirOut + (-1.0*w));
         float cosThetaH = dot(halfwayVector, surfaceNormal);
