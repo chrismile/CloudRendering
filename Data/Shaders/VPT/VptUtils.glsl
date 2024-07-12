@@ -681,6 +681,8 @@ float avgComponent(vec3 v) {
 
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
+
+// Simple method for computing surface normals
 vec3 getGradient(vec3 texCoords) {
     const float dx = 0.1;
     const float dy = 0.1;
@@ -771,8 +773,11 @@ float trilinearInterpolationDensity(vec3 texCoords) {
 }
 
 #define DIFFERENCES_NEIGHBOR
+
+// Compute surface normals using trilinear interpolaton for 6 points arround the current point
 vec3 computeGradient(vec3 texCoords) {
 #ifdef DIFFERENCES_NEIGHBOR
+    // Idea from: https://math.stackexchange.com/questions/2452416/compute-gradient-of-scalar-field-defined-by-trilinear-interpolation-of-sample-gr
     const float dx = 4.0 * parameters.voxelTexelSize.x;
     const float dy = 4.0 * parameters.voxelTexelSize.y;
     const float dz = 4.0 * parameters.voxelTexelSize.z;

@@ -28,7 +28,7 @@
 
 // 1. Helper functions for sampling
 vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
-    // https://www.youtube.com/watch?v=MkFS6lw6aEs
+    // Source (mathematical derivation): https://www.youtube.com/watch?v=MkFS6lw6aEs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
     float v = random();
@@ -50,7 +50,7 @@ vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
 }
 
 vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
+    // Source (mathematical derivation): https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
     float v = random();
@@ -70,11 +70,13 @@ vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
 
 // 2. Helper functions for evaluation
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+// Paper: https://onlinelibrary.wiley.com/doi/abs/10.1111/1467-8659.1330233
 vec3 fresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1-F0) * pow((1.0 - cosTheta), 5.0);
 }
 
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+// Paper: https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
 float D_GGX(float NdotH, float roughness) {
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
@@ -83,6 +85,7 @@ float D_GGX(float NdotH, float roughness) {
     return (1 / M_PI) * alpha2 / (b * b);
 }
 
+// Paper: https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
 float D_Beckmann(float NdotH, float roughness) {
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
@@ -92,6 +95,7 @@ float D_Beckmann(float NdotH, float roughness) {
 }
 
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+// Paper: https://www.graphics.cornell.edu/~bjw/microfacetbsdf.pdf
 float G1_GGX_Schlick(float NdotV, float roughness) {
     float alpha = roughness * roughness;
     float k = alpha / 2.0;
@@ -99,6 +103,7 @@ float G1_GGX_Schlick(float NdotV, float roughness) {
 }
 
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+// Paper: https://ieeexplore.ieee.org/abstract/document/1138991
 float G_Smith(float NdotV, float NdotL, float roughness) {
     return G1_GGX_Schlick(NdotL, roughness) * G1_GGX_Schlick(NdotV, roughness);
 }
@@ -137,8 +142,6 @@ vec3 sampleBrdf(float metallic, float specular, float roughness, vec3 viewVector
 vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef, flags hitFlags, out float samplingPDF) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
-    // ----------- Evaluating the BRDF
-    // Base Angles
     float NdotH = dot(halfwayVector, normalVector);
     float LdotH = dot(lightVector, halfwayVector);
     float VdotN = dot(viewVector, normalVector);
@@ -147,7 +150,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     float VdotH = dot(viewVector, halfwayVector);
 
     vec3 baseColor = isoSurfaceColorDef;
-    // Diffuse:
     // Specular F: Schlick Fresnel Approximation
     vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
     f0 = mix(f0, baseColor, parameters.metallic);
@@ -162,15 +164,12 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
     
     // Diffuse Part
-    // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
     vec3 rhoD = baseColor;
     
-    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
     rhoD *= vec3(1.0) - F;
     rhoD *= (1.0 - parameters.metallic);
     vec3 diff = rhoD;
     // Whitout importance sampling: rhoD *= (1.0 / M_PI)
-    //diff /= pdf_diffuse;
     float sinThetaH = sqrt(1-(NdotH*NdotH));
     float cosThetaH = NdotH;
 
@@ -180,7 +179,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
         samplingPDF = (1.0/M_PI);
     }
 
-    // ----------- Weighting in the PDF
     vec3 colorOut = diff + spec;
     return colorOut;
 }
@@ -189,8 +187,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColorDef) {
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
-    // ----------- Evaluating the BRDF
-    // Base Angles
     float NdotH = dot(halfwayVector, normalVector);
     float LdotH = dot(lightVector, halfwayVector);
     float VdotN = dot(viewVector, normalVector);
@@ -199,7 +195,8 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float VdotH = dot(viewVector, halfwayVector);
 
     vec3 baseColor = isoSurfaceColorDef;
-    // Diffuse:
+    
+    // Specular Part
     // Specular F: Schlick Fresnel Approximation
     vec3 f0 = vec3(0.16 * (sqr(parameters.specular)));
     f0 = mix(f0, baseColor, parameters.metallic);
@@ -210,7 +207,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
     // Speuclar G: G_Smith with G_1Smith-GGX
     float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
-    // Result
+
     float sinThetaH = sqrt(1-(NdotH*NdotH));
     vec3 spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
     
@@ -219,15 +216,12 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     vec3 rhoD = baseColor;
     rhoD *= sinThetaH * NdotH;
     
-    // Debug: if (gl_GlobalInvocationID.x == 500 && gl_GlobalInvocationID.y == 500) { debugPrintfEXT("Specular D: %f Specular F: %f Specular G: %f", D, F, G); }
     rhoD *= vec3(1.0) - F;
     rhoD *= (1.0 - parameters.metallic);
     rhoD *= (1.0 / M_PI);
 
     vec3 diff = rhoD;
-    //diff /= pdf_diffuse;
 
-    // ----------- Weighting in the PDF
     vec3 colorOut = diff + spec;
     return colorOut;
 }
@@ -250,11 +244,9 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
 // Combined Call to importance sample and evaluate BRDF
 
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {
-    // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
+    // Source (Explanation): https://www.youtube.com/watch?v=gya7x9H3mV0
+    // Paper: https://dl.acm.org/doi/pdf/10.1145/357290.357293
     float roughness = clamp(parameters.roughness,0.05, 1.0);
-
-    // ----------- Importance Sampling
-    // Importance Sampling for Diffuse: PDF 1/PI * cos(theta) * sin(theta)
 
     // Sampling and evaluating
     lightVector = sampleBrdf(parameters.metallic, parameters.specular, roughness, viewVector, frame, hitFlags);
