@@ -362,7 +362,7 @@ private:
     float clearcoat = 0.0;
     float clearcoatGloss = 1.0;
 
-    // Uniform buffer object storing the camera settings.
+    // Uniform buffer object storing the scene and camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
         glm::mat4 previousViewProjMatrix;
