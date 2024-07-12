@@ -62,6 +62,9 @@ docs/latex/*
 .idea/*
 cmake-build-*/
 
+# Visual Studio
+.vs/*
+
 # Custom for models
 *.blend
 *.mtl
@@ -79,6 +82,7 @@ cmake-build-*/
 *.mesh
 
 Data/EnvironmentMaps/*
+Data/CloudDataSets/*
 Data/CameraPaths/*
 Data/Checkpoints/*
 Data/Screenshots/*
@@ -97,6 +101,7 @@ Shipping/*
 third_party/*
 dependencies/*
 vcpkg_installed/*
+out/*
 
 # macOS
 .DS_Store
