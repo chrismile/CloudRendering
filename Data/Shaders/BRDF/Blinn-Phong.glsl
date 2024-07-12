@@ -36,7 +36,7 @@
 vec3 sampleBrdf(mat3 frame, out flags hitFlags) {
     hitFlags.specularHit = false;
     hitFlags.clearcoatHit = false;
-	return frame * sampleHemisphere(vec2(random(), random()));
+    return frame * sampleHemisphere(vec2(random(), random()));
 }
 
 // Evaluate BRDF with compensation of Importance Sampling and a fixed sampling PDF
