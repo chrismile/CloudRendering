@@ -659,9 +659,9 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
     D.z = abs(D).z <= 0.000001 ? 0.000001 : D.z;
     vec3 C_Min = (bMin - P)/D;
     vec3 C_Max = (bMax - P)/D;
-    tMin = max(max(min(C_Min[0], C_Max[0]), min(C_Min[1], C_Max[1])), min(C_Min[2], C_Max[2]));
+    tMin = max(max(min(C_Min.x, C_Max.x), min(C_Min.y, C_Max.y)), min(C_Min.z, C_Max.z));
     tMin = max(0.0, tMin);
-    tMax = min(min(max(C_Min[0], C_Max[0]), max(C_Min[1], C_Max[1])), max(C_Min[2], C_Max[2]));
+    tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
     if (tMax <= tMin || tMax <= 0) {
         return false;
     }
@@ -719,15 +719,15 @@ float getNearestMultiple(float n, float x, bool smaller) {
 }
 
 float trilinearInterpolationDensity(vec3 texCoords) {
-    float x = texCoords[0];
-    float y = texCoords[1];
-    float z = texCoords[2];
+    float x = texCoords.x;
+    float y = texCoords.y;
+    float z = texCoords.z;
     
     // Compute texel sizes
     ivec3 sizeTexture = textureSize(isoImage, 0);
-    float deltaX = 1.0/float(sizeTexture[0] -1.0);
-    float deltaY = 1.0/float(sizeTexture[1] - 1.0);
-    float deltaZ = 1.0/float(sizeTexture[2] - 1.0);
+    float deltaX = 1.0 / (float(sizeTexture.x) - 1.0);
+    float deltaY = 1.0 / (float(sizeTexture.y) - 1.0);
+    float deltaZ = 1.0 / (float(sizeTexture.z) - 1.0);
 
     // Compute the 6 nearest texel values
     float x0 = getNearestMultiple(x, deltaX, true);
@@ -757,7 +757,7 @@ float trilinearInterpolationDensity(vec3 texCoords) {
     float d111 = sampleIsoImage(n111);
     float d011 = sampleIsoImage(n011);
 
-    vec3 posIndex = vec3(x*(float(sizeTexture[0])-1.0),y*(float(sizeTexture[1])-1.0),z*(float(sizeTexture[2])-1.0));
+    vec3 posIndex = vec3(x*(float(sizeTexture.x)-1.0),y*(float(sizeTexture.y)-1.0),z*(float(sizeTexture.z)-1.0));
     ivec3 posIndexInt = ivec3(floor(posIndex));
     vec3 posIndexFrac = posIndex - vec3(posIndexInt);
 
@@ -891,7 +891,7 @@ float sqr(float x) {
 #endif
 
 #ifdef SURFACE_BRDF_COOK_TORRANCE
-#include "Cook-Torrance.glsl"
+#include "CookTorrance.glsl"
 #endif
 
 #ifdef SURFACE_BRDF_LAMBERTIAN
@@ -899,7 +899,7 @@ float sqr(float x) {
 #endif
 
 #ifdef SURFACE_BRDF_BLINN_PHONG
-#include "Blinn-Phong.glsl"
+#include "BlinnPhong.glsl"
 #endif
 
 
