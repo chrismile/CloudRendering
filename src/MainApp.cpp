@@ -405,9 +405,11 @@ void MainApp::renderGui() {
                 if (useFixedSizeViewport) {
                     sizeContent = ImVec2(float(fixedViewportSize.x), float(fixedViewportSize.y));
                 }
-                if (int(sizeContent.x) != int(dataView->viewportWidth)
-                        || int(sizeContent.y) != int(dataView->viewportHeight)) {
-                    dataView->resize(int(sizeContent.x), int(sizeContent.y));
+                int newViewportWidth = std::max(sgl::iceil(int(sizeContent.x), subsamplingFactor), 1);
+                int newViewportHeight = std::max(sgl::iceil(int(sizeContent.y), subsamplingFactor), 1);
+                if (newViewportWidth != int(dataView->viewportWidth)
+                        || newViewportHeight != int(dataView->viewportHeight)) {
+                    dataView->resize(newViewportWidth, newViewportHeight);
                     if (dataView->viewportWidth > 0 && dataView->viewportHeight > 0) {
                         volumetricPathTracingPass->setOutputImage(dataView->dataViewTexture->getImageView());
                         volumetricPathTracingPass->recreateSwapchain(
@@ -560,6 +562,10 @@ void MainApp::renderGuiGeneralSettingsPropertyEditor() {
     newDockSpaceMode = useDockSpaceMode;
     if (propertyEditor.addCheckbox("Use Docking Mode", &newDockSpaceMode)) {
         scheduledDockSpaceModeChange = true;
+    }
+
+    if (useDockSpaceMode && propertyEditor.addSliderInt("Subsampling Factor", &subsamplingFactor, 1, 4)) {
+        reRender = true;
     }
 
     if (propertyEditor.addCheckbox("Fixed Size Viewport", &useFixedSizeViewport)) {

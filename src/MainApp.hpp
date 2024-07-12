@@ -93,6 +93,7 @@ private:
     sgl::CameraPtr cameraHandle;
 
     /// Scene data (e.g., camera, main framebuffer, ...).
+    int subsamplingFactor = 1;
     SceneData sceneData;
 
     // This setting lets all data views use the same viewport resolution.
