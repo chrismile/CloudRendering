@@ -1005,8 +1005,8 @@ bool getIsoSurfaceHit(
             //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
             //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfLightOut * pdfLightOut + pdfSamplingOut * pdfSamplingOut);
 
-            // TODO: Auch weightOut is falsch beim Headlight
             float pdfLightOut = evaluateSkyboxPDF(dirOut);
+
             float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
             float weightOut = pdfSamplingOut / (pdfLightOut + pdfSamplingOut);
 
