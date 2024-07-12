@@ -919,7 +919,7 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
-                      , inout vec3 colorNee
+        , inout vec3 colorNee
 #endif
 ) {
     // -------------- Abort Conditions ------------------
@@ -962,9 +962,7 @@ bool getIsoSurfaceHit(
 
     // -------------- Next Event Tracking (NEE) ------------------
 
-#if (defined(USE_ISOSURFACE_NEE) &&                \
-     (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || \
-      defined(USE_NEXT_EVENT_TRACKING)))
+#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
 
 #ifdef BRDF_SUPPORTS_SPECULAR
 
@@ -1018,33 +1016,31 @@ bool getIsoSurfaceHit(
                 weightNee = 1.0;
                 weightOut = 1.0;
 
-                colorNee += 2.0 * throughput * rdfNee * weightNee *
-                            calculateTransmittanceDistance(
-                                currentPoint + dirLightNee * 1e-4, dirLightNee,
-                                distance(currentPoint, cameraPosition)) *
-                            sampleHeadlight(currentPoint);
+                colorNee +=
+                        2.0 * throughput * rdfNee * weightNee *
+                        calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
+                        sampleHeadlight(currentPoint);
             } else {
                 colorNee +=
-                    2.0 * throughput * rdfNee * weightNee / pdfLightNee *
-                    calculateTransmittance(currentPoint + dirLightNee * 1e-4,
-                                           dirLightNee) *
-                    (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
-                colorNee += 2.0 * throughput * weightOut * colorOut *
-                            calculateTransmittance(currentPoint + dirOut * 1e-4,
-                                                   dirOut) *
-                            (sampleSkybox(dirOut) + sampleLight(dirOut));
+                        2.0 * throughput * rdfNee * weightNee / pdfLightNee *
+                        calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                        (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                colorNee +=
+                        2.0 * throughput * weightOut * colorOut *
+                        calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
+                        (sampleSkybox(dirOut) + sampleLight(dirOut));
             }
 
 #else
 
-            colorNee += throughput * rdfNee * weightNee / pdfLightNee *
-                        calculateTransmittance(
-                            currentPoint + dirLightNee * 1e-4, dirLightNee) *
-                        (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
             colorNee +=
-                throughput * weightOut * colorOut *
-                calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
-                (sampleSkybox(dirOut) + sampleLight(dirOut));
+                    throughput * rdfNee * weightNee / pdfLightNee *
+                    calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                    (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+            colorNee +=
+                    throughput * weightOut * colorOut *
+                    calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
+                    (sampleSkybox(dirOut) + sampleLight(dirOut));
 
 #endif
         } else {
@@ -1054,23 +1050,21 @@ bool getIsoSurfaceHit(
 #ifdef USE_HEADLIGHT
             vec3 commonFactor = 2.0 * throughput * rdfNee;
             if (isSamplingHeadlight) {
-                colorNee += commonFactor *
-                            calculateTransmittanceDistance(
-                                currentPoint + dirLightNee * 1e-4, dirLightNee,
-                                distance(currentPoint, cameraPosition)) *
-                            sampleHeadlight(currentPoint);
+                colorNee +=
+                        commonFactor *
+                        calculateTransmittanceDistance( currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
+                        sampleHeadlight(currentPoint);
             } else {
                 colorNee +=
-                    commonFactor / pdfLightNee *
-                    calculateTransmittance(currentPoint + dirLightNee * 1e-4,
-                                           dirLightNee) *
-                    (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                        commonFactor / pdfLightNee *
+                        calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                        (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
             }
 #else
-        colorNee += throughput * rdfNee / pdfLightNee *
-                    calculateTransmittance(currentPoint + dirLightNee * 1e-4,
-                                           dirLightNee) *
-                    (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+        colorNee +=
+                throughput * rdfNee / pdfLightNee *
+                calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
 #endif
 
 #ifdef BRDF_SUPPORTS_SPECULAR
