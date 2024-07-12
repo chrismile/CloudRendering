@@ -22,6 +22,23 @@
  * SOFTWARE.
  */
 
+/**
+* Copyright Disney Enterprises, Inc.  All rights reserved.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License
+* and the following modification to it: Section 6 Trademarks.
+* deleted and replaced with:
+*
+* 6. Trademarks. This License does not grant permission to use the
+* trade names, trademarks, service marks, or product names of the
+* Licensor and its affiliates, except as required for reproducing
+* the content of the NOTICE file.
+*
+* You may obtain a copy of the License at
+* http://www.apache.org/licenses/LICENSE-2.0
+*/
+
 #define BRDF_SUPPORTS_SPECULAR
 
 // ---------- BRDF Helper Functions ----------
@@ -29,7 +46,7 @@
 // 1. Helper functions for sampling
 
 vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
+    // Adapated from derviations here: https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
     float v = random();
@@ -47,7 +64,7 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out
 }
 
 vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h) {
-    // https://www.youtube.com/watch?v=xFsJMUS94Fs
+    // Source: https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
     float u = random();
     float v = random();
@@ -65,6 +82,7 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h)
 }
 
 vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float ay, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, out float theta_h) {
+    // Adapated from derviations here: https://www.youtube.com/watch?v=xFsJMUS94Fs
     float u = clamp(random(),0.05, 0.95);
     float v = clamp(random(),0.05, 0.95);
     float phi = atan((ay/ax) * tan(2*M_PI*u));
@@ -81,18 +99,19 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
 
 // 2. Helper functions for evaluation
 
-// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L49C1-L55C2
-float GTR1(float NdotH, float a)
-{
+float GTR1(float NdotH, float a) {
+    // Source: https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L49C1-L55C2
+
     if (a >= 1) return 1 / PI;
     float a2 = a * a;
     float t = 1 + (a2 - 1) * NdotH * NdotH;
     return (a2 - 1) / (PI * log(a2) * t);
 }
 
-// https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L69C1-L74C2
-float smithG_GGX(float NdotV, float alphaG)
-{
+// Source: https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L69C1-L74C2
+float smithG_GGX(float NdotV, float alphaG) {
+    // Source: https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdfs/disney.brdf#L69C1-L74C2
+
     float a = alphaG * alphaG;
     float b = NdotV * NdotV;
     return 1 / (NdotV + sqrt(a + b - a * b));
@@ -138,9 +157,10 @@ vec3 sampleBrdf(float metallic, float specular, float clearcoat, float clearcoat
 
 // Evaluate BRDF with compensation of Importance Sampling and a fixed sampling PDF
 vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor, float th, float ax, float ay, vec3 x, vec3 y, flags hitFlags, out float samplingPDF) {
+    // Paper: https://media.disneyanimation.com/uploads/production/publication_asset/48/asset/s2012_pbs_disney_brdf_notes_v3.pdf
+    // Alternative Example Implementation (without Importance Sampling): https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
     vec3 halfwayVector = normalize(lightVector + viewVector);
 
-    // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
 
     // Base Angles
     float theta_h = dot(halfwayVector, normalVector);
@@ -219,9 +239,9 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 
 // Evaluate BRDF and prepare for Importance Sampling compensation
 vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor, float ax, float ay, vec3 x, vec3 y) {
+    // Paper: https://media.disneyanimation.com/uploads/production/publication_asset/48/asset/s2012_pbs_disney_brdf_notes_v3.pdf
+    // Alternative Example Implementation (without Importance Sampling): https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
     vec3 halfwayVector = normalize(lightVector + viewVector);
-
-    // https://github.com/wdas/brdf/blob/f39eb38620072814b9fbd5743e1d9b7b9a0ca18a/src/brdf/BRDFBase.cpp#L409
 
     // Base Angles
     float theta_h = dot(halfwayVector, normalVector);
@@ -316,8 +336,7 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
 // Combined Call to importance sample and evaluate BRDF
 
 vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, mat3 frame, vec3 isoSurfaceColor, out flags hitFlags, out float samplingPDF) {
-    // Sources:
-    // 1. Paper: https://blog.selfshadow.com/publications/s2012-shading-course/burley/s2012_pbs_disney_brdf_notes_v3.pdf
+    // 1. Paper: https://media.disneyanimation.com/uploads/production/publication_asset/48/asset/s2012_pbs_disney_brdf_notes_v3.pdf
     // 2. BRDF Example Implementation (without Importance Sampling): https://github.com/wdas/brdf/blob/main/src/brdfs/disney.brdf
     float aspect = sqrt(1 - parameters.anisotropic * 0.9);
     float ax = max(0.001, sqr(parameters.roughness) / aspect);
