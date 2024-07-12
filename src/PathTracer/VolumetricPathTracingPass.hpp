@@ -330,15 +330,15 @@ private:
     std::vector<bool> featureMapUsedArray;
 
     // Isosurface data.
-    bool useIsosurfaces = true;
-    float isoValue = 0.3f;
+    bool useIsosurfaces = false;
+    float isoValue = 0.5f;
     float isoStepWidth = 0.25f;
     float maxAoDist = 0.05f;
     int numAoSamples = 4;
     bool useAoDist = false;
     glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
-    SurfaceBrdf surfaceBrdf = SurfaceBrdf::DISNEY;\
+    SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
     bool useIsosurfaceTf = false;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
