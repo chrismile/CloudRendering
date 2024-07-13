@@ -659,9 +659,9 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
     D.z = abs(D).z <= 0.000001 ? 0.000001 : D.z;
     vec3 C_Min = (bMin - P)/D;
     vec3 C_Max = (bMax - P)/D;
-    tMin = max(max(min(C_Min[0], C_Max[0]), min(C_Min[1], C_Max[1])), min(C_Min[2], C_Max[2]));
+    tMin = max(max(min(C_Min.x, C_Max.x), min(C_Min.y, C_Max.y)), min(C_Min.z, C_Max.z));
     tMin = max(0.0, tMin);
-    tMax = min(min(max(C_Min[0], C_Max[0]), max(C_Min[1], C_Max[1])), max(C_Min[2], C_Max[2]));
+    tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
     if (tMax <= tMin || tMax <= 0) {
         return false;
     }
@@ -682,12 +682,11 @@ float avgComponent(vec3 v) {
 #ifdef USE_ISOSURFACES
 #include "RayTracingUtilities.glsl"
 
-#define DIFFERENCES_NEIGHBOR
-vec3 computeGradient(vec3 texCoords) {
-#ifdef DIFFERENCES_NEIGHBOR
-    const float dx = 1.0;
-    const float dy = 1.0;
-    const float dz = 1.0;
+// Simple method for computing surface normals
+vec3 getGradient(vec3 texCoords) {
+    const float dx = 0.1;
+    const float dy = 0.1;
+    const float dz = 0.1;
     float gradX =
             (sampleIsoImageOffset(texCoords, ivec3(-1, 0, 0))
             - sampleIsoImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
@@ -697,6 +696,105 @@ vec3 computeGradient(vec3 texCoords) {
     float gradZ =
             (sampleIsoImageOffset(texCoords, ivec3(0, 0, -1))
             - sampleIsoImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
+
+    vec3 grad = vec3(gradX, gradY, gradZ);
+    float gradLength = length(grad);
+    if (gradLength < 1e-4) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    return grad / gradLength;
+}
+
+// Get the multiple of x closest to n, where k*x < n
+float getNearestMultiple(float n, float x, bool smaller) {
+    float rest = mod(n,x);
+    if (smaller) {
+        return n - rest;
+    } else {
+        if (rest == 0.0) {
+            return n;
+        }
+        return x + n - rest;
+    }
+}
+
+float trilinearInterpolationDensity(vec3 texCoords) {
+    float x = texCoords.x;
+    float y = texCoords.y;
+    float z = texCoords.z;
+    
+    // Compute texel sizes
+    ivec3 sizeTexture = textureSize(isoImage, 0);
+    float deltaX = 1.0 / (float(sizeTexture.x) - 1.0);
+    float deltaY = 1.0 / (float(sizeTexture.y) - 1.0);
+    float deltaZ = 1.0 / (float(sizeTexture.z) - 1.0);
+
+    // Compute the 6 nearest texel values
+    float x0 = getNearestMultiple(x, deltaX, true);
+    float x1 = getNearestMultiple(x, deltaX, false);
+    float y0 = getNearestMultiple(y, deltaY, true);
+    float y1 = getNearestMultiple(y, deltaY, false);
+    float z0 = getNearestMultiple(z, deltaZ, true);
+    float z1 = getNearestMultiple(z, deltaZ, false);
+    
+    // Get the 8 nearest edges
+    vec3 n000 = vec3(x0,y0,z0);
+    vec3 n100 = vec3(x1,y0,z0);
+    vec3 n110 = vec3(x1,y1,z0);
+    vec3 n010 = vec3(x0,y1,z0);
+    vec3 n001 = vec3(x0,y0,z1);
+    vec3 n101 = vec3(x1,y0,z1);
+    vec3 n111 = vec3(x1,y1,z1);
+    vec3 n011 = vec3(x0,y1,z1);
+
+    // Compute gradients for these nearest edges
+    float d000 = sampleIsoImage(n000);
+    float d100 = sampleIsoImage(n100);
+    float d110 = sampleIsoImage(n110);
+    float d010 = sampleIsoImage(n010);
+    float d001 = sampleIsoImage(n001);
+    float d101 = sampleIsoImage(n101);
+    float d111 = sampleIsoImage(n111);
+    float d011 = sampleIsoImage(n011);
+
+    vec3 posIndex = vec3(x*(float(sizeTexture.x)-1.0),y*(float(sizeTexture.y)-1.0),z*(float(sizeTexture.z)-1.0));
+    ivec3 posIndexInt = ivec3(floor(posIndex));
+    vec3 posIndexFrac = posIndex - vec3(posIndexInt);
+
+    float t00 = mix(d000, d100, posIndexFrac.x);
+    float t10 = mix(d010, d110, posIndexFrac.x);
+    float t01 = mix(d001, d101, posIndexFrac.x);
+    float t11 = mix(d011, d111, posIndexFrac.x);
+
+    float t0 = mix(t00, t10, posIndexFrac.y);
+    float t1 = mix(t01, t11, posIndexFrac.y);
+
+    return mix(t0, t1, posIndexFrac.z);
+}
+
+#define DIFFERENCES_NEIGHBOR
+
+// Compute surface normals using trilinear interpolaton for 6 points arround the current point
+vec3 computeGradient(vec3 texCoords) {
+#ifdef DIFFERENCES_NEIGHBOR
+    // Idea from: https://math.stackexchange.com/questions/2452416/compute-gradient-of-scalar-field-defined-by-trilinear-interpolation-of-sample-gr
+    const float dx = 4.0 * parameters.voxelTexelSize.x;
+    const float dy = 4.0 * parameters.voxelTexelSize.y;
+    const float dz = 4.0 * parameters.voxelTexelSize.z;
+
+    vec3 gX0 = vec3(-1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(-1.0,0.0,0.0));
+    vec3 gX1 = vec3(1.0,0.0,0.0)*trilinearInterpolationDensity(texCoords + dx*vec3(1.0,0.0,0.0));
+    vec3 gY0 = vec3(0.0,-1.0,0.0)*trilinearInterpolationDensity(texCoords + dy*vec3(0.0,-1.0,0.0));
+    vec3 gY1 = vec3(0.0,1.0,0.0)*trilinearInterpolationDensity(texCoords + dy*vec3(0.0,1.0,0.0));
+    vec3 gZ0 = vec3(0.0,0.0,-1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,-1.0));
+    vec3 gZ1 = vec3(0.0,0.0,1.0)*trilinearInterpolationDensity(texCoords + dz*vec3(0.0,0.0,1.0));
+
+    vec3 grad = 0.5*(gX0 + gX1 + gY0 + gY1 + gZ0 + gZ1);
+    float gradLength = length(grad);
+    if (gradLength < 1e-3) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    return grad / gradLength;
 #else
     const float dx = parameters.voxelTexelSize.x * 1;
     const float dy = parameters.voxelTexelSize.y * 1;
@@ -710,14 +808,13 @@ vec3 computeGradient(vec3 texCoords) {
     float gradZ =
             (sampleIsoImage(texCoords - vec3(0.0, 0.0, dz))
             - sampleIsoImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
-#endif
-
     vec3 grad = vec3(gradX, gradY, gradZ);
     float gradLength = length(grad);
-    if (gradLength < 1e-3) {
+    if (gradLength < 1e-4) {
         return vec3(0.0, 0.0, 1.0);
     }
     return grad / gradLength;
+#endif
 }
 
 const int MAX_NUM_REFINEMENT_STEPS = 8;
@@ -775,6 +872,35 @@ vec3 sampleHemisphereCosineWeighted(vec2 xi) {
     return vec3(d.x, d.y, z);
 }
 
+// -------------- Helper Functions and Structs ------------------
+
+struct flags{
+    bool specularHit;
+    bool clearcoatHit;
+};
+
+float sqr(float x) {
+    return x * x;
+}
+
+// -------------- BRDF Functions ------------------
+
+#ifdef SURFACE_BRDF_DISNEY
+#include "Disney2012.glsl"
+#endif
+
+#ifdef SURFACE_BRDF_COOK_TORRANCE
+#include "CookTorrance.glsl"
+#endif
+
+#ifdef SURFACE_BRDF_LAMBERTIAN
+#include "Lambertian.glsl"
+#endif
+
+#ifdef SURFACE_BRDF_BLINN_PHONG
+#include "BlinnPhong.glsl"
+#endif
+
 
 #if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
@@ -789,18 +915,14 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #define UNIFORM_SAMPLING
 //#define USE_MIS // only for specular BRDF sampling
 
+
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
         , inout vec3 colorNee
 #endif
 ) {
-    vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
-    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    vec3 surfaceNormal = computeGradient(texCoords);
-    if (dot(w, surfaceNormal) > 0.0) {
-        surfaceNormal = -surfaceNormal;
-    }
+    // -------------- Abort Conditions ------------------
 
     DEFINE_ISO_SURFACE_COLOR;
     if (isoSurfaceOpacity < 1e-4) {
@@ -810,38 +932,51 @@ bool getIsoSurfaceHit(
         return false;
     }
 
+    // -------------- Declarations and Preparations ------------------
+
+    flags hitFlags = flags(false, false);
+    bool useMIS = false;
+
+    vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
+    texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    vec3 surfaceNormal = computeGradient(texCoords);
+
+    if (dot(w, surfaceNormal) > 0.0) {
+        surfaceNormal = -surfaceNormal;
+    }
+
     vec3 surfaceTangent;
     vec3 surfaceBitangent;
     ComputeDefaultBasis(surfaceNormal, surfaceTangent, surfaceBitangent);
     mat3 frame = mat3(surfaceTangent, surfaceBitangent, surfaceNormal);
 
     vec3 colorOut;
+    vec3 dirOut;
 
-#ifdef SURFACE_BRDF_LAMBERTIAN
-    // Lambertian BRDF is: R / pi
-#ifdef UNIFORM_SAMPLING
-    // Sampling PDF: 1/(2pi)
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-#else
-    // Sampling PDF: cos(theta) / pi
-    vec3 dirOut = frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
-#endif
-    float thetaOut = dot(surfaceNormal, dirOut);
-#endif
+    // -------------- BRDF Sampling and Evaluation ------------------
 
-#ifdef SURFACE_BRDF_BLINN_PHONG
-    // http://www.thetenthplanet.de/archives/255
-    const float n = 10.0;
-    float norm = clamp(
-            (n + 2.0) / (4.0 * M_PI * (exp2(-0.5 * n))),
-            (n + 2.0) / (8.0 * M_PI), (n + 4.0) / (8.0 * M_PI));
-    vec3 dirOut = frame * sampleHemisphere(vec2(random(), random()));
-    vec3 halfwayVectorOut = normalize(-w + dirOut);
-#endif
+    float samplingPDF;
+    colorOut = computeBrdf(normalize(-w), dirOut, surfaceNormal, surfaceTangent,
+                           surfaceBitangent, frame, isoSurfaceColorDef,
+                           hitFlags, samplingPDF);
+
+    // -------------- Next Event Tracking (NEE) ------------------
 
 #if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
-    float pdfLightNee; // only used for skybox.
+
+#ifdef BRDF_SUPPORTS_SPECULAR
+
+    if (hitFlags.specularHit == true) {
+        useMIS = true;
+    } else {
+        useMIS = false;
+    }
+
+#endif
+
+    float pdfLightNee;  // only used for skybox.
     vec3 dirLightNee;
+
 #ifdef USE_HEADLIGHT
     // We are sampling the environment map or headlight with 50/50 chance.
     bool isSamplingHeadlight = random() > 0.5;
@@ -855,110 +990,96 @@ bool getIsoSurfaceHit(
 #endif
 
     if (dot(surfaceNormal, dirLightNee) > 0.0) {
-        float thetaNee = dot(surfaceNormal, dirLightNee);
-#ifdef SURFACE_BRDF_LAMBERTIAN
-#ifdef UNIFORM_SAMPLING
-#ifdef USE_MIS
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
-#endif
-        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-#else
-#ifdef USE_MIS
-        float pdfSamplingNee = thetaNee / M_PI;
-#endif
-        float pdfSamplingOut = thetaOut / M_PI;
-#endif
-#endif
-#ifdef SURFACE_BRDF_BLINN_PHONG
-#ifdef USE_MIS
-        float pdfSamplingNee = 1.0 / (2.0 * M_PI);
-#endif
-        float pdfSamplingOut = 1.0 / (2.0 * M_PI);
-#endif
-#ifdef SURFACE_BRDF_LAMBERTIAN
-        //vec3 brdfOut = isoSurfaceColorDef / M_PI;
-        //vec3 brdfNee = isoSurfaceColorDef / M_PI;
-        vec3 rdfOut = isoSurfaceColorDef / M_PI * thetaOut;
-        vec3 rdfNee = isoSurfaceColorDef / M_PI * thetaNee;
-#endif
-#ifdef SURFACE_BRDF_BLINN_PHONG
-        // http://www.thetenthplanet.de/archives/255
-        vec3 halfwayVectorNee = normalize(-w + dirLightNee);
-        vec3 rdfOut = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n) / norm);
-        vec3 rdfNee = isoSurfaceColorDef * (pow(max(dot(surfaceNormal, halfwayVectorNee), 0.0), n) / norm);
-#endif
+        float pdfSamplingOut;
+        float pdfSamplingNee;
 
-        colorOut = rdfOut / pdfSamplingOut;
+        vec3 rdfNee = evaluateBrdfNee(
+            normalize(-w), dirOut, dirLightNee, surfaceNormal, surfaceTangent,
+            surfaceBitangent, isoSurfaceColorDef, useMIS, samplingPDF, hitFlags,
+            pdfSamplingOut, pdfSamplingNee);
 
-#ifdef USE_MIS
+#ifdef BRDF_SUPPORTS_SPECULAR
+        if (useMIS) {
+            // NEE with MIS.
+            // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
+            //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
+            //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfLightOut * pdfLightOut + pdfSamplingOut * pdfSamplingOut);
 
-        // TODO: Add support for headlight.
+            float pdfLightOut = evaluateSkyboxPDF(dirOut);
 
-        // NEE with MIS.
-        // TODO: If dirOut is importance sampled from BRDF instead of cos term, use brdfOut and brdfNee
-        // instead of pdfSamplingOut and pdfSamplingNee.
-        // Power heuristic with beta=2: https://www.pbr-book.org/3ed-2018/Monte_Carlo_Integration/Importance_Sampling
-        //float weightNee = pdfLightNee * pdfLightNee / (pdfLightNee * pdfLightNee + pdfSamplingNee * pdfSamplingNee);
-        //float weightOut = pdfSamplingOut * pdfSamplingOut / (pdfSkyboxOut * pdfSkyboxOut + pdfSamplingOut * pdfSamplingOut);
-        float pdfSkyboxOut = evaluateSkyboxPDF(dirOut);
-        float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
-        float weightOut = pdfSamplingOut / (pdfSkyboxOut + pdfSamplingOut);
-        colorNee +=
-                throughput * rdfNee * weightNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
-                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
-        colorNee +=
-                throughput * rdfOut * weightOut / pdfSamplingOut * calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut)
-                * (sampleSkybox(dirOut) + sampleLight(dirOut));
-
-#else
+            float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
+            float weightOut = pdfSamplingOut / (pdfLightOut + pdfSamplingOut);
 
 #ifdef USE_HEADLIGHT
-        vec3 commonFactor = 2.0 * throughput * rdfNee;
-        if (isSamplingHeadlight) {
+            // vec3 commonFactor = 2.0 * throughput * rdfNee;
+            if (isSamplingHeadlight) {
+                weightNee = 1.0;
+                weightOut = 1.0;
+
+                colorNee +=
+                        2.0 * throughput * rdfNee * weightNee *
+                        calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
+                        sampleHeadlight(currentPoint);
+            } else {
+                colorNee +=
+                        2.0 * throughput * rdfNee * weightNee / pdfLightNee *
+                        calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                        (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                colorNee +=
+                        2.0 * throughput * weightOut * colorOut *
+                        calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
+                        (sampleSkybox(dirOut) + sampleLight(dirOut));
+            }
+
+#else
+
             colorNee +=
-                    commonFactor * calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition))
-                    * sampleHeadlight(currentPoint);
+                    throughput * rdfNee * weightNee / pdfLightNee *
+                    calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                    (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+            colorNee +=
+                    throughput * weightOut * colorOut *
+                    calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
+                    (sampleSkybox(dirOut) + sampleLight(dirOut));
+
+#endif
         } else {
-            colorNee +=
-                    commonFactor / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
-                    * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
-        }
+#endif
+
+// Normal NEE.
+#ifdef USE_HEADLIGHT
+            vec3 commonFactor = 2.0 * throughput * rdfNee;
+            if (isSamplingHeadlight) {
+                colorNee +=
+                        commonFactor *
+                        calculateTransmittanceDistance( currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
+                        sampleHeadlight(currentPoint);
+            } else {
+                colorNee +=
+                        commonFactor / pdfLightNee *
+                        calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                        (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+            }
 #else
-        // Normal NEE.
         colorNee +=
-                throughput * rdfNee / pdfLightNee * calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)
-                * (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+                throughput * rdfNee / pdfLightNee *
+                calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
+                (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
 #endif
 
+#ifdef BRDF_SUPPORTS_SPECULAR
+        }
 #endif
-    } else {
-#endif
-
-#if defined(SURFACE_BRDF_LAMBERTIAN)
-        // Lambertian BRDF is: R / pi
-#ifdef UNIFORM_SAMPLING
-        // Sampling PDF: 1/(2pi)
-        colorOut = 2.0 * isoSurfaceColorDef * thetaOut;
-#else
-        // Sampling PDF: cos(theta) / pi
-        colorOut = isoSurfaceColorDef;
-#endif
-#endif
-
-#ifdef SURFACE_BRDF_BLINN_PHONG
-        // http://www.thetenthplanet.de/archives/255
-        float rdf = pow(max(dot(surfaceNormal, halfwayVectorOut), 0.0), n);
-        colorOut = 2.0 * M_PI * isoSurfaceColorDef * (rdf / norm);
-#endif
-
-#if defined(USE_ISOSURFACE_NEE) && (defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING))
     }
 #endif
+
+    // -------------- Return final results ------------------
 
     w = dirOut;
     throughput *= colorOut;
     return true;
 }
+
 #endif
 
 

@@ -350,6 +350,18 @@ private:
 
     glm::mat4 previousViewProjMatrix;
 
+    // Disney BRDF
+    float subsurface = 0.0;
+    float metallic = 0.0;
+    float specular = 0.5;
+    float specularTint = 0.0;
+    float roughness = 0.5;
+    float anisotropic = 0.0;
+    float sheen = 0.0;
+    float sheenTint = 0.5;
+    float clearcoat = 0.0;
+    float clearcoatGloss = 1.0;
+
     // Uniform buffer object storing the scene and camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
@@ -396,6 +408,18 @@ private:
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;
         int numAoSamples = 4;
+
+        // Disney BRDF
+        float subsurface = 0.0;
+        float metallic = 0.0;
+        float specular = 0.5;
+        float specularTint = 0.0;
+        float roughness = 0.5;
+        float anisotropic = 0.0;
+        float sheen = 0.0;
+        float sheenTint = 0.5;
+        float clearcoat = 0.0;
+        float clearcoatGloss = 1.0;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

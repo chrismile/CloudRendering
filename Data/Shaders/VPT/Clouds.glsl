@@ -228,7 +228,11 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
 
 #ifdef WRITE_NORMAL_MAP
+#ifdef USE_ISOSURFACES
+        vec3 diff = -computeGradient((firstEvent.x - parameters.boxMin)/(parameters.boxMax -parameters.boxMin));
+#else // !defined(USE_ISOSURFACES)
         vec3 diff = getCloudFiniteDifference(firstEvent.x);
+#endif // USE_ISOSURFACES
 #ifndef DISABLE_ACCUMULATION
         vec3 diffOld = frame == 0 ? vec3(0) : imageLoad(normalImage, imageCoord).xyz;
         diff = mix(diffOld, diff, 1.0 / float(frame + 1));
