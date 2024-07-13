@@ -103,12 +103,12 @@ do
       elif [[ "$pytorch_is_cxx11" == "False" ]]; then
           # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
           # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
-          echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
-          exit 1
-          #export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-          #use_pre_cxx11_abi=true
-          #use_custom_jsoncpp=true
-          #echo "Warning: PyTorch is not built with CXX11 ABI."
+          #echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
+          #exit 1
+          export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+          use_pre_cxx11_abi=true
+          use_custom_jsoncpp=true
+          echo "Warning: PyTorch is not built with CXX11 ABI. Using compatibility mode."
       else
           echo "Error: PyTorch was not found." 1>&2
           exit 1
@@ -611,7 +611,9 @@ if [ $use_pytorch = true ]; then
         params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
     fi
     if [ $use_pre_cxx11_abi = true ]; then
-        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON)
+        # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
+        # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
+        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON -DUSE_BOOST=OFF)
         params+=(-DUSE_PRE_CXX11_ABI=ON)
     fi
 fi
