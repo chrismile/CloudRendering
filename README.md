@@ -103,8 +103,9 @@ These unit tests can also be run using software rendering via [SwiftShader](http
 A [PyTorch](https://pytorch.org/) module can be built by passing `-DBUILD_PYTORCH_MODULE=On` to CMake.
 
 It provides functions such as `initialize`, `cleanup` and `render_frame` and works both with CPU tensors and CUDA tensors.
-To use this module, the dependency sgl must have been built using CUDA interoperability support (this should happen
-automatically when CUDA is detected on the system).
+To be able to use CUDA tensors, the dependency sgl must have been built using CUDA interoperability support (this should
+happen automatically when CUDA is detected on the system during the build process).
+An example of how to use the PyTorch module can be found here: https://github.com/chrismile/vpt_denoise
 
 The path to where the module should be installed can be specified using `-DCMAKE_INSTALL_PREFIX=/path/to/dir`.
 If TorchLib does not lie on a standard path, the directory where the CMake config files of TorchLib lie must be
@@ -126,7 +127,7 @@ Since July 2024, PyTorch no longer needs to be compiled using the C++11 ABI if t
 It will automatically detect the way in which PyTorch was built and adapt the way in which CMake is invoked.
 This means that the pre-compiled packages from the [PyTorch website](https://pytorch.org/get-started/locally/) can be used.
 Internally, the command `python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)"` is used to check with which
-C++ ABI PyTorch was built. For information on how PyTOrch can be built manually with the C++11 ABI, please refer to
+C++ ABI PyTorch was built. For information on how PyTorch can be built manually with the C++11 ABI, please refer to
 [pytorch.md](docs/compilation/pytorch.md).
 
 NOTE: On Ubuntu 22.04 with Python 3.9 installed via Conda, a problem one user noticed was that GLIBCXX_3.4.30 was
