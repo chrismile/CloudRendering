@@ -26,6 +26,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Utils/File/Logfile.hpp>
+#include <Utils/File/FileUtils.hpp>
+
 #include "OpenExrLoader.hpp"
 
 #include <OpenEXR/OpenEXRConfig.h>
@@ -40,16 +43,26 @@
 #endif
 
 bool loadOpenExrImageFile(const std::string& filename, OpenExrImageInfo& imageInfo) {
-    Imf::RgbaInputFile file(filename.c_str());
-    Imath::Box2i dw = file.dataWindow();
+    if (!sgl::FileUtils::get()->exists(filename)) {
+        sgl::Logfile::get()->writeError("Error in loadOpenExrImageFile: File '" + filename + "' does not exist.");
+        return false;
+    }
 
-    imageInfo.width = dw.max.x - dw.min.x + 1;
-    imageInfo.height = dw.max.y - dw.min.y + 1;
+    try {
+        Imf::RgbaInputFile file(filename.c_str());
+        Imath::Box2i dw = file.dataWindow();
 
-    imageInfo.pixelData = new uint16_t[imageInfo.width * imageInfo.height * 4];
-    auto* rgbaData = reinterpret_cast<Imf::Rgba*>(imageInfo.pixelData);
-    file.setFrameBuffer(rgbaData - dw.min.x - dw.min.y * imageInfo.width, 1, imageInfo.width);
-    file.readPixels(dw.min.y, dw.max.y);
+        imageInfo.width = dw.max.x - dw.min.x + 1;
+        imageInfo.height = dw.max.y - dw.min.y + 1;
+
+        imageInfo.pixelData = new uint16_t[imageInfo.width * imageInfo.height * 4];
+        auto* rgbaData = reinterpret_cast<Imf::Rgba*>(imageInfo.pixelData);
+        file.setFrameBuffer(rgbaData - dw.min.x - dw.min.y * imageInfo.width, 1, imageInfo.width);
+        file.readPixels(dw.min.y, dw.max.y);
+    } catch(Iex::BaseExc& e) {
+        sgl::Logfile::get()->writeError(e.what());
+        return false;
+    }
 
     return true;
 }
