@@ -63,6 +63,7 @@ use_pre_cxx11_abi=false
 install_module=false
 use_download_swapchain=false
 use_custom_jsoncpp=false
+use_custom_openexr=false
 
 # Check if a conda environment is already active.
 if $use_conda; then
@@ -115,6 +116,7 @@ do
           export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
           use_pre_cxx11_abi=true
           use_custom_jsoncpp=true
+          use_custom_openexr=true
           echo "Warning: PyTorch is not built with CXX11 ABI. Using compatibility mode."
       else
           echo "Error: PyTorch was not found." 1>&2
@@ -949,6 +951,27 @@ if $use_custom_jsoncpp; then
         popd >/dev/null
     fi
     params+=(-Djsoncpp_DIR="${projectpath}/third_party/jsoncpp/lib/cmake/jsoncpp")
+fi
+
+if $use_custom_openexr; then
+    if [ ! -d "./openexr" ]; then
+        echo "------------------------"
+        echo "  downloading OpenEXR   "
+        echo "------------------------"
+        if [ -d "./openexr-src" ]; then
+            rm -rf "./openexr-src"
+        fi
+        git clone --recursive https://github.com/AcademySoftwareFoundation/openexr openexr-src
+        mkdir -p openexr-src/build
+        pushd openexr-src/build >/dev/null
+        cmake .. ${params_gen[@]+"${params_gen[@]}"}  -DCMAKE_BUILD_TYPE=Release \
+        -DOPENEXR_INSTALL=ON -DOPENEXR_INSTALL_TOOLS=OFF \
+        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/openexr"
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+    fi
+    params+=(-DOpenEXR_DIR="${projectpath}/third_party/openexr/lib/cmake/OpenEXR")
 fi
 
 popd >/dev/null # back to project root
