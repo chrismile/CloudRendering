@@ -941,7 +941,9 @@ if $use_custom_jsoncpp; then
         git clone --recursive https://github.com/open-source-parsers/jsoncpp.git jsoncpp-src
         mkdir -p jsoncpp-src/build
         pushd jsoncpp-src/build >/dev/null
-        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
+        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release -DJSONCPP_WITH_TESTS=OFF -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF \
+        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
         make -j $(nproc)
         make install
         popd >/dev/null
