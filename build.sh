@@ -64,6 +64,13 @@ install_module=false
 use_download_swapchain=false
 use_custom_jsoncpp=false
 
+# Check if a conda environment is already active.
+if $use_conda; then
+    if [ ! -z "${CONDA_DEFAULT_ENV+x}" ]; then
+        conda_env_name="$CONDA_DEFAULT_ENV"
+    fi
+fi
+
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
 do
@@ -546,7 +553,9 @@ elif $use_conda && ! $use_macos; then
             || ! list_contains "$conda_pkg_list" "xorg-libxrandr" || ! list_contains "$conda_pkg_list" "patchelf" \
             || ! list_contains "$conda_pkg_list" "libvulkan-headers" || ! list_contains "$conda_pkg_list" "shaderc" \
             || ! list_contains "$conda_pkg_list" "jsoncpp" || ! list_contains "$conda_pkg_list" "openexr" \
-            || ! list_contains "$conda_pkg_list" "intel::tbb" || ! list_contains "$conda_pkg_list" "blosc"; then
+            || ! list_contains "$conda_pkg_list" "conda-forge::tbb" \
+            || ! list_contains "$conda_pkg_list" "conda-forge::tbb-devel" \
+            || ! list_contains "$conda_pkg_list" "blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
@@ -554,7 +563,8 @@ elif $use_conda && ! $use_macos; then
         cxx-compiler make cmake pkg-config gdb git mesa-libgl-devel-cos7-x86_64 libglvnd-glx-cos7-x86_64 \
         mesa-dri-drivers-cos7-aarch64 libxau-devel-cos7-aarch64 libselinux-devel-cos7-aarch64 \
         libxdamage-devel-cos7-aarch64 libxxf86vm-devel-cos7-aarch64 libxext-devel-cos7-aarch64 xorg-libxfixes \
-        xorg-libxau xorg-libxrandr patchelf libvulkan-headers shaderc jsoncpp openexr intel::tbb blosc
+        xorg-libxau xorg-libxrandr patchelf libvulkan-headers shaderc jsoncpp openexr conda-forge::tbb \
+        conda-forge::tbb-devel blosc
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2
