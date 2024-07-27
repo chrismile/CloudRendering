@@ -881,11 +881,8 @@ void forgetCurrentBounds(){
 }
 
 std::vector<torch::Tensor> triangulateIsosurfaces() {
-    auto densityField = vptRenderer->getCloudData()->getDenseDensityField();
-    // TODO: Use marching cubes algorithm.
-
-    // TODO: Test case.
-    std::vector<glm::vec3> vertexPositions = {
+    // Test case.
+    /*std::vector<glm::vec3> vertexPositions = {
             {  1.0f,  1.0f,  1.0f },
             { -1.0f,  1.0f, -1.0f },
             { -1.0f, -1.0f,  1.0f },
@@ -908,8 +905,23 @@ std::vector<torch::Tensor> triangulateIsosurfaces() {
             0, 2, 3,
             0, 3, 1,
             2, 1, 3
-    };
+    };*/
+    std::vector<uint32_t> triangleIndices;
+    std::vector<glm::vec3> vertexPositions;
+    std::vector<glm::vec4> vertexColors;
+    std::vector<glm::vec3> vertexNormals;
+    IsosurfaceSettings settings;
+    settings.isoValue = vptRenderer->getVptPass()->getIsoValue();
+    settings.isosurfaceType = vptRenderer->getVptPass()->getIsosurfaceType();
+    settings.useIsosurfaceTf = vptRenderer->getVptPass()->getUseIsosurfaceTf();
+    auto col = vptRenderer->getVptPass()->getIsosurfaceColor();
+    settings.isosurfaceColor = glm::vec4(col.x, col.y, col.z, 1.0f);
+    vptRenderer->getCloudData()->createIsoSurfaceData(
+            settings, triangleIndices, vertexPositions, vertexColors, vertexNormals);
 
+    torch::Tensor triangleIndicesTensor = torch::from_blob(
+            triangleIndices.data(), { int64_t(triangleIndices.size()) },
+            torch::TensorOptions().dtype(torch::kInt32)).detach().clone();
     torch::Tensor vertexPositionsTensor = torch::from_blob(
             vertexPositions.data(), { int64_t(vertexPositions.size()), 3 },
             torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
@@ -919,10 +931,7 @@ std::vector<torch::Tensor> triangulateIsosurfaces() {
     torch::Tensor vertexNormalsTensor = torch::from_blob(
             vertexNormals.data(), { int64_t(vertexPositions.size()), 3 },
             torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
-    torch::Tensor triangleIndicesTensor = torch::from_blob(
-            triangleIndices.data(), { int64_t(triangleIndices.size()) },
-            torch::TensorOptions().dtype(torch::kInt32)).detach().clone();
-    return { vertexPositionsTensor, vertexColorsTensor, vertexNormalsTensor, triangleIndicesTensor };
+    return { triangleIndicesTensor, vertexPositionsTensor, vertexColorsTensor, vertexNormalsTensor };
 }
 
 void exportVdbVolume(const std::string& filename) {

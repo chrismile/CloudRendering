@@ -589,6 +589,13 @@ if [ $use_macos = false ] && ! command -v pkg-config &> /dev/null; then
     exit 1
 fi
 
+if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
+    echo "------------------------"
+    echo "initializing submodules "
+    echo "------------------------"
+    git submodule init
+    git submodule update
+fi
 
 [ -d "./third_party/" ] || mkdir "./third_party/"
 pushd third_party > /dev/null
@@ -1269,6 +1276,7 @@ if [ ! -d "$destination_dir/LICENSE" ]; then
     mkdir -p "$destination_dir/LICENSE"
     cp -r "docs/license-libraries/." "$destination_dir/LICENSE/"
     cp -r "LICENSE" "$destination_dir/LICENSE/LICENSE-cloudrendering.txt"
+    cp -r "submodules/IsosurfaceCpp/LICENSE" "$destination_dir/LICENSE/graphics/LICENSE-isosurfacecpp.txt"
 fi
 if [ ! -d "$destination_dir/docs" ]; then
     cp -r "docs" "$destination_dir"

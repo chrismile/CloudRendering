@@ -177,6 +177,10 @@ public:
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
     void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
+    [[nodiscard]] float getIsoValue() const { return isoValue; }
+    [[nodiscard]] glm::vec3 getIsosurfaceColor() const { return isosurfaceColor; }
+    [[nodiscard]] IsosurfaceType getIsosurfaceType() const { return isosurfaceType; }
+    [[nodiscard]] bool getUseIsosurfaceTf() const { return useIsosurfaceTf; }
 
     // For debug rendering.
     void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
@@ -336,7 +340,7 @@ private:
     float maxAoDist = 0.05f;
     int numAoSamples = 4;
     bool useAoDist = false;
-    glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
+    glm::vec3 isosurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
     bool useIsosurfaceTf = false;
@@ -403,7 +407,7 @@ private:
         float headlightIntensity = 1.0f;
 
         // Isosurfaces.
-        glm::vec3 isoSurfaceColor;
+        glm::vec3 isosurfaceColor;
         float isoValue = 0.5f;
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;

@@ -797,9 +797,9 @@ void VolumetricPathTracingPass::setIsoValue(float _isoValue) {
     }
 }
 
-void VolumetricPathTracingPass::setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor) {
-    if (isoSurfaceColor != _isoSurfaceColor) {
-        isoSurfaceColor = _isoSurfaceColor;
+void VolumetricPathTracingPass::setIsoSurfaceColor(const glm::vec3& _isosurfaceColor) {
+    if (isosurfaceColor != _isosurfaceColor) {
+        isosurfaceColor = _isosurfaceColor;
         reRender = true;
         frameInfo.frameCount = 0;
     }
@@ -1596,7 +1596,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.headlightColor = headlightColor;
         uniformData.headlightIntensity = headlightIntensity;
 
-        uniformData.isoSurfaceColor = isoSurfaceColor;
+        uniformData.isosurfaceColor = isosurfaceColor;
         uniformData.isoValue = isoValue;
         uniformData.isoStepWidth = isoStepWidth;
         uniformData.maxAoDist = maxAoDist;
@@ -2178,7 +2178,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 frameInfo.frameCount = 0;
             }
             if (useIsosurfaces && (!useIsosurfaceTf || vptMode == VptMode::ISOSURFACE_RENDERING)) {
-                if (propertyEditor.addColorEdit3("Isosurface Color", &isoSurfaceColor.x)) {
+                if (propertyEditor.addColorEdit3("Isosurface Color", &isosurfaceColor.x)) {
                     reRender = true;
                     frameInfo.frameCount = 0;
                 }
