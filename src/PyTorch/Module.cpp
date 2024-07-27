@@ -911,16 +911,16 @@ std::vector<torch::Tensor> triangulateIsosurfaces() {
     };
 
     torch::Tensor vertexPositionsTensor = torch::from_blob(
-            vertexPositions.data(), { int64_t(vertexPositions.size()) * 3 },
+            vertexPositions.data(), { int64_t(vertexPositions.size()), 3 },
             torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
     torch::Tensor vertexColorsTensor = torch::from_blob(
-            vertexColors.data(), { int64_t(vertexPositions.size()) * 4 },
+            vertexColors.data(), { int64_t(vertexPositions.size()), 4 },
             torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
     torch::Tensor vertexNormalsTensor = torch::from_blob(
-            vertexNormals.data(), { int64_t(vertexPositions.size()) * 3 },
+            vertexNormals.data(), { int64_t(vertexPositions.size()), 3 },
             torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
     torch::Tensor triangleIndicesTensor = torch::from_blob(
-            vertexPositions.data(), { int64_t(triangleIndices.size()) },
+            triangleIndices.data(), { int64_t(triangleIndices.size()) },
             torch::TensorOptions().dtype(torch::kInt32)).detach().clone();
     return { vertexPositionsTensor, vertexColorsTensor, vertexNormalsTensor, triangleIndicesTensor };
 }
