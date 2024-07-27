@@ -121,6 +121,14 @@ public:
     void onTransferFunctionMapRebuilt() {}
     inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
 
+#ifdef USE_OPENVDB
+    /**
+     * @param filename The filename of the .vdb file to write to using OpenVDB.
+     * @return Whether the file was saved successfully.
+     */
+    bool saveToVdbFile(const std::string& filename);
+#endif
+
 private:
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
     std::shared_ptr<CloudData> nextCloudDataFrame;

@@ -33,6 +33,7 @@
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/IO.h"
 #include "nanovdb/util/OpenToNanoVDB.h"
+#include "nanovdb/util/NanoToOpenVDB.h"
 
 #include "CloudData.hpp"
 
@@ -64,4 +65,19 @@ bool CloudData::loadFromVdbFile(const std::string& filename) {
 
     computeSparseGridMetadata();
     return !sparseGridHandle.empty();
+}
+
+bool CloudData::saveToVdbFile(const std::string& filename) {
+    if (!hasSparseData()) {
+        // TODO: In this case, we should rather create the OpenVDB data directly from the dense grid.
+        uint8_t* data = nullptr;
+        uint64_t size = 0;
+        getSparseDensityField(data, size);
+    }
+    auto openvdbGrid = nanovdb::nanoToOpenVDB(sparseGridHandle);
+    std::vector<openvdb::GridBase::Ptr> grids = { openvdbGrid };
+    openvdb::io::File file(filename);
+    file.write(grids);
+    file.close();
+    return true;
 }

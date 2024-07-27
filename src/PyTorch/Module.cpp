@@ -114,6 +114,8 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::remember_next_bounds", rememberNextBounds);
     m.def("vpt::forget_current_bounds", forgetCurrentBounds);
     m.def("vpt::flip_yz_coordinates", flipYZ);
+    m.def("vpt::triangulate_isosurfaces", triangulateIsosurfaces);
+    m.def("vpt::export_vdb_volume", exportVdbVolume);
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -876,4 +878,57 @@ void rememberNextBounds(){
 
 void forgetCurrentBounds(){
     vptRenderer->forgetCurrentBounds();
+}
+
+std::vector<torch::Tensor> triangulateIsosurfaces() {
+    auto densityField = vptRenderer->getCloudData()->getDenseDensityField();
+    // TODO: Use marching cubes algorithm.
+
+    // TODO: Test case.
+    std::vector<glm::vec3> vertexPositions = {
+            {  1.0f,  1.0f,  1.0f },
+            { -1.0f,  1.0f, -1.0f },
+            { -1.0f, -1.0f,  1.0f },
+            {  1.0f, -1.0f, -1.0f },
+    };
+    std::vector<glm::vec4> vertexColors = {
+            {  1.0f,  0.0f,  0.0f, 1.0f },
+            {  0.0f,  1.0f,  0.0f, 1.0f },
+            {  0.0f,  0.0f,  1.0f, 1.0f },
+            {  1.0f,  1.0f,  0.0f, 1.0f },
+    };
+    std::vector<glm::vec3> vertexNormals = {
+            {  1.0f,  1.0f,  1.0f },
+            { -1.0f,  1.0f, -1.0f },
+            { -1.0f, -1.0f,  1.0f },
+            {  1.0f, -1.0f, -1.0f },
+    };
+    std::vector<uint32_t> triangleIndices = {
+            0, 1, 2,
+            0, 2, 3,
+            0, 3, 1,
+            2, 1, 3
+    };
+
+    torch::Tensor vertexPositionsTensor = torch::from_blob(
+            vertexPositions.data(), { int64_t(vertexPositions.size()) * 3 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    torch::Tensor vertexColorsTensor = torch::from_blob(
+            vertexColors.data(), { int64_t(vertexPositions.size()) * 4 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    torch::Tensor vertexNormalsTensor = torch::from_blob(
+            vertexNormals.data(), { int64_t(vertexPositions.size()) * 3 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    torch::Tensor triangleIndicesTensor = torch::from_blob(
+            vertexPositions.data(), { int64_t(triangleIndices.size()) },
+            torch::TensorOptions().dtype(torch::kInt32)).detach().clone();
+    return { vertexPositionsTensor, vertexColorsTensor, vertexNormalsTensor, triangleIndicesTensor };
+}
+
+void exportVdbVolume(const std::string& filename) {
+#ifdef USE_OPENVDB
+    vptRenderer->getCloudData()->saveToVdbFile(filename);
+#else
+    sgl::Logfile::get()->throwError("Error in exportVdbVolume: Application was not compiled with NanoVDB support.");
+#endif
 }

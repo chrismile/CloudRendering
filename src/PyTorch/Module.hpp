@@ -120,4 +120,8 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount);
 torch::Tensor renderFrameCuda(torch::Tensor inputTensor, int64_t frameCount);
 #endif
 
+// API for exporting volume and surface data for external use.
+MODULE_OP_API std::vector<torch::Tensor> triangulateIsosurfaces();
+MODULE_OP_API void exportVdbVolume(const std::string& filename);
+
 #endif //CLOUDRENDERING_MODULE_HPP
