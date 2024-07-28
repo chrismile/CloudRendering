@@ -26,6 +26,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Math/Geometry/MatrixUtil.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
 
@@ -36,6 +37,8 @@
 #include "nanovdb/util/NanoToOpenVDB.h"
 
 #include "CloudData.hpp"
+
+#define IDXS(x,y,z) ((z)*xs*ys + (y)*xs + (x))
 
 bool CloudData::loadFromVdbFile(const std::string& filename) {
     openvdb::io::File file(filename);
@@ -68,14 +71,50 @@ bool CloudData::loadFromVdbFile(const std::string& filename) {
 }
 
 bool CloudData::saveToVdbFile(const std::string& filename) {
-    if (!hasSparseData()) {
-        // TODO: In this case, we should rather create the OpenVDB data directly from the dense grid.
-        uint8_t* data = nullptr;
-        uint64_t size = 0;
-        getSparseDensityField(data, size);
+    openvdb::GridPtrVec grids;
+    if (hasDenseData()) {
+        //uint8_t* data = nullptr;
+        //uint64_t size = 0;
+        //getSparseDensityField(data, size);
+
+        openvdb::FloatGrid::Ptr grid = openvdb::FloatGrid::create();
+        grid->setGridClass(openvdb::GRID_FOG_VOLUME);
+        auto accessor = grid->getAccessor();
+        openvdb::Coord ijk;
+        auto xs = size_t(gridSizeX);
+        auto ys = size_t(gridSizeY);
+        //auto zs = size_t(gridSizeZ);
+        for (size_t z = 0; z < gridSizeZ; z++) {
+            ijk[2] = int(z);
+            for (size_t y = 0; y < gridSizeY; y++) {
+                ijk[1] = int(y);
+                for (size_t x = 0; x < gridSizeX; x++) {
+                    ijk[0] = int(x);
+                    float value = densityField->getDataFloatAt(IDXS(x, y, z));
+                    if (value != 0.0f) {
+                        accessor.setValue(ijk, value);
+                    }
+                }
+            }
+        }
+
+        glm::mat4 S = sgl::matrixScaling((boxMaxDense - boxMinDense) / glm::vec3(gridSizeX, gridSizeY, gridSizeZ));
+        glm::mat4 T = sgl::matrixTranslation(boxMinDense);
+        glm::mat4 trafo = T * S;
+        openvdb::Mat4R openvdbTransform = openvdb::Mat4R(
+                trafo[0][0], trafo[0][1], trafo[0][2], trafo[0][3],
+                trafo[1][0], trafo[1][1], trafo[1][2], trafo[1][3],
+                trafo[2][0], trafo[2][1], trafo[2][2], trafo[2][3],
+                trafo[3][0], trafo[3][1], trafo[3][2], trafo[3][3]);
+        grid->setTransform(
+                openvdb::math::Transform::createLinearTransform(openvdbTransform));
+
+        grid->setName("density");
+        grids.push_back(grid);
+    } else {
+        auto grid = nanovdb::nanoToOpenVDB(sparseGridHandle);
+        grids.push_back(grid);
     }
-    auto openvdbGrid = nanovdb::nanoToOpenVDB(sparseGridHandle);
-    std::vector<openvdb::GridBase::Ptr> grids = { openvdbGrid };
     openvdb::io::File file(filename);
     file.write(grids);
     file.close();

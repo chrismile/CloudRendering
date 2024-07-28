@@ -26,6 +26,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <iostream>
+
 #include <Utils/Mesh/IndexMesh.hpp>
 
 #include <IsosurfaceCpp/src/MarchingCubes.hpp>
@@ -53,18 +55,25 @@ void CloudData::createIsoSurfaceData(
     gridAabb.min *= glm::vec3(dx, dy, dz);
     gridAabb.max *= glm::vec3(dx, dy, dz);
 
+    float minVal = densityFieldExport->getMinValue();
+    float maxVal = densityFieldExport->getMaxValue();
+    float isoValueCorrected = settings.isoValue;
+    if ((minVal != 0.0f || maxVal != 1.0f) && minVal != maxVal) {
+        isoValueCorrected = isoValueCorrected * (maxVal - minVal) - minVal;
+    }
+
     std::vector<glm::vec3> isosurfaceVertexPositions;
     std::vector<glm::vec3> isosurfaceVertexNormals;
     if (settings.isoSurfaceExtractionTechnique == IsoSurfaceExtractionTechnique::MARCHING_CUBES) {
         polygonizeMarchingCubes(
                 densityFieldExport->data<float>(),
                 int(gridSizeX), int(gridSizeY), int(gridSizeZ), dx, dy, dz,
-                settings.isoValue, isosurfaceVertexPositions, isosurfaceVertexNormals);
+                isoValueCorrected, isosurfaceVertexPositions, isosurfaceVertexNormals);
     } else {
         polygonizeSnapMC(
                 densityFieldExport->data<float>(),
                 int(gridSizeX), int(gridSizeY), int(gridSizeZ), dx, dy, dz,
-                settings.isoValue, settings.gammaSnapMC, isosurfaceVertexPositions, isosurfaceVertexNormals);
+                isoValueCorrected, settings.gammaSnapMC, isosurfaceVertexPositions, isosurfaceVertexNormals);
     }
 
     float step = std::min(dx, std::min(dy, dz));
