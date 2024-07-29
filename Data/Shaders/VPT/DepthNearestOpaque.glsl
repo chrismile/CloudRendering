@@ -1,4 +1,4 @@
-vec2 computeDepthBlended(vec3 x, vec3 w) {
+vec2 computeDepthNearestOpaque(vec3 x, vec3 w) {
     const float majorant = parameters.extinction.x;
 #ifdef USE_NANOVDB
     const float stepSize = 0.001;
@@ -7,13 +7,14 @@ vec2 computeDepthBlended(vec3 x, vec3 w) {
     const float stepSize = 0.25 / max(gridImgSize.x, max(gridImgSize.y, gridImgSize.z));
 #endif
     const float attenuationCoefficient = majorant * stepSize;
+    // stepSize * attenuationCoefficient
 
 #ifdef USE_ISOSURFACES
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
 
-    float depthAccum = 0.0, alphaAccum = 0.0;
+    float depthNearest = 0.0, alphaAccum = 0.0;
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
         float t = tMin;
@@ -56,11 +57,13 @@ vec2 computeDepthBlended(vec3 x, vec3 w) {
 #endif
 
             float alpha = 1.0 - exp(-density * attenuationCoefficient);
-            depthAccum = depthAccum + (1.0 - alphaAccum) * alpha * t;
             alphaAccum = alphaAccum + (1.0 - alphaAccum) * alpha;
+            if (alpha > 1e-5) {
+                depthNearest = t;
+            }
         }
     }
 
-    return vec2(depthAccum / max(alphaAccum, 1e-5), alphaAccum);
-    //return vec2(depthAccum, alphaAccum);
+    return vec2(depthNearest * alphaAccum, alphaAccum);
+    //return vec2(depthNearest, alphaAccum);
 }

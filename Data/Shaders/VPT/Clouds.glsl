@@ -62,6 +62,10 @@ vec3 cameraPosition;
 #include "DepthBlended.glsl"
 #endif
 
+#ifdef WRITE_DEPTH_NEAREST_OPAQUE_MAP
+#include "DepthNearestOpaque.glsl"
+#endif
+
 #ifdef WRITE_TRANSMITTANCE_VOLUME
 #include "TransmittanceVolume.glsl"
 #endif
@@ -303,6 +307,15 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     depthBlended = mix(depthBlendedOld, depthBlended, 1.0 / float(frame + 1));
 #endif
     imageStore(depthBlendedImage, imageCoord, vec4(depthBlended, 0.0, 1.0));
+#endif
+
+#ifdef WRITE_DEPTH_NEAREST_OPAQUE_MAP
+    vec2 depthNO = computeDepthNearestOpaque(x, w);
+#ifndef DISABLE_ACCUMULATION
+    vec2 depthNOOld = frame == 0 ? vec2(0) : imageLoad(depthNearestOpaqueImage, imageCoord).xy;
+    depthNO = mix(depthNOOld, depthNO, 1.0 / float(frame + 1));
+#endif
+    imageStore(depthNearestOpaqueImage, imageCoord, vec4(depthNO, 0.0, 1.0));
 #endif
 
 #ifdef COMPUTE_PRIMARY_RAY_ABSORPTION_MOMENTS

@@ -237,6 +237,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_BLENDED)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH_BLENDED, depthBlendedTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_NEAREST_OPAQUE)) {
+            denoiser->setFeatureMap(FeatureMapType::DEPTH_NEAREST_OPAQUE, depthNearestOpaqueTexture);
+        }
         if (denoiser->getUseFeatureMap(FeatureMapType::FLOW)) {
             denoiser->setFeatureMap(FeatureMapType::FLOW, flowTexture);
         }
@@ -328,10 +331,18 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
 
     depthBlendedTexture = {};
     if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_BLENDED)))
-            || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end()) {
+        || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end()) {
         imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
         imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         depthBlendedTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
+    depthNearestOpaqueTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE)))
+            || featureMapType == FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32G32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        depthNearestOpaqueTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
     flowTexture = {};
@@ -397,6 +408,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useDensityRenderer = densityTexture.get() != nullptr;
     bool useReprojUVRenderer = reprojUVTexture.get() != nullptr;
     bool useDepthBlendedRenderer = depthBlendedTexture.get() != nullptr;
+    bool useDepthNearestOpaqueRenderer = depthNearestOpaqueTexture.get() != nullptr;
     bool useFlowRenderer = flowTexture.get() != nullptr;
     bool useDepthNablaRenderer = depthNablaTexture.get() != nullptr;
     bool useDepthFwidthRenderer = depthFwidthTexture.get() != nullptr;
@@ -423,6 +435,8 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                     || featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
                 || useDepthBlendedRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_BLENDED))
                     || featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())
+                || useDepthNearestOpaqueRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE))
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE) != featureMapSet.end())
                 || useFlowRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::FLOW))
                     || featureMapType == FeatureMapTypeVpt::FLOW || featureMapSet.find(FeatureMapTypeVpt::FLOW) != featureMapSet.end())
                 || useDepthNablaRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_NABLA))
@@ -444,6 +458,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useDensityRenderer != (featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end())
                 || useReprojUVRenderer != (featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
                 || useDepthBlendedRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())
+                || useDepthNearestOpaqueRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE) != featureMapSet.end())
                 || useFlowRenderer != (featureMapType == FeatureMapTypeVpt::FLOW || featureMapSet.find(FeatureMapTypeVpt::FLOW) != featureMapSet.end())
                 || useDepthNablaRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end())
                 || useDepthFwidthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end())
@@ -1217,6 +1232,9 @@ void VolumetricPathTracingPass::loadShader() {
     if (depthBlendedTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_BLENDED_MAP", ""));
     }
+    if (depthNearestOpaqueTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_NEAREST_OPAQUE_MAP", ""));
+    }
     if (flowTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_FLOW_MAP", ""));
     }
@@ -1392,6 +1410,9 @@ void VolumetricPathTracingPass::createComputeData(
     }
     if (depthBlendedTexture) {
         computeData->setStaticImageView(depthBlendedTexture->getImageView(), "depthBlendedImage");
+    }
+    if (depthNearestOpaqueTexture) {
+        computeData->setStaticImageView(depthNearestOpaqueTexture->getImageView(), "depthNearestOpaqueImage");
     }
     if (flowTexture) {
         computeData->setStaticImageView(flowTexture->getImageView(), "flowImage");
@@ -1664,6 +1685,9 @@ void VolumetricPathTracingPass::_render() {
         if (depthBlendedTexture) {
             renderer->transitionImageLayout(depthBlendedTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
+        if (depthNearestOpaqueTexture) {
+            renderer->transitionImageLayout(depthNearestOpaqueTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        }
         if (flowTexture) {
             renderer->transitionImageLayout(flowTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
@@ -1802,6 +1826,10 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(depthBlendedTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         depthBlendedTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE) {
+        renderer->transitionImageLayout(depthNearestOpaqueTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthNearestOpaqueTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::FLOW) {
         renderer->transitionImageLayout(flowTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1867,6 +1895,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return reprojUVTexture;
     } else if (type == FeatureMapTypeVpt::DEPTH_BLENDED) {
         return depthBlendedTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE) {
+        return depthNearestOpaqueTexture;
     } else if (type == FeatureMapTypeVpt::FLOW) {
         return flowTexture;
     } else if (type == FeatureMapTypeVpt::DEPTH_NABLA) {

@@ -64,12 +64,12 @@ typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
     RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
-    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, TRANSMITTANCE_VOLUME,
+    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
         "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
-        "Density", "Background", "Reprojected UV", "Depth Blended", "Transmittance Volume",
+        "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -113,6 +113,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
         {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
+        {FeatureMapType::DEPTH_NEAREST_OPAQUE, FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE},
         {FeatureMapType::DEPTH_NABLA, FeatureMapTypeVpt::DEPTH_NABLA},
         {FeatureMapType::DEPTH_FWIDTH, FeatureMapTypeVpt::DEPTH_FWIDTH},
         {FeatureMapType::UNUSED, FeatureMapTypeVpt::TRANSMITTANCE_VOLUME},
@@ -260,6 +261,7 @@ private:
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
     sgl::vk::TexturePtr depthBlendedTexture;
+    sgl::vk::TexturePtr depthNearestOpaqueTexture;
     sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
