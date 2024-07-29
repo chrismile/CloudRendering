@@ -72,6 +72,12 @@ bool CloudData::loadFromVdbFile(const std::string& filename) {
 
 bool CloudData::saveToVdbFile(const std::string& filename) {
     openvdb::GridPtrVec grids;
+
+    // For now, prefer dense data if memory-wise possible.
+    if (!hasDenseData() && size_t(gridSizeX) * size_t(gridSizeY) * size_t(gridSizeZ) < size_t(1024ull * 1024ull * 1024ull)) {
+        getDenseDensityField();
+    }
+
     if (hasDenseData()) {
         //uint8_t* data = nullptr;
         //uint64_t size = 0;
