@@ -121,40 +121,48 @@ float evaluatePhase(float GFactor, vec3 org_dir, vec3 scatter_dir) {
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 
 vec3 octahedralUVToWorld(vec2 uv) {
-    uv = uv * 2. - 1.;
+    uv = uv * 2.0 - 1.0;
     vec2 sgn = sign(uv);
     uv = abs(uv);
 
-    float r = 1. - abs(1. - uv.x - uv.y);
-    float phi = .25 * PI * ( (uv.y - uv.x) / r + 1. );
-    if (r == 0.){
-        phi = 0.;
+    float r = 1.0 - abs(1.0 - uv.x - uv.y);
+    float phi = 0.25 * PI * ((uv.y - uv.x) / r + 1.0);
+    if (r == 0.0){
+        phi = 0.0;
     }
 
-    float x = sgn.x * cos(phi) * r * sqrt(2 - r * r);
-    float y = sgn.y * sin(phi) * r * sqrt(2 - r * r);
-    float z = sign(1. - uv.x - uv.y) * (1. - r * r);
+    const float r2 = r * r;
+    float x = sgn.x * cos(phi) * r * sqrt(2.0 - r2);
+    float y = sgn.y * sin(phi) * r * sqrt(2.0 - r2);
+    float z = sign(1.0 - uv.x - uv.y) * (1.0 - r2);
+#ifdef USE_ENV_MAP_ROTATION
+    return parameters.invEnvMapDirRot * vec3(x, y, z);
+#else
     return vec3(x, y, z);
+#endif
 }
 
 vec2 worldToOctahedralUV(vec3 dir) {
     dir = normalize(dir);
+#ifdef USE_ENV_MAP_ROTATION
+    dir = parameters.envMapDirRot * dir;
+#endif
     vec3 sgn = sign(dir);
     dir = abs(dir);
 
-    float phi = atan(dir.y , dir.x);
-    float r = sqrt(1. - dir.z);
+    float phi = atan(dir.y, dir.x);
+    float r = sqrt(1.0 - dir.z);
 
-    float v = r * 2. / PI * phi;
+    float v = r * 2.0 / PI * phi;
     float u = r - v;
 
-    vec2 uv = vec2(u,v);
-    if (sgn.z < 0.){
-        uv = vec2(1.-v, 1.-u);
+    vec2 uv = vec2(u, v);
+    if (sgn.z < 0.0){
+        uv = vec2(1.0 - v, 1.0 - u);
     }
-    uv *= sgn.xy;// + 1.- abs(sgn.xy);
+    uv *= sgn.xy;// + 1.0 - abs(sgn.xy);
 
-    return uv * .5 + .5;
+    return uv * 0.5 + 0.5;
 }
 
 vec3 importanceSampleSkybox(out float pdf) {
@@ -289,6 +297,10 @@ vec3 sRGBToLinearRGB(in vec3 linearRGB) {
 #ifdef USE_ENVIRONMENT_MAP_IMAGE
 
 vec3 sampleSkybox(in vec3 dir) {
+#ifdef USE_ENV_MAP_ROTATION
+    dir = parameters.envMapDirRot * dir;
+#endif
+
     // Sample from equirectangular projection.
     vec2 texcoord = vec2(atan(dir.z, dir.x) / TWO_PI + 0.5, -asin(dir.y) / PI + 0.5);
     vec3 textureColor = texture(environmentMapTexture, texcoord).rgb;

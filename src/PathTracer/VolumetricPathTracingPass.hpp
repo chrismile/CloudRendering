@@ -35,6 +35,7 @@
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
 #include <Graphics/Vulkan/Utils/Timer.hpp>
 
+#include "Utils/RotationWidget.hpp"
 #include "Denoiser/Denoiser.hpp"
 #include "RenderSettings.hpp"
 
@@ -303,6 +304,9 @@ private:
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
     float environmentMapIntensityFactor = 1;
+    bool useEnvMapRot = false;
+    glm::mat3 envMapRot = glm::identity<glm::mat3>();
+    RotationWidget envMapRotWidget;
     bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
@@ -388,6 +392,8 @@ private:
         glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
+        float envMapDirRot[12]; //< Environment map sampling direction rotation matrix (mat3).
+        float invEnvMapDirRot[12]; //< Inverse of matrix above.
 
         float emissionCap;
         float emissionStrength;

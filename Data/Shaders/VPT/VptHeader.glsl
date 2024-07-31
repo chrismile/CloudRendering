@@ -64,6 +64,8 @@ layout (binding = 3) uniform Parameters {
     vec3 sunDirection;
     vec3 sunIntensity;
     float environmentMapIntensityFactor;
+    mat3 envMapDirRot; //< Environment map sampling direction rotation matrix (mat3).
+    mat3 invEnvMapDirRot; //< Inverse of matrix above.
 
     float emissionCap;
     float emissionStrength;

@@ -1288,6 +1288,9 @@ void VolumetricPathTracingPass::loadShader() {
     if (envMapImageUsesLinearRgb) {
         customPreprocessorDefines.insert({ "ENV_MAP_IMAGE_USES_LINEAR_RGB", "" });
     }
+    if (useEnvMapRot) {
+        customPreprocessorDefines.insert({ "USE_ENV_MAP_ROTATION", "" });
+    }
 
     if (useHeadlight) {
         customPreprocessorDefines.insert({ "USE_HEADLIGHT", "" });
@@ -1612,6 +1615,16 @@ void VolumetricPathTracingPass::_render() {
                     cloudData->getGridSizeX() - 1, cloudData->getGridSizeY() - 1, cloudData->getGridSizeZ() - 1);
             uniformData.gridResolution = glm::ivec3(
                     int(cloudData->getGridSizeX()), int(cloudData->getGridSizeY()), int(cloudData->getGridSizeZ()));
+        }
+
+        // Environment map rotation.
+        if (useEnvMapRot) {
+            for (int k = 0; k < 9; k++) {
+                int i = k / 3;
+                int j = k % 3;
+                uniformData.envMapDirRot[i * 4 + j] = envMapRot[i][j];
+                uniformData.invEnvMapDirRot[i * 4 + j] = envMapRot[j][i];
+            }
         }
 
         uniformData.headlightColor = headlightColor;
@@ -2087,6 +2100,19 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     setShaderDirty();
                     reRender = true;
                     frameInfo.frameCount = 0;
+                }
+
+                if (useEnvironmentMapImage) {
+                    if (propertyEditor.addCheckbox("Use Env. Map Rotation", &useEnvMapRot)) {
+                        setShaderDirty();
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                    if (useEnvMapRot && envMapRotWidget.renderGuiPropertyEditorNodes(propertyEditor)) {
+                        envMapRot = envMapRotWidget.getMat3();
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
                 }
             } else {
                 if (propertyEditor.addCombo(
