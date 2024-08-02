@@ -687,12 +687,16 @@ void setVPTModeFromName(const std::string& modeName) {
 }
 
 void setDenoiser(const std::string& denoiserName) {
-    for (int mode = 0; mode < IM_ARRAYSIZE(DENOISER_NAMES); mode++) {
+    int mode;
+    for (mode = 0; mode < IM_ARRAYSIZE(DENOISER_NAMES); mode++) {
         if (denoiserName == DENOISER_NAMES[mode]) {
             std::cout << "setDenoiser to " << DENOISER_NAMES[mode] << std::endl;
             vptRenderer->setDenoiserType(DenoiserType(mode));
             break;
         }
+    }
+    if (mode == IM_ARRAYSIZE(DENOISER_NAMES)) {
+        sgl::Logfile::get()->writeError("Error in setDenoiser: Invalid denoiser name \"" + denoiserName + "\".");
     }
 }
 

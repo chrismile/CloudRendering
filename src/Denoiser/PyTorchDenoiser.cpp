@@ -129,7 +129,8 @@ void PyTorchDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
 }
 
 void PyTorchDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
-    if (featureMapType == FeatureMapType::COLOR) {
+    // COLOR and CLOUDONLY seem to be mutually exclusive at the moment.
+    if (featureMapType == FeatureMapType::COLOR || featureMapType == FeatureMapType::CLOUDONLY) {
         inputImageVulkan = featureTexture->getImageView();
     }
     if (featureMapType == FeatureMapType::BACKGROUND) {
@@ -721,7 +722,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     }
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     computeNumChannels();
-    if (inputFeatureMapsUsed != inputFeatureMapsUsedOld) {
+    if (inputFeatureMapsUsed != inputFeatureMapsUsedOld && inputImageVulkan) {
         renderer->getDevice()->waitIdle();
         recreateSwapchain(
                 inputImageVulkan->getImage()->getImageSettings().width,

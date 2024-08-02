@@ -883,14 +883,9 @@ void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
 
 void VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath) {
 #ifdef SUPPORT_PYTORCH_DENOISER
-    if (denoiserType == DenoiserType::PYTORCH_DENOISER) {
-        pytorchDenoiserModelFilePath = denoiserModelFilePath;
-        denoiserChanged = true;
-        reRender = true;
-    } else {
-        sgl::Logfile::get()->throwError(
-                "Error in VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath: PyTorch denoiser not used.");
-    }
+    pytorchDenoiserModelFilePath = denoiserModelFilePath;
+    denoiserChanged = true;
+    reRender = true;
 #else
     sgl::Logfile::get()->throwError(
             "Error in VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath: PyTorch denoiser support disabled.");

@@ -75,6 +75,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/SVGF.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/CameraPoseLinePass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/Normalization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/RotationWidget.cpp
@@ -361,6 +362,9 @@ if (${SUPPORT_PYTORCH_DENOISER} AND Torch_FOUND)
     endif()
     target_include_directories(CloudRendering PRIVATE ${TORCH_INCLUDE_DIR})
     target_compile_definitions(CloudRendering PRIVATE SUPPORT_PYTORCH_DENOISER)
+    if (${PYTORCH_MODULE_ENABLED})
+        target_compile_definitions(vpt PRIVATE SUPPORT_PYTORCH_DENOISER)
+    endif()
 endif()
 
 
