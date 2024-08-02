@@ -39,6 +39,7 @@
 #include <Utils/StringUtils.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
+#include <Graphics/Texture/Bitmap.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #ifdef SUPPORT_CUDA_INTEROP
@@ -247,6 +248,55 @@ void PyTorchDenoiser::denoise() {
             inputImageVulkan->getImage()->copyToBuffer(
                     inputImageBufferVk, renderer->getVkCommandBuffer());
         } else {
+            // TODO: Testing
+            /*renderImageStagingBuffers.resize(inputFeatureMapsUsed.size());
+            sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+            for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+                uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
+                renderImageStagingBuffers.at(i) = std::make_shared<sgl::vk::Buffer>(
+                        device, sizeof(float) * width * height * numChannelsFeaturePadded,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+
+                const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
+                renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                featureMap->getImage()->copyToBuffer(
+                        renderImageStagingBuffers.at(i), renderer->getVkCommandBuffer());
+            }
+            renderer->syncWithCpu();
+            for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+                uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
+                renderImageStagingBuffers.at(i) = std::make_shared<sgl::vk::Buffer>(
+                        device, sizeof(float) * width * height * numChannelsFeaturePadded,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+
+                sgl::BitmapPtr bitmap(new sgl::Bitmap(width, height, 32));
+                auto* pixels = bitmap->getPixels();
+                const sgl::vk::BufferPtr& renderImageStagingBuffer = renderImageStagingBuffers.at(i);
+                auto* mappedData = (float*)renderImageStagingBuffer->mapMemory();
+                uint32_t numChannelsFeature = FEATURE_MAP_NUM_CHANNELS[int(inputFeatureMapsUsed.at(i))];
+                for (uint32_t y = 0; y < height; y++) {
+                    for (uint32_t x = 0; x < width; x++) {
+                        uint32_t writeLocation = (x + y * width) * 4;
+                        pixels[writeLocation + 0] = 0;
+                        pixels[writeLocation + 1] = 0;
+                        pixels[writeLocation + 2] = 0;
+                        pixels[writeLocation + 3] = 255;
+                    }
+                }
+                for (uint32_t y = 0; y < height; y++) {
+                    for (uint32_t x = 0; x < width; x++) {
+                        uint32_t readLocation = (x + y * width) * numChannelsFeaturePadded;
+                        uint32_t writeLocation = (x + y * width) * 4;
+                        for (uint32_t c = 0; c < numChannelsFeature; c++) {
+                            pixels[writeLocation + c] = std::clamp(int(mappedData[readLocation + c] * 255), 0, 255);
+                        }
+                    }
+                }
+                renderImageStagingBuffer->unmapMemory();
+                std::string filename = std::string() + FEATURE_MAP_NAMES[int(inputFeatureMapsUsed.at(i))] + ".png";
+                bitmap->savePNG(filename.c_str());
+            }*/
+
             for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
                 const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
                 renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_GENERAL);
