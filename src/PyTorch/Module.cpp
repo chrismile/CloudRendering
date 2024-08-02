@@ -71,6 +71,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_vpt_mode", setVPTMode);
     m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
     m.def("vpt::set_denoiser", setDenoiser);
+    m.def("vpt::set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
     m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
     m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
@@ -693,6 +694,10 @@ void setDenoiser(const std::string& denoiserName) {
             break;
         }
     }
+}
+
+void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath) {
+    vptRenderer->getVptPass()->setPyTorchDenoiserModelFilePath(denoiserModelFilePath);
 }
 
 void setOutputForegroundMap(bool _shallOutputForegroundMap) {

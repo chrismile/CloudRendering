@@ -142,6 +142,7 @@ public:
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
     void setDenoiserType(DenoiserType denoiserType);
     void checkRecreateDenoiser();
+    void setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath);
     void setOutputForegroundMap(bool _shallOutputForegroundMap);
     inline void setIsIntermediatePass(bool _isIntermediatePass) { isIntermediatePass = _isIntermediatePass; }
     void setSecondaryVolumeDownscalingFactor(uint32_t ds);
@@ -338,6 +339,7 @@ private:
     bool shallOutputForegroundMap = false;
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
+    std::string pytorchDenoiserModelFilePath; //< Delayed loading.
 
     // Isosurface data.
     bool useIsosurfaces = false;

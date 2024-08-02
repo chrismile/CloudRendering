@@ -129,6 +129,13 @@ void VolumetricPathTracingPass::createDenoiser() {
     denoiser = createDenoiserObject(denoiserType, renderer, DenoisingMode::VOLUMETRIC_PATH_TRACING, denoiseAlpha);
     if (denoiser) {
         denoiser->setFileDialogInstance(fileDialogInstance);
+#ifdef SUPPORT_PYTORCH_DENOISER
+        // Delayed loading of model file specified via Python interface.
+        if (denoiserType == DenoiserType::PYTORCH_DENOISER && !pytorchDenoiserModelFilePath.empty()) {
+            denoiser->loadModelFromFile(pytorchDenoiserModelFilePath);
+            pytorchDenoiserModelFilePath.clear();
+        }
+#endif
     }
 
     globalFrameNumber = 0;
@@ -872,6 +879,21 @@ void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
         denoiserChanged = true;
         reRender = true;
     }
+}
+
+void VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath) {
+#ifdef SUPPORT_PYTORCH_DENOISER
+    if (denoiserType == DenoiserType::PYTORCH_DENOISER) {
+        pytorchDenoiserModelFilePath = denoiserModelFilePath;
+        denoiserChanged = true;
+        reRender = true;
+    } else {
+#endif
+        sgl::Logfile::get()->throwError(
+                "Error in VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath: PyTorch denoiser not used.");
+#ifdef SUPPORT_PYTORCH_DENOISER
+    }
+#endif
 }
 
 void VolumetricPathTracingPass::setOutputForegroundMap(bool _shallOutputForegroundMap) {

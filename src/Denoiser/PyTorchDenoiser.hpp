@@ -110,7 +110,7 @@ public:
     void recreateSwapchain(uint32_t width, uint32_t height) override;
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) override { this->fileDialogInstance = _fileDialogInstance; }
 
-    bool loadModelFromFile(const std::string& modelPath);
+    bool loadModelFromFile(const std::string& modelPath) override;
     void setPyTorchDevice(PyTorchDevice pyTorchDeviceNew);
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.

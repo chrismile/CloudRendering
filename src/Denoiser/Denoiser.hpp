@@ -125,6 +125,7 @@ public:
     virtual void denoise() = 0;
     virtual void recreateSwapchain(uint32_t width, uint32_t height) {}
     virtual void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {}
+    virtual bool loadModelFromFile(const std::string& modelPath) { return false; }
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }
