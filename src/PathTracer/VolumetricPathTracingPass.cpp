@@ -136,6 +136,9 @@ void VolumetricPathTracingPass::createDenoiser() {
             pytorchDenoiserModelFilePath.clear();
         }
 #endif
+        if (shallOutputForegroundMap) {
+            denoiser->setOutputForegroundMap(shallOutputForegroundMap);
+        }
     }
 
     globalFrameNumber = 0;
@@ -905,6 +908,9 @@ void VolumetricPathTracingPass::setOutputForegroundMap(bool _shallOutputForegrou
             denoiserChanged = true;
         }
 #endif
+        if (denoiser) {
+            denoiser->setOutputForegroundMap(shallOutputForegroundMap);
+        }
         reRender = true;
         frameInfo.frameCount = 0;
     }

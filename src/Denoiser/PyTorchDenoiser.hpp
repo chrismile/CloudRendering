@@ -112,6 +112,7 @@ public:
 
     bool loadModelFromFile(const std::string& modelPath) override;
     void setPyTorchDevice(PyTorchDevice pyTorchDeviceNew);
+    void setOutputForegroundMap(bool _shallOutputForegroundMap) override;
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;

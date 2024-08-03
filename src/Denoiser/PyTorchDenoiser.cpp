@@ -798,6 +798,10 @@ void PyTorchDenoiser::setPyTorchDevice(PyTorchDevice pyTorchDeviceNew) {
     }
 }
 
+void PyTorchDenoiser::setOutputForegroundMap(bool _shallOutputForegroundMap) {
+    addBackground = !_shallOutputForegroundMap;
+}
+
 bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
