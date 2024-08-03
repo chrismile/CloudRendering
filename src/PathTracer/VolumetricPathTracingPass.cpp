@@ -139,6 +139,7 @@ void VolumetricPathTracingPass::createDenoiser() {
     }
 
     globalFrameNumber = 0;
+    frameInfo.frameCount = 0;
     if (resultImageTexture) {
         checkRecreateFeatureMaps();
         setDenoiserFeatureMaps();
@@ -402,6 +403,8 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         device->endSingleTimeCommands(commandBuffer);
     }*/
 
+    globalFrameNumber = 0;
+    frameInfo.frameCount = 0;
     setDenoiserFeatureMaps();
 }
 

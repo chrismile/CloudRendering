@@ -248,9 +248,10 @@ void PyTorchDenoiser::denoise() {
             inputImageVulkan->getImage()->copyToBuffer(
                     inputImageBufferVk, renderer->getVkCommandBuffer());
         } else {
-            // TODO: Testing
+            // Code below outputs feature maps for testing purposes.
             /*renderImageStagingBuffers.resize(inputFeatureMapsUsed.size());
             sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+            renderer->syncWithCpu();
             for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
                 uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
                 renderImageStagingBuffers.at(i) = std::make_shared<sgl::vk::Buffer>(
@@ -265,9 +266,6 @@ void PyTorchDenoiser::denoise() {
             renderer->syncWithCpu();
             for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
                 uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
-                renderImageStagingBuffers.at(i) = std::make_shared<sgl::vk::Buffer>(
-                        device, sizeof(float) * width * height * numChannelsFeaturePadded,
-                        VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
 
                 sgl::BitmapPtr bitmap(new sgl::Bitmap(width, height, 32));
                 auto* pixels = bitmap->getPixels();
