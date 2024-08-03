@@ -75,9 +75,7 @@ float residualRatioTrackingEstimator(
     return T_c * T_r;
 }
 
-vec3 residualRatioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 residualRatioTracking(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;
 

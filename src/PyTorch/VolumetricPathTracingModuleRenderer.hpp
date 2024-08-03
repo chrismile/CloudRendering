@@ -172,7 +172,7 @@ private:
     bool hasStoredBounds = false;
     bool storeNextBounds = false;
 
-    glm::mat4 previousViewProjectionMatrix;
+    glm::mat4 previousViewProjectionMatrix = glm::zero<glm::mat4>();
 
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<VolumetricPathTracingPass> vptPass;

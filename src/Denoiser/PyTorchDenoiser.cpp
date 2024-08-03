@@ -286,6 +286,13 @@ void PyTorchDenoiser::denoise() {
                         uint32_t readLocation = (x + y * width) * numChannelsFeaturePadded;
                         uint32_t writeLocation = (x + y * width) * 4;
                         for (uint32_t c = 0; c < numChannelsFeature; c++) {
+                            if (std::isnan(mappedData[readLocation + c])) {
+                                sgl::Logfile::get()->throwError(
+                                        std::string() + "Error: Detected NaN for layer "
+                                        + FEATURE_MAP_NAMES[int(inputFeatureMapsUsed.at(i))]
+                                        + " at x=" + std::to_string(x) + ", y=" + std::to_string(y)
+                                        + ", c=" + std::to_string(c) + ".");
+                            }
                             pixels[writeLocation + c] = std::clamp(int(mappedData[readLocation + c] * 255), 0, 255);
                         }
                     }
@@ -337,11 +344,29 @@ void PyTorchDenoiser::denoise() {
     }
 #endif
 
+    // Test code for NaN values.
+    /*if (pyTorchDevice == PyTorchDevice::CUDA) {
+        cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+        renderer->getDevice()->waitIdle();
+        cudaStreamSynchronize(stream);
+    }
+    if (inputTensor.isnan().any().item().toBool()) {
+        std::cout << "NaN detected." << std::endl;
+        auto t = inputTensor.cpu();
+        auto* data = reinterpret_cast<float*>(t.data_ptr());
+        size_t dataSize = height * width * numChannels;
+        for (size_t i = 0; i < dataSize; i++) {
+            if (std::isnan(data[i])) {
+                sgl::Logfile::get()->throwError("Error: Detected NaN in debug code (2).");
+            }
+        }
+    }*/
+
     std::vector<torch::jit::IValue> inputs;
-    if (useFP16){
+    if (useFP16) {
         inputTensor = inputTensor.toType(torch::kFloat16);
     }
-    if (!inputTensor.is_contiguous()){
+    if (!inputTensor.is_contiguous()) {
         //std::cout << "input not contiguous" << std::endl;
         inputTensor = inputTensor.contiguous();
     }
@@ -366,9 +391,9 @@ void PyTorchDenoiser::denoise() {
                 previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
             }
         }
-        if (useFP16){
+        if (useFP16) {
             previousTensor = previousTensor.toType(torch::kFloat16);
-        }else{
+        } else {
             previousTensor = previousTensor.toType(torch::kFloat32);
         }
         inputs.emplace_back(previousTensor);
@@ -379,7 +404,7 @@ void PyTorchDenoiser::denoise() {
         wrapper->module.to(torch::kFloat32);
     }
     at::Tensor outputTensor;
-    if (blend_inv_iter){
+    if (blend_inv_iter) {
 #ifdef USE_KPN_MODULE
         c10::IValue layer_outputs = wrapper->module.forward(inputs);
         at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor().to(torch::kFloat32);
@@ -392,12 +417,13 @@ void PyTorchDenoiser::denoise() {
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
 
         int kernelSize = 5;
-        if (l0.size(1) < 25){
+        if (l0.size(1) < 25) {
             kernelSize = 3;
         }
 
-        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
-        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor.to(torch::kFloat32), reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
+        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4 ,6)});
+        torch::Tensor reproj0 = torch::grid_sampler_2d(
+                previousTensor.to(torch::kFloat32), reproj_uv.permute({0, 2, 3, 1}) * 2 - 1, 0, 0, false);
 
         reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), kernelSize);
         torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
@@ -408,7 +434,7 @@ void PyTorchDenoiser::denoise() {
 
         outputTensor = kp0;
 #endif
-    } else{
+    } else {
         outputTensor = wrapper->module.forward(inputs).toTensor().to(torch::kFloat32);
     }
     previousTensor = outputTensor.clone().detach();

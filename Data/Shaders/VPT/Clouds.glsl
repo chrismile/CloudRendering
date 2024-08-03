@@ -88,6 +88,7 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     // Get ray direction and volume entry point
     vec3 x, w;
     createCameraRay(screenCoord, x, w);
+    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
 #if defined(USE_ISOSURFACES) || defined(USE_HEADLIGHT)
     cameraPosition = x;

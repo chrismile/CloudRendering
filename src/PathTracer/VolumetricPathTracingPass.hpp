@@ -360,7 +360,7 @@ private:
     bool useEmptySpaceSkipping = false;
     std::shared_ptr<OccupancyGridPass> occupancyGridPass;
 
-    glm::mat4 previousViewProjMatrix;
+    glm::mat4 previousViewProjMatrix = glm::zero<glm::mat4>();
 
     // Disney BRDF
     float subsurface = 0.0;
