@@ -951,6 +951,10 @@ float sqr(float x) {
 #include "BlinnPhong.glsl"
 #endif
 
+#ifdef SURFACE_BRDF_AMBIENT
+#include "ConstantLighting.glsl"
+#endif
+
 
 #if !defined(ISOSURFACE_USE_TF) || !defined(USE_TRANSFER_FUNCTION)
 #define isoSurfaceColorDef parameters.isoSurfaceColor
