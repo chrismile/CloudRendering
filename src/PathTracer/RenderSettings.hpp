@@ -75,11 +75,27 @@ const char* const ISOSURFACE_TYPE_NAMES[] = {
         "Density", "Gradient"
 };
 
+enum class IsoSurfaceExtractionTechnique {
+    MARCHING_CUBES, SNAP_MC
+};
+const char* const ISO_SURFACE_EXTRACTION_TECHNIQUE_NAMES[] = {
+        "Marching Cubes", "SnapMC"
+};
+
+struct IsosurfaceSettings {
+    float isoValue = 0.5f;
+    IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
+    IsoSurfaceExtractionTechnique isoSurfaceExtractionTechnique = IsoSurfaceExtractionTechnique::SNAP_MC;
+    float gammaSnapMC = 0.3f;
+    bool useIsosurfaceTf = false;
+    glm::vec4 isosurfaceColor; // If not IsosurfaceSettings::useIsosurfaceTf.
+};
+
 enum class SurfaceBrdf {
-    LAMBERTIAN, BLINN_PHONG, DISNEY, COOK_TORRANCE
+    LAMBERTIAN, BLINN_PHONG, DISNEY, COOK_TORRANCE, AMBIENT
 };
 const char* const SURFACE_BRDF_NAMES[] = {
-        "Lambertian", "Blinn Phong", "Disney (2012)", "Cook Torrance"
+        "Lambertian", "Blinn Phong", "Disney (2012)", "Cook Torrance", "Ambient"
 };
 
 struct CameraPose {

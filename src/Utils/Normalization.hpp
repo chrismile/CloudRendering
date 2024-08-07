@@ -26,43 +26,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <Utils/File/Logfile.hpp>
-#include <Utils/File/FileUtils.hpp>
+#ifndef CLOUDRENDERING_NORMALIZATION_HPP
+#define CLOUDRENDERING_NORMALIZATION_HPP
 
-#include "OpenExrLoader.hpp"
+#include <vector>
+#include <glm/glm.hpp>
+#include <Math/Geometry/AABB3.hpp>
 
-#include <OpenEXR/OpenEXRConfig.h>
-#include <OpenEXR/ImfRgbaFile.h>
-#define COMBINED_OPENEXR_VERSION ((10000*OPENEXR_VERSION_MAJOR) + (100*OPENEXR_VERSION_MINOR) + OPENEXR_VERSION_PATCH)
-#if COMBINED_OPENEXR_VERSION >= 20599
-#include <Imath/ImathVec.h>
-//#include <Imath/half.h>
-#else
-#include <OpenEXR/ImathVec.h>
-//#include <OpenEXR/half.h>
-#endif
+void normalizeVertexPosition(
+        glm::vec3& vertexPosition, const sgl::AABB3& aabb,
+        const glm::mat4* vertexTransformationMatrixPtr = nullptr);
 
-bool loadOpenExrImageFile(const std::string& filename, OpenExrImageInfo& imageInfo) {
-    if (!sgl::FileUtils::get()->exists(filename)) {
-        sgl::Logfile::get()->writeError("Error in loadOpenExrImageFile: File '" + filename + "' does not exist.");
-        return false;
-    }
+void normalizeVertexPositions(
+        std::vector<glm::vec3>& vertexPositions, const sgl::AABB3& aabb,
+        const glm::mat4* vertexTransformationMatrixPtr = nullptr);
 
-    try {
-        Imf::RgbaInputFile file(filename.c_str());
-        Imath::Box2i dw = file.dataWindow();
+void normalizeVertexNormals(
+        std::vector<glm::vec3>& vertexNormals, const sgl::AABB3& aabb,
+        const glm::mat4* vertexTransformationMatrixPtr = nullptr);
 
-        imageInfo.width = dw.max.x - dw.min.x + 1;
-        imageInfo.height = dw.max.y - dw.min.y + 1;
-
-        imageInfo.pixelData = new uint16_t[imageInfo.width * imageInfo.height * 4];
-        auto* rgbaData = reinterpret_cast<Imf::Rgba*>(imageInfo.pixelData);
-        file.setFrameBuffer(rgbaData - dw.min.x - dw.min.y * imageInfo.width, 1, imageInfo.width);
-        file.readPixels(dw.min.y, dw.max.y);
-    } catch(Iex::BaseExc& e) {
-        sgl::Logfile::get()->writeError(e.what());
-        return false;
-    }
-
-    return true;
-}
+#endif //CLOUDRENDERING_NORMALIZATION_HPP

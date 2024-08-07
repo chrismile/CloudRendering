@@ -71,6 +71,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_vpt_mode", setVPTMode);
     m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
     m.def("vpt::set_denoiser", setDenoiser);
+    m.def("vpt::set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
     m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
     m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
@@ -114,6 +115,8 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::remember_next_bounds", rememberNextBounds);
     m.def("vpt::forget_current_bounds", forgetCurrentBounds);
     m.def("vpt::flip_yz_coordinates", flipYZ);
+    m.def("vpt::triangulate_isosurfaces", triangulateIsosurfaces);
+    m.def("vpt::export_vdb_volume", exportVdbVolume);
 }
 
 static sgl::vk::Renderer* renderer = nullptr;
@@ -684,13 +687,21 @@ void setVPTModeFromName(const std::string& modeName) {
 }
 
 void setDenoiser(const std::string& denoiserName) {
-    for (int mode = 0; mode < IM_ARRAYSIZE(DENOISER_NAMES); mode++) {
+    int mode;
+    for (mode = 0; mode < IM_ARRAYSIZE(DENOISER_NAMES); mode++) {
         if (denoiserName == DENOISER_NAMES[mode]) {
             std::cout << "setDenoiser to " << DENOISER_NAMES[mode] << std::endl;
             vptRenderer->setDenoiserType(DenoiserType(mode));
             break;
         }
     }
+    if (mode == IM_ARRAYSIZE(DENOISER_NAMES)) {
+        sgl::Logfile::get()->writeError("Error in setDenoiser: Invalid denoiser name \"" + denoiserName + "\".");
+    }
+}
+
+void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath) {
+    vptRenderer->getVptPass()->setPyTorchDenoiserModelFilePath(denoiserModelFilePath);
 }
 
 void setOutputForegroundMap(bool _shallOutputForegroundMap) {
@@ -876,4 +887,66 @@ void rememberNextBounds(){
 
 void forgetCurrentBounds(){
     vptRenderer->forgetCurrentBounds();
+}
+
+std::vector<torch::Tensor> triangulateIsosurfaces() {
+    // Test case.
+    /*std::vector<glm::vec3> vertexPositions = {
+            {  1.0f,  1.0f,  1.0f },
+            { -1.0f,  1.0f, -1.0f },
+            { -1.0f, -1.0f,  1.0f },
+            {  1.0f, -1.0f, -1.0f },
+    };
+    std::vector<glm::vec4> vertexColors = {
+            {  1.0f,  0.0f,  0.0f, 1.0f },
+            {  0.0f,  1.0f,  0.0f, 1.0f },
+            {  0.0f,  0.0f,  1.0f, 1.0f },
+            {  1.0f,  1.0f,  0.0f, 1.0f },
+    };
+    std::vector<glm::vec3> vertexNormals = {
+            {  1.0f,  1.0f,  1.0f },
+            { -1.0f,  1.0f, -1.0f },
+            { -1.0f, -1.0f,  1.0f },
+            {  1.0f, -1.0f, -1.0f },
+    };
+    std::vector<uint32_t> triangleIndices = {
+            0, 1, 2,
+            0, 2, 3,
+            0, 3, 1,
+            2, 1, 3
+    };*/
+    std::vector<uint32_t> triangleIndices;
+    std::vector<glm::vec3> vertexPositions;
+    std::vector<glm::vec4> vertexColors;
+    std::vector<glm::vec3> vertexNormals;
+    IsosurfaceSettings settings;
+    settings.isoValue = vptRenderer->getVptPass()->getIsoValue();
+    settings.isosurfaceType = vptRenderer->getVptPass()->getIsosurfaceType();
+    settings.useIsosurfaceTf = vptRenderer->getVptPass()->getUseIsosurfaceTf();
+    auto col = vptRenderer->getVptPass()->getIsosurfaceColor();
+    settings.isosurfaceColor = glm::vec4(col.x, col.y, col.z, 1.0f);
+    vptRenderer->getCloudData()->createIsoSurfaceData(
+            settings, triangleIndices, vertexPositions, vertexColors, vertexNormals);
+
+    torch::Tensor triangleIndicesTensor = torch::from_blob(
+            triangleIndices.data(), { int64_t(triangleIndices.size()) },
+            torch::TensorOptions().dtype(torch::kInt32)).detach().clone();
+    torch::Tensor vertexPositionsTensor = torch::from_blob(
+            vertexPositions.data(), { int64_t(vertexPositions.size()), 3 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    torch::Tensor vertexColorsTensor = torch::from_blob(
+            vertexColors.data(), { int64_t(vertexPositions.size()), 4 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    torch::Tensor vertexNormalsTensor = torch::from_blob(
+            vertexNormals.data(), { int64_t(vertexPositions.size()), 3 },
+            torch::TensorOptions().dtype(torch::kFloat32)).detach().clone();
+    return { triangleIndicesTensor, vertexPositionsTensor, vertexColorsTensor, vertexNormalsTensor };
+}
+
+void exportVdbVolume(const std::string& filename) {
+#ifdef USE_OPENVDB
+    vptRenderer->getCloudData()->saveToVdbFile(filename);
+#else
+    sgl::Logfile::get()->throwError("Error in exportVdbVolume: Application was not compiled with NanoVDB support.");
+#endif
 }

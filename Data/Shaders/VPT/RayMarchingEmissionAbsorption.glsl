@@ -22,9 +22,7 @@
  * SOFTWARE.
  */
 
-vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     const float majorant = parameters.extinction.x;
     const ivec3 gridImgSize = textureSize(gridImage, 0);
     const float stepSize = 0.25 / max(gridImgSize.x, max(gridImgSize.y, gridImgSize.z));

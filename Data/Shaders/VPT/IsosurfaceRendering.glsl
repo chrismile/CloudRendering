@@ -1,7 +1,5 @@
 #ifdef USE_ISOSURFACE_RENDERING
-vec3 isosurfaceRendering(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     vec3 weights = vec3(1, 1, 1);
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;

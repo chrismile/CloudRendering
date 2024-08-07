@@ -67,21 +67,22 @@ const char* const DENOISER_NAMES[] = {
 
 
 // enum type, name, num channels, num channels padded
-#define FEATURE_MAPS                                      \
-    FEATURE_MAP(COLOR,          "Color",            4, 4) \
-    FEATURE_MAP(ALBEDO,         "Albedo",           4, 4) \
-    FEATURE_MAP(FLOW,           "Flow",             2, 2) \
-    FEATURE_MAP(POSITION,       "Position",         3, 4) \
-    FEATURE_MAP(NORMAL,         "Normal",           3, 4) \
-    FEATURE_MAP(CLOUDONLY,      "CloudOnly",        4, 4) \
-    FEATURE_MAP(DEPTH,          "Depth",            2, 2) \
-    FEATURE_MAP(DENSITY,        "Density",          2, 2) \
-    FEATURE_MAP(BACKGROUND,     "Background",       4, 4) \
-    FEATURE_MAP(REPROJ_UV,      "Reproj_UV",        2, 2) \
-    FEATURE_MAP(DEPTH_BLENDED,  "Depth Blended",    1, 1) \
-    FEATURE_MAP(DEPTH_NABLA,    "nabla(z)",         2, 2) \
-    FEATURE_MAP(DEPTH_FWIDTH,   "fwidth(z)",        1, 1) \
-    FEATURE_MAP(UNUSED,         "Unused",           2, 2) \
+#define FEATURE_MAPS                                          \
+    FEATURE_MAP(COLOR,                "Color",                4, 4) \
+    FEATURE_MAP(ALBEDO,               "Albedo",               4, 4) \
+    FEATURE_MAP(FLOW,                 "Flow",                 2, 2) \
+    FEATURE_MAP(POSITION,             "Position",             3, 4) \
+    FEATURE_MAP(NORMAL,               "Normal",               3, 4) \
+    FEATURE_MAP(CLOUDONLY,            "CloudOnly",            4, 4) \
+    FEATURE_MAP(DEPTH,                "Depth",                2, 2) \
+    FEATURE_MAP(DENSITY,              "Density",              2, 2) \
+    FEATURE_MAP(BACKGROUND,           "Background",           4, 4) \
+    FEATURE_MAP(REPROJ_UV,            "Reproj_UV",            2, 2) \
+    FEATURE_MAP(DEPTH_BLENDED,        "Depth Blended",        2, 2) \
+    FEATURE_MAP(DEPTH_NEAREST_OPAQUE, "Depth Nearest Opaque", 2, 2) \
+    FEATURE_MAP(DEPTH_NABLA,          "nabla(z)",             2, 2) \
+    FEATURE_MAP(DEPTH_FWIDTH,         "fwidth(z)",            1, 1) \
+    FEATURE_MAP(UNUSED,               "Unused",               2, 2) \
 
 enum class FeatureMapType {
 #define FEATURE_MAP(enum_name, _1, _2, _3) enum_name,
@@ -124,6 +125,8 @@ public:
     virtual void denoise() = 0;
     virtual void recreateSwapchain(uint32_t width, uint32_t height) {}
     virtual void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {}
+    virtual bool loadModelFromFile(const std::string& modelPath) { return false; }
+    virtual void setOutputForegroundMap(bool _shallOutputForegroundMap) {}
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }

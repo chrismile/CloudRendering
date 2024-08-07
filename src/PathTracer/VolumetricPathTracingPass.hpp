@@ -35,6 +35,7 @@
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
 #include <Graphics/Vulkan/Utils/Timer.hpp>
 
+#include "Utils/RotationWidget.hpp"
 #include "Denoiser/Denoiser.hpp"
 #include "RenderSettings.hpp"
 
@@ -64,12 +65,12 @@ typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
     RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
-    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, TRANSMITTANCE_VOLUME,
+    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
         "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
-        "Density", "Background", "Reprojected UV", "Depth Blended", "Transmittance Volume",
+        "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -113,6 +114,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
         {FeatureMapType::DEPTH_BLENDED, FeatureMapTypeVpt::DEPTH_BLENDED},
+        {FeatureMapType::DEPTH_NEAREST_OPAQUE, FeatureMapTypeVpt::DEPTH_NEAREST_OPAQUE},
         {FeatureMapType::DEPTH_NABLA, FeatureMapTypeVpt::DEPTH_NABLA},
         {FeatureMapType::DEPTH_FWIDTH, FeatureMapTypeVpt::DEPTH_FWIDTH},
         {FeatureMapType::UNUSED, FeatureMapTypeVpt::TRANSMITTANCE_VOLUME},
@@ -140,6 +142,7 @@ public:
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
     void setDenoiserType(DenoiserType denoiserType);
     void checkRecreateDenoiser();
+    void setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath);
     void setOutputForegroundMap(bool _shallOutputForegroundMap);
     inline void setIsIntermediatePass(bool _isIntermediatePass) { isIntermediatePass = _isIntermediatePass; }
     void setSecondaryVolumeDownscalingFactor(uint32_t ds);
@@ -177,6 +180,10 @@ public:
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
     void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
+    [[nodiscard]] float getIsoValue() const { return isoValue; }
+    [[nodiscard]] glm::vec3 getIsosurfaceColor() const { return isosurfaceColor; }
+    [[nodiscard]] IsosurfaceType getIsosurfaceType() const { return isosurfaceType; }
+    [[nodiscard]] bool getUseIsosurfaceTf() const { return useIsosurfaceTf; }
 
     // For debug rendering.
     void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
@@ -256,6 +263,7 @@ private:
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;
     sgl::vk::TexturePtr depthBlendedTexture;
+    sgl::vk::TexturePtr depthNearestOpaqueTexture;
     sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
@@ -297,6 +305,9 @@ private:
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
     float environmentMapIntensityFactor = 1;
+    bool useEnvMapRot = false;
+    glm::mat3 envMapRot = glm::identity<glm::mat3>();
+    RotationWidget envMapRotWidget;
     bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
@@ -328,6 +339,7 @@ private:
     bool shallOutputForegroundMap = false;
     std::shared_ptr<Denoiser> denoiser;
     std::vector<bool> featureMapUsedArray;
+    std::string pytorchDenoiserModelFilePath; //< Delayed loading.
 
     // Isosurface data.
     bool useIsosurfaces = false;
@@ -336,7 +348,7 @@ private:
     float maxAoDist = 0.05f;
     int numAoSamples = 4;
     bool useAoDist = false;
-    glm::vec3 isoSurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
+    glm::vec3 isosurfaceColor = glm::vec3(0.4f, 0.4f, 0.4f);
     IsosurfaceType isosurfaceType = IsosurfaceType::DENSITY;
     SurfaceBrdf surfaceBrdf = SurfaceBrdf::LAMBERTIAN;
     bool useIsosurfaceTf = false;
@@ -348,7 +360,7 @@ private:
     bool useEmptySpaceSkipping = false;
     std::shared_ptr<OccupancyGridPass> occupancyGridPass;
 
-    glm::mat4 previousViewProjMatrix;
+    glm::mat4 previousViewProjMatrix = glm::zero<glm::mat4>();
 
     // Disney BRDF
     float subsurface = 0.0;
@@ -382,6 +394,8 @@ private:
         glm::vec3 sunDirection; float pad7;
         glm::vec3 sunIntensity;
         float environmentMapIntensityFactor;
+        float envMapDirRot[12]; //< Environment map sampling direction rotation matrix (mat3).
+        float invEnvMapDirRot[12]; //< Inverse of matrix above.
 
         float emissionCap;
         float emissionStrength;
@@ -403,7 +417,7 @@ private:
         float headlightIntensity = 1.0f;
 
         // Isosurfaces.
-        glm::vec3 isoSurfaceColor;
+        glm::vec3 isosurfaceColor;
         float isoValue = 0.5f;
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;

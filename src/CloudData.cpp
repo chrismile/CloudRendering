@@ -26,10 +26,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boost/algorithm/string/case_conv.hpp>
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string/trim.hpp>
-
 #ifdef USE_TBB
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
@@ -205,7 +201,7 @@ bool CloudData::loadFromFile(const std::string& filename) {
     }
 
     gridFilename = filename;
-    gridName = boost::to_lower_copy(sgl::FileUtils::get()->removeExtension(
+    gridName = sgl::toLowerCopy(sgl::FileUtils::get()->removeExtension(
             sgl::FileUtils::get()->getPureFilename(gridFilename)));
 
     if (densityField) {
@@ -319,17 +315,17 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
     std::string datFilePath;
     std::string rawFilePath;
 
-    if (boost::ends_with(filename, ".dat")) {
+    if (sgl::endsWith(filename, ".dat")) {
         datFilePath = filename;
     }
-    if (boost::ends_with(filename, ".raw")) {
+    if (sgl::endsWith(filename, ".raw")) {
         rawFilePath = filename;
 
         // We need to find the corresponding .dat file.
         std::string rawFileDirectory = sgl::FileUtils::get()->getPathToFile(rawFilePath);
         std::vector<std::string> filesInDir = sgl::FileUtils::get()->getFilesInDirectoryVector(rawFileDirectory);
         for (const std::string& filePath : filesInDir) {
-            if (boost::ends_with(filePath, ".dat")) {
+            if (sgl::endsWith(filePath, ".dat")) {
                 datFilePath = filePath;
                 break;
             }
@@ -382,9 +378,9 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
 
         std::string datKey = splitLineString.at(0);
         std::string datValue = splitLineString.at(1);
-        boost::trim(datKey);
-        boost::to_lower(datKey);
-        boost::trim(datValue);
+        sgl::stringTrim(datKey);
+        sgl::toLower(datKey);
+        sgl::stringTrim(datValue);
         datDict.insert(std::make_pair(datKey, datValue));
     }
     delete[] bufferDat;
@@ -455,7 +451,7 @@ bool CloudData::loadFromDatRawFile(const std::string& filename) {
         sgl::Logfile::get()->throwError(
                 "Error in DatRawFileLoader::load: Entry 'Format' missing in \"" + datFilePath + "\".");
     }
-    std::string formatString = boost::to_lower_copy(itFormat->second);
+    std::string formatString = sgl::toLowerCopy(itFormat->second);
     size_t bytesPerEntry = 0;
     if (formatString == "float") {
         bytesPerEntry = 4;
@@ -561,17 +557,17 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
     std::string mhdFilePath;
     std::string rawFilePath;
 
-    if (boost::ends_with(filename, ".mhd")) {
+    if (sgl::endsWith(filename, ".mhd")) {
         mhdFilePath = filename;
     }
-    if (boost::ends_with(filename, ".raw")) {
+    if (sgl::endsWith(filename, ".raw")) {
         rawFilePath = filename;
 
         // We need to find the corresponding .mhd file.
         std::string rawFileDirectory = sgl::FileUtils::get()->getPathToFile(rawFilePath);
         std::vector<std::string> filesInDir = sgl::FileUtils::get()->getFilesInDirectoryVector(rawFileDirectory);
         for (const std::string& filePath : filesInDir) {
-            if (boost::ends_with(filePath, ".mhd")) {
+            if (sgl::endsWith(filePath, ".mhd")) {
                 mhdFilePath = filePath;
                 break;
             }
@@ -624,9 +620,9 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
 
         std::string mhdKey = splitLineString.at(0);
         std::string mhdValue = splitLineString.at(1);
-        boost::trim(mhdKey);
-        //boost::to_lower(mhdKey);
-        boost::trim(mhdValue);
+        sgl::stringTrim(mhdKey);
+        //sgl::toLower(mhdKey);
+        sgl::stringTrim(mhdValue);
         mhdDict.insert(std::make_pair(mhdKey, mhdValue));
     }
     delete[] bufferMhd;
@@ -837,7 +833,7 @@ bool CloudData::loadFromNiiFile(const std::string& filename) {
     auto dataOffset = ptrdiff_t(header->vox_offset);
 
     std::string filenameRawLower = sgl::FileUtils::get()->getPureFilename(filename);
-    boost::to_lower(filenameRawLower);
+    sgl::toLower(filenameRawLower);
 
     if (header->dim[0] != 3) {
         sgl::Logfile::get()->throwError(
