@@ -103,6 +103,8 @@ layout (binding = 3) uniform Parameters {
     float sheen;
     float sheenTint;
     float clearcoat;
+    
+    vec3 camForward;
     float clearcoatGloss;
 } parameters;
 

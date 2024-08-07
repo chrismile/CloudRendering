@@ -386,6 +386,7 @@ vec3 getHeadlightDirection(vec3 pos) {
     return diff / (length(diff) + 1e-5);
     //return normalize(cameraPosition - pos);
 }
+
 vec3 sampleHeadlight(vec3 pos) {
 #ifdef USE_HEADLIGHT_DISTANCE
     const vec3 diff = cameraPosition - pos;
@@ -395,6 +396,21 @@ vec3 sampleHeadlight(vec3 pos) {
     return parameters.headlightIntensity * parameters.headlightColor;
 #endif
 }
+
+vec3 sampleSpotLight(vec3 pos) {
+    
+    const float falloffStart = cos(PI/128.0);
+    const float totalWidth = cos(PI/16.0);
+    
+    vec3 z = parameters.camForward;
+    vec3 p = pos-cameraPosition;
+    float cosTheta = dot(z, p)/(length(z)*length(p));
+    float coneFactor = smoothstep(totalWidth, falloffStart, cosTheta);
+
+    return coneFactor * (parameters.headlightIntensity) * parameters.headlightColor;
+
+}
+
 #endif
 
 #ifdef USE_NANOVDB

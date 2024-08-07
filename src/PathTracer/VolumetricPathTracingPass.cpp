@@ -1612,6 +1612,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.emissionStrength = emissionStrength;
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
+        uniformData.camForward = (*camera)->getCameraFront();
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
         uniformData.environmentMapIntensityFactor = environmentMapIntensityFactor;

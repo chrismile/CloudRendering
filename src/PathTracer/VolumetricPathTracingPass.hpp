@@ -433,6 +433,7 @@ private:
         float sheen = 0.0;
         float sheenTint = 0.5;
         float clearcoat = 0.0;
+        glm::vec3 camForward;
         float clearcoatGloss = 1.0;
     };
     UniformData uniformData{};
