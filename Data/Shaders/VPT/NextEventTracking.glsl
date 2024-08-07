@@ -28,9 +28,7 @@
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
 #ifdef USE_NEXT_EVENT_TRACKING_SPECTRAL
-vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bool onlyFirstEvent) {
     float majorant = maxComponent(parameters.extinction);
 
     vec3 weights = vec3(1, 1, 1);
@@ -213,9 +211,7 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent, bool
 #endif
 
 #ifdef USE_NEXT_EVENT_TRACKING
-vec3 nextEventTracking(vec3 x, vec3 w, out ScatterEvent firstEvent, bool onlyFirstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 nextEventTracking(vec3 x, vec3 w, inout ScatterEvent firstEvent, bool onlyFirstEvent) {
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;

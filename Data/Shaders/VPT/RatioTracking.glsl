@@ -23,9 +23,7 @@
  */
 
 #ifdef USE_RATIO_TRACKING
-vec3 ratioTracking(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 ratioTracking(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;
     float scatteringAlbedo = parameters.scatteringAlbedo.x;

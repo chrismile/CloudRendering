@@ -63,6 +63,14 @@ use_pre_cxx11_abi=false
 install_module=false
 use_download_swapchain=false
 use_custom_jsoncpp=false
+use_custom_openexr=false
+
+# Check if a conda environment is already active.
+if $use_conda; then
+    if [ ! -z "${CONDA_DEFAULT_ENV+x}" ]; then
+        conda_env_name="$CONDA_DEFAULT_ENV"
+    fi
+fi
 
 # Process command line arguments.
 for ((i=1;i<=$#;i++));
@@ -103,12 +111,13 @@ do
       elif [[ "$pytorch_is_cxx11" == "False" ]]; then
           # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
           # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
-          echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
-          exit 1
-          #export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
-          #use_pre_cxx11_abi=true
-          #use_custom_jsoncpp=true
-          #echo "Warning: PyTorch is not built with CXX11 ABI."
+          #echo "Error: PyTorch is not built with CXX11 ABI." 1>&2
+          #exit 1
+          export CXXFLAGS="-D_GLIBCXX_USE_CXX11_ABI=0"
+          use_pre_cxx11_abi=true
+          use_custom_jsoncpp=true
+          use_custom_openexr=true
+          echo "Warning: PyTorch is not built with CXX11 ABI. Using compatibility mode."
       else
           echo "Error: PyTorch was not found." 1>&2
           exit 1
@@ -253,11 +262,11 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
     fi
 
     # Dependencies of sgl and the application.
-    if ! is_installed_pacman "mingw-w64-x86_64-boost" || ! is_installed_pacman "mingw-w64-x86_64-glm" \
-            || ! is_installed_pacman "mingw-w64-x86_64-libarchive" || ! is_installed_pacman "mingw-w64-x86_64-tinyxml2" \
-            || ! is_installed_pacman "mingw-w64-x86_64-libpng" || ! is_installed_pacman "mingw-w64-x86_64-SDL2" \
-            || ! is_installed_pacman "mingw-w64-x86_64-SDL2_image" || ! is_installed_pacman "mingw-w64-x86_64-glew" \
-            || ! is_installed_pacman "mingw-w64-x86_64-vulkan-headers" \
+    if ! is_installed_pacman "mingw-w64-x86_64-boost" || ! is_installed_pacman "mingw-w64-x86_64-icu" \
+            || ! is_installed_pacman "mingw-w64-x86_64-glm" || ! is_installed_pacman "mingw-w64-x86_64-libarchive" \
+            || ! is_installed_pacman "mingw-w64-x86_64-tinyxml2" || ! is_installed_pacman "mingw-w64-x86_64-libpng" \
+            || ! is_installed_pacman "mingw-w64-x86_64-SDL2" || ! is_installed_pacman "mingw-w64-x86_64-SDL2_image" \
+            || ! is_installed_pacman "mingw-w64-x86_64-glew" || ! is_installed_pacman "mingw-w64-x86_64-vulkan-headers" \
             || ! is_installed_pacman "mingw-w64-x86_64-vulkan-loader" \
             || ! is_installed_pacman "mingw-w64-x86_64-vulkan-validation-layers" \
             || ! is_installed_pacman "mingw-w64-x86_64-shaderc" \
@@ -268,10 +277,10 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
-        pacman --noconfirm -S --needed mingw64/mingw-w64-x86_64-boost mingw64/mingw-w64-x86_64-glm \
-        mingw64/mingw-w64-x86_64-libarchive mingw64/mingw-w64-x86_64-tinyxml2 mingw64/mingw-w64-x86_64-libpng \
-        mingw64/mingw-w64-x86_64-SDL2 mingw64/mingw-w64-x86_64-SDL2_image mingw64/mingw-w64-x86_64-glew \
-        mingw64/mingw-w64-x86_64-vulkan-headers mingw64/mingw-w64-x86_64-vulkan-loader \
+        pacman --noconfirm -S --needed mingw64/mingw-w64-x86_64-boost mingw64/mingw-w64-x86_64-icu \
+        mingw64/mingw-w64-x86_64-glm mingw64/mingw-w64-x86_64-libarchive mingw64/mingw-w64-x86_64-tinyxml2 \
+        mingw64/mingw-w64-x86_64-libpng mingw64/mingw-w64-x86_64-SDL2 mingw64/mingw-w64-x86_64-SDL2_image \
+        mingw64/mingw-w64-x86_64-glew mingw64/mingw-w64-x86_64-vulkan-headers mingw64/mingw-w64-x86_64-vulkan-loader \
         mingw64/mingw-w64-x86_64-vulkan-validation-layers mingw64/mingw-w64-x86_64-shaderc \
         mingw64/mingw-w64-x86_64-opencl-headers mingw64/mingw-w64-x86_64-opencl-icd mingw64/mingw-w64-x86_64-jsoncpp \
         mingw64/mingw-w64-x86_64-openexr mingw64/mingw-w64-x86_64-openvdb mingw64/mingw-w64-x86_64-tbb \
@@ -321,6 +330,9 @@ elif $use_macos && command -v brew &> /dev/null && [ ! -d $build_dir_debug ] && 
     if [ $use_vcpkg = false ]; then
         if ! is_installed_brew "boost"; then
             brew install boost
+        fi
+        if ! is_installed_brew "icu4c"; then
+            brew install icu4c
         fi
         if ! is_installed_brew "glm"; then
             brew install glm
@@ -390,19 +402,20 @@ elif command -v apt &> /dev/null && ! $use_conda; then
             libwayland-dev libxkbcommon-dev libegl1-mesa-dev libibus-1.0-dev autoconf automake autoconf-archive
         fi
     else
-        if ! is_installed_apt "libboost-filesystem-dev" || ! is_installed_apt "libglm-dev" \
-                || ! is_installed_apt "libarchive-dev" || ! is_installed_apt "libtinyxml2-dev" \
-                || ! is_installed_apt "libpng-dev" || ! is_installed_apt "libsdl2-dev" \
-                || ! is_installed_apt "libsdl2-image-dev" || ! is_installed_apt "libglew-dev" \
-                || ! is_installed_apt "opencl-c-headers" || ! is_installed_apt "ocl-icd-opencl-dev" \
-                || ! is_installed_apt "libjsoncpp-dev" || ! is_installed_apt "libopenexr-dev" \
-                || ! is_installed_apt "libboost-iostreams-dev" || ! is_installed_apt "libtbb-dev" \
-                || ! is_installed_apt "libblosc-dev" || ! is_installed_apt "liblz4-dev"; then
+        if ! is_installed_apt "libboost-filesystem-dev" || ! is_installed_apt "libicu-dev" \
+                || ! is_installed_apt "libglm-dev" || ! is_installed_apt "libarchive-dev" \
+                || ! is_installed_apt "libtinyxml2-dev" || ! is_installed_apt "libpng-dev" \
+                || ! is_installed_apt "libsdl2-dev" || ! is_installed_apt "libsdl2-image-dev" \
+                || ! is_installed_apt "libglew-dev" || ! is_installed_apt "opencl-c-headers" \
+                || ! is_installed_apt "ocl-icd-opencl-dev" || ! is_installed_apt "libjsoncpp-dev" \
+                || ! is_installed_apt "libopenexr-dev" || ! is_installed_apt "libboost-iostreams-dev" \
+                || ! is_installed_apt "libtbb-dev" || ! is_installed_apt "libblosc-dev" \
+                || ! is_installed_apt "liblz4-dev"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
-            sudo apt install -y libboost-filesystem-dev libglm-dev libarchive-dev libtinyxml2-dev libpng-dev libsdl2-dev \
-            libsdl2-image-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev \
+            sudo apt install -y libboost-filesystem-dev libicu-dev libglm-dev libarchive-dev libtinyxml2-dev libpng-dev \
+            libsdl2-dev libsdl2-image-dev libglew-dev opencl-c-headers ocl-icd-opencl-dev libjsoncpp-dev libopenexr-dev \
             libboost-iostreams-dev libtbb-dev libblosc-dev liblz4-dev
         fi
     fi
@@ -427,18 +440,18 @@ elif command -v pacman &> /dev/null && ! $use_conda; then
             sudo pacman -S libgl vulkan-devel shaderc openssl autoconf automake autoconf-archive
         fi
     else
-        if ! is_installed_pacman "boost" || ! is_installed_pacman "glm" || ! is_installed_pacman "libarchive" \
-                || ! is_installed_pacman "tinyxml2" || ! is_installed_pacman "libpng" || ! is_installed_pacman "sdl2" \
-                || ! is_installed_pacman "sdl2_image" || ! is_installed_pacman "glew" \
-                || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
-                || ! is_installed_pacman "opencl-headers" || ! is_installed_pacman "ocl-icd" \
-                || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" || ! is_installed_pacman "onetbb" \
-                || ! is_installed_pacman "blosc"; then
+        if ! is_installed_pacman "boost" || ! is_installed_pacman "icu" || ! is_installed_pacman "glm" \
+                || ! is_installed_pacman "libarchive" || ! is_installed_pacman "tinyxml2" \
+                || ! is_installed_pacman "libpng" || ! is_installed_pacman "sdl2" || ! is_installed_pacman "sdl2_image" \
+                || ! is_installed_pacman "glew" || ! is_installed_pacman "vulkan-devel" \
+                || ! is_installed_pacman "shaderc" || ! is_installed_pacman "opencl-headers" \
+                || ! is_installed_pacman "ocl-icd" || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" \
+                || ! is_installed_pacman "onetbb" || ! is_installed_pacman "blosc"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
-            sudo pacman -S boost glm libarchive tinyxml2 libpng sdl2 sdl2_image glew vulkan-devel shaderc opencl-headers \
-            ocl-icd jsoncpp openexr onetbb blosc
+            sudo pacman -S boost icu glm libarchive tinyxml2 libpng sdl2 sdl2_image glew vulkan-devel shaderc \
+            opencl-headers ocl-icd jsoncpp openexr onetbb blosc
         fi
     fi
 elif command -v yum &> /dev/null && ! $use_conda; then
@@ -466,19 +479,19 @@ elif command -v yum &> /dev/null && ! $use_conda; then
             libXext-devel vulkan-headers vulkan-loader vulkan-tools vulkan-validation-layers libshaderc-devel
         fi
     else
-        if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "glm-devel" || ! is_installed_rpm "libarchive-devel" \
-                || ! is_installed_rpm "tinyxml2-devel" || ! is_installed_rpm "libpng-devel" \
-                || ! is_installed_rpm "SDL2-devel" || ! is_installed_rpm "SDL2_image-devel" \
-                || ! is_installed_rpm "glew-devel" || ! is_installed_rpm "vulkan-headers" \
-                || ! is_installed_rpm "libshaderc-devel" || ! is_installed_rpm "opencl-headers" \
-                || ! is_installed_rpm "ocl-icd" || ! is_installed_rpm "jsoncpp-devel" \
-                || ! is_installed_rpm "openexr-devel" || ! is_installed_rpm "tbb-devel" \
-                || ! is_installed_rpm "blosc-devel"; then
+        if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "libicu-devel" || ! is_installed_rpm "glm-devel" \
+                || ! is_installed_rpm "libarchive-devel" || ! is_installed_rpm "tinyxml2-devel" \
+                || ! is_installed_rpm "libpng-devel" || ! is_installed_rpm "SDL2-devel" \
+                || ! is_installed_rpm "SDL2_image-devel" || ! is_installed_rpm "glew-devel" \
+                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "libshaderc-devel" \
+                || ! is_installed_rpm "opencl-headers" || ! is_installed_rpm "ocl-icd" \
+                || ! is_installed_rpm "jsoncpp-devel" || ! is_installed_rpm "openexr-devel" \
+                || ! is_installed_rpm "tbb-devel" || ! is_installed_rpm "blosc-devel"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
-            sudo yum install -y boost-devel glm-devel libarchive-devel tinyxml2-devel libpng-devel SDL2-devel \
-            SDL2_image-devel glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel \
+            sudo yum install -y boost-devel libicu-devel glm-devel libarchive-devel tinyxml2-devel libpng-devel \
+            SDL2-devel SDL2_image-devel glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel \
             openexr-devel tbb-devel blosc-devel
         fi
     fi
@@ -522,13 +535,14 @@ elif $use_conda && ! $use_macos; then
     fi
 
     conda_pkg_list="$(conda list)"
-    if ! list_contains "$conda_pkg_list" "boost" || ! list_contains "$conda_pkg_list" "glm" \
-            || ! list_contains "$conda_pkg_list" "libarchive" || ! list_contains "$conda_pkg_list" "tinyxml2" \
-            || ! list_contains "$conda_pkg_list" "libpng" || ! list_contains "$conda_pkg_list" "sdl2" \
-            || ! list_contains "$conda_pkg_list" "sdl2" || ! list_contains "$conda_pkg_list" "glew" \
-            || ! list_contains "$conda_pkg_list" "cxx-compiler" || ! list_contains "$conda_pkg_list" "make" \
-            || ! list_contains "$conda_pkg_list" "cmake" || ! list_contains "$conda_pkg_list" "pkg-config" \
-            || ! list_contains "$conda_pkg_list" "gdb" || ! list_contains "$conda_pkg_list" "git" \
+    if ! list_contains "$conda_pkg_list" "boost" || ! list_contains "$conda_pkg_list" "conda-forge::icu" \
+            || ! list_contains "$conda_pkg_list" "glm" || ! list_contains "$conda_pkg_list" "libarchive" \
+            || ! list_contains "$conda_pkg_list" "tinyxml2" || ! list_contains "$conda_pkg_list" "libpng" \
+            || ! list_contains "$conda_pkg_list" "sdl2" || ! list_contains "$conda_pkg_list" "sdl2" \
+            || ! list_contains "$conda_pkg_list" "glew" || ! list_contains "$conda_pkg_list" "cxx-compiler" \
+            || ! list_contains "$conda_pkg_list" "make" || ! list_contains "$conda_pkg_list" "cmake" \
+            || ! list_contains "$conda_pkg_list" "pkg-config" || ! list_contains "$conda_pkg_list" "gdb" \
+            || ! list_contains "$conda_pkg_list" "git" \
             || ! list_contains "$conda_pkg_list" "mesa-libgl-devel-cos7-x86_64" \
             || ! list_contains "$conda_pkg_list" "libglvnd-glx-cos7-x86_64" \
             || ! list_contains "$conda_pkg_list" "mesa-dri-drivers-cos7-aarch64" \
@@ -541,15 +555,18 @@ elif $use_conda && ! $use_macos; then
             || ! list_contains "$conda_pkg_list" "xorg-libxrandr" || ! list_contains "$conda_pkg_list" "patchelf" \
             || ! list_contains "$conda_pkg_list" "libvulkan-headers" || ! list_contains "$conda_pkg_list" "shaderc" \
             || ! list_contains "$conda_pkg_list" "jsoncpp" || ! list_contains "$conda_pkg_list" "openexr" \
-            || ! list_contains "$conda_pkg_list" "intel::tbb" || ! list_contains "$conda_pkg_list" "blosc"; then
+            || ! list_contains "$conda_pkg_list" "conda-forge::tbb" \
+            || ! list_contains "$conda_pkg_list" "conda-forge::tbb-devel" \
+            || ! list_contains "$conda_pkg_list" "blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
-        conda install -y -c conda-forge boost glm libarchive tinyxml2 libpng sdl2 sdl2 glew cxx-compiler make cmake \
-        pkg-config gdb git mesa-libgl-devel-cos7-x86_64 libglvnd-glx-cos7-x86_64 mesa-dri-drivers-cos7-aarch64 \
-        libxau-devel-cos7-aarch64 libselinux-devel-cos7-aarch64 libxdamage-devel-cos7-aarch64 \
-        libxxf86vm-devel-cos7-aarch64 libxext-devel-cos7-aarch64 xorg-libxfixes xorg-libxau xorg-libxrandr patchelf \
-        libvulkan-headers shaderc jsoncpp openexr intel::tbb blosc
+        conda install -y -c conda-forge boost conda-forge::icu glm libarchive tinyxml2 libpng sdl2 sdl2 glew \
+        cxx-compiler make cmake pkg-config gdb git mesa-libgl-devel-cos7-x86_64 libglvnd-glx-cos7-x86_64 \
+        mesa-dri-drivers-cos7-aarch64 libxau-devel-cos7-aarch64 libselinux-devel-cos7-aarch64 \
+        libxdamage-devel-cos7-aarch64 libxxf86vm-devel-cos7-aarch64 libxext-devel-cos7-aarch64 xorg-libxfixes \
+        xorg-libxau xorg-libxrandr patchelf libvulkan-headers shaderc jsoncpp openexr conda-forge::tbb \
+        conda-forge::tbb-devel blosc
     fi
 else
     echo "Warning: Unsupported system package manager detected." >&2
@@ -572,6 +589,13 @@ if [ $use_macos = false ] && ! command -v pkg-config &> /dev/null; then
     exit 1
 fi
 
+if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
+    echo "------------------------"
+    echo "initializing submodules "
+    echo "------------------------"
+    git submodule init
+    git submodule update
+fi
 
 [ -d "./third_party/" ] || mkdir "./third_party/"
 pushd third_party > /dev/null
@@ -611,7 +635,9 @@ if [ $use_pytorch = true ]; then
         params+=(-DCMAKE_INSTALL_PREFIX="$install_dir")
     fi
     if [ $use_pre_cxx11_abi = true ]; then
-        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON)
+        # Theoretically pre-C++11 ABI support should work, but in practice, when linking using Boost installed via
+        # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
+        params_sgl+=(-DUSE_PRE_CXX11_ABI=ON -DUSE_BOOST=OFF)
         params+=(-DUSE_PRE_CXX11_ABI=ON)
     fi
 fi
@@ -924,12 +950,35 @@ if $use_custom_jsoncpp; then
         git clone --recursive https://github.com/open-source-parsers/jsoncpp.git jsoncpp-src
         mkdir -p jsoncpp-src/build
         pushd jsoncpp-src/build >/dev/null
-        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
+        cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release -DJSONCPP_WITH_TESTS=OFF -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF \
+        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
         make -j $(nproc)
         make install
         popd >/dev/null
     fi
     params+=(-Djsoncpp_DIR="${projectpath}/third_party/jsoncpp/lib/cmake/jsoncpp")
+fi
+
+if $use_custom_openexr; then
+    if [ ! -d "./openexr" ]; then
+        echo "------------------------"
+        echo "  downloading OpenEXR   "
+        echo "------------------------"
+        if [ -d "./openexr-src" ]; then
+            rm -rf "./openexr-src"
+        fi
+        git clone --recursive https://github.com/AcademySoftwareFoundation/openexr openexr-src
+        mkdir -p openexr-src/build
+        pushd openexr-src/build >/dev/null
+        cmake .. ${params_gen[@]+"${params_gen[@]}"}  -DCMAKE_BUILD_TYPE=Release \
+        -DOPENEXR_INSTALL=ON -DOPENEXR_INSTALL_TOOLS=OFF \
+        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/openexr"
+        make -j $(nproc)
+        make install
+        popd >/dev/null
+    fi
+    params+=(-DOpenEXR_DIR="${projectpath}/third_party/openexr/lib/cmake/OpenEXR")
 fi
 
 popd >/dev/null # back to project root
@@ -1016,6 +1065,11 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
     fi
     if $build_with_openvdb_support; then
         cp $(ldd $build_dir/libvpt.so | grep libopenvdb | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+    fi
+    if $use_custom_openexr; then
+        cp $(ldd $build_dir/libvpt.so | grep libOpenEXR | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+        cp $(ldd $build_dir/libvpt.so | grep libIex | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+        cp $(ldd $build_dir/libvpt.so | grep libIlmThread | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
@@ -1222,6 +1276,7 @@ if [ ! -d "$destination_dir/LICENSE" ]; then
     mkdir -p "$destination_dir/LICENSE"
     cp -r "docs/license-libraries/." "$destination_dir/LICENSE/"
     cp -r "LICENSE" "$destination_dir/LICENSE/LICENSE-cloudrendering.txt"
+    cp -r "submodules/IsosurfaceCpp/LICENSE" "$destination_dir/LICENSE/graphics/LICENSE-isosurfacecpp.txt"
 fi
 if [ ! -d "$destination_dir/docs" ]; then
     cp -r "docs" "$destination_dir"

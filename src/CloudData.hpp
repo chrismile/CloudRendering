@@ -35,6 +35,7 @@
 
 #include "nanovdb/util/GridHandle.h"
 
+#include "PathTracer/RenderSettings.hpp"
 #include "DensityField.hpp"
 
 namespace sgl {
@@ -120,6 +121,19 @@ public:
     /// Called when the transfer function texture was updated.
     void onTransferFunctionMapRebuilt() {}
     inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+
+    void createIsoSurfaceData(
+            const IsosurfaceSettings& settings,
+            std::vector<uint32_t>& triangleIndices, std::vector<glm::vec3>& vertexPositions,
+            std::vector<glm::vec4>& vertexColors, std::vector<glm::vec3>& vertexNormals);
+
+#ifdef USE_OPENVDB
+    /**
+     * @param filename The filename of the .vdb file to write to using OpenVDB.
+     * @return Whether the file was saved successfully.
+     */
+    bool saveToVdbFile(const std::string& filename);
+#endif
 
 private:
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;

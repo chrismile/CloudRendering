@@ -63,6 +63,7 @@ MODULE_OP_API void setCameraFOVy(double FOVy);
 MODULE_OP_API void setVPTMode(int64_t mode);
 MODULE_OP_API void setVPTModeFromName(const std::string& modeName);
 MODULE_OP_API void setDenoiser(const std::string& denoiserName);
+MODULE_OP_API void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath);
 MODULE_OP_API void setOutputForegroundMap(bool _shallOutputForegroundMap);
 MODULE_OP_API void setFeatureMapType(int64_t type);
 
@@ -119,5 +120,9 @@ torch::Tensor renderFrameVulkan(torch::Tensor inputTensor, int64_t frameCount);
 #ifdef SUPPORT_CUDA_INTEROP
 torch::Tensor renderFrameCuda(torch::Tensor inputTensor, int64_t frameCount);
 #endif
+
+// API for exporting volume and surface data for external use.
+MODULE_OP_API std::vector<torch::Tensor> triangulateIsosurfaces();
+MODULE_OP_API void exportVdbVolume(const std::string& filename);
 
 #endif //CLOUDRENDERING_MODULE_HPP

@@ -30,14 +30,13 @@
 #include <stack>
 #include <csignal>
 
-#include <boost/algorithm/string.hpp>
-
 #ifdef USE_ZEROMQ
 #include <zmq.h>
 #endif
 
 #include <Utils/Timer.hpp>
 #include <Utils/AppSettings.hpp>
+#include <Utils/StringUtils.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Input/Keyboard.hpp>
@@ -310,7 +309,7 @@ void MainApp::renderGui() {
             filename += selection.table[0].fileName;
             IGFD_Selection_DestroyContent(&selection);
 
-            std::string filenameLower = boost::to_lower_copy(filename);
+            std::string filenameLower = sgl::toLowerCopy(filename);
             if (checkHasValidExtension(filenameLower)) {
                 fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(filename);
                 selectedDataSetIndex = 0;
@@ -791,22 +790,22 @@ void MainApp::onCameraReset() {
 }
 
 bool MainApp::checkHasValidExtension(const std::string& filenameLower) {
-    if (boost::ends_with(filenameLower, ".xyz")
-            || boost::ends_with(filenameLower, ".nvdb")
+    if (sgl::endsWith(filenameLower, ".xyz")
+            || sgl::endsWith(filenameLower, ".nvdb")
 #ifdef USE_OPENVDB
-            || boost::ends_with(filenameLower, ".vdb")
+            || sgl::endsWith(filenameLower, ".vdb")
 #endif
-            || boost::ends_with(filenameLower, ".dat")
-            || boost::ends_with(filenameLower, ".raw")
-            || boost::ends_with(filenameLower, ".mhd")
-            || boost::ends_with(filenameLower, ".nii")) {
+            || sgl::endsWith(filenameLower, ".dat")
+            || sgl::endsWith(filenameLower, ".raw")
+            || sgl::endsWith(filenameLower, ".mhd")
+            || sgl::endsWith(filenameLower, ".nii")) {
         return true;
     }
     return false;
 }
 
 void MainApp::onFileDropped(const std::string& droppedFileName) {
-    std::string filenameLower = boost::to_lower_copy(droppedFileName);
+    std::string filenameLower = sgl::toLowerCopy(droppedFileName);
     if (checkHasValidExtension(filenameLower)) {
         device->waitIdle();
         fileDialogDirectory = sgl::FileUtils::get()->getPathToFile(droppedFileName);

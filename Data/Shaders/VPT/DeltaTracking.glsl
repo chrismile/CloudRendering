@@ -30,9 +30,7 @@
  * P. Kutz, R. Habel, Y. K. Li, and J. Novák. Spectral and decomposition tracking for rendering heterogeneous volumes.
  * ACM Trans. Graph., 36(4), Jul. 2017.
  */
-vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
-
+vec3 deltaTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     float majorant = maxComponent(parameters.extinction);
 
     vec3 weights = vec3(1, 1, 1);
@@ -157,7 +155,7 @@ vec3 deltaTrackingSpectral(vec3 x, vec3 w, out ScatterEvent firstEvent) {
 
 #ifdef USE_DELTA_TRACKING
 vec3 deltaTracking(
-        vec3 x, vec3 w, out ScatterEvent firstEvent
+        vec3 x, vec3 w, inout ScatterEvent firstEvent
 #ifdef COMPUTE_SCATTER_RAY_ABSORPTION_MOMENTS
         , out float scatterRayAbsorptionMoments[NUM_SCATTER_RAY_ABSORPTION_MOMENTS + 1]
 #endif
@@ -168,8 +166,6 @@ vec3 deltaTracking(
     }
     float depth = 0.0;
 #endif
-
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
 
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;

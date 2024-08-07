@@ -1,7 +1,7 @@
 /**
  * MIT License
  *
- * Copyright (c) 2024, Christoph Neuhauser, Jonas Itt
+ * Copyright (c) 2024, Christoph Neuhauser
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,62 +37,26 @@ vec3 sampleBrdf(mat3 frame, flags hitFlags) {
     hitFlags.specularHit = false;
     hitFlags.clearcoatHit = false;
     
-#ifdef UNIFORM_SAMPLING
-    
     // Sampling PDF: 1/(2pi)
     return frame * sampleHemisphere(vec2(random(), random()));
-    
-#else
-    
-    // Sampling PDF: cos(theta) / pi
-    return frame * sampleHemisphereCosineWeighted(vec2(random(), random()));
-    
-#endif
 }
 
 // Evaluate BRDF with compensation of importance sampling and a fixed sampling PDF
 vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 isoSurfaceColor) {
     float theta = dot(lightVector, normalVector);
 
-    // BRDF: R/pi = isosurfaceColor / pi, i.e., sampling PDF is multiplied with pi.
-#ifdef UNIFORM_SAMPLING
-    
+    // BRDF: R/(2pi * theta) = isosurfaceColor / (2pi * theta).
     // Sampling PDF: 1/(2pi)
-    float pdfFactor = 0.5;
-    
-#else
-    
-    // Sampling PDF: cos(theta) / pi
-    float pdfFactor = theta;
-
-#endif
-
-    return (isoSurfaceColor * theta) / pdfFactor;
+    // sum BRDF * theta / PDF = sum R
+    return isoSurfaceColor;
 }
 
 vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, vec3 isoSurfaceColor, bool useMIS, float samplingPDF, flags hitFlags, out float pdfSamplingOut, out float pdfSamplingNee) {
-    float thetaNee = dot(normalVector, dirNee);
-#ifdef UNIFORM_SAMPLING
-<<<<<<< HEAD
-    pdfSamplingNee;
-=======
->>>>>>> ce1b869bf7a1acaca518558a06201d6248ce5486
     if(useMIS) {
         pdfSamplingNee = 1.0 / (2.0 * M_PI);
     }
     pdfSamplingOut = 1.0 / (2.0 * M_PI);
-#else
-<<<<<<< HEAD
-    pdfSamplingNee;
-=======
->>>>>>> ce1b869bf7a1acaca518558a06201d6248ce5486
-    if(useMIS) {
-        pdfSamplingNee = thetaNee / M_PI;
-    }
-    pdfSamplingOut = dot(dirOut, normalVector) / M_PI;
-#endif
-    
-    return isoSurfaceColor / M_PI * thetaNee;
+    return isoSurfaceColor / (2.0 * M_PI);
 }
 
 // Combined call to importance sample and evaluate BRDF

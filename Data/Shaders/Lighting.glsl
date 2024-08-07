@@ -12,11 +12,17 @@ vec3 blinnPhongShadingSurface(
     const vec3 diffuseColor = ambientColor;
     vec3 phongColor = vec3(0.0);
 
+#ifdef SURFACE_BRDF_AMBIENT
+    const float kA = 1.0;
+    const float kD = 0.0;
+    const float kS = 0.0;
+#else
     const float kA = 0.4;
-    const vec3 Ia = kA * ambientColor;
     const float kD = 0.6;
     const float kS = 0.2;
+#endif
     const float s = 30;
+    const vec3 Ia = kA * ambientColor;
 
     const vec3 n = normalize(fragmentNormal);
     const vec3 v = normalize(cameraPosition - fragmentPositionWorld);

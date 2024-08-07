@@ -61,15 +61,18 @@ __global__ void updateObservationFrequencyFieldsKernel(
     dx /= len;
     dy /= len;
     dz /= len;
-    float theta = acosf(dz);
-    float phi = sign(dy) * acosf(dx / sqrt(dx * dx + dy * dy));
-    auto binIdxX = uint32_t(iclamp(int(fmodf(theta + F_TWO_PI, F_PI) / F_PI * float(numBinsX)), 0, int(numBinsX) - 1));
-    auto binIdxY = uint32_t(iclamp(int(fmodf(phi + F_TWO_PI, F_TWO_PI) / F_TWO_PI * float(numBinsY)), 0, int(numBinsY) - 1));
+    //float theta = acosf(dz);
+    //float phi = sign(dy) * acosf(dx / sqrt(dx * dx + dy * dy));
+    // https://mathworld.wolfram.com/SphericalCoordinates.html
+    float theta = atan2f(dy, dx);
+    float phi = acosf(dz);
+    auto binIdxX = uint32_t(iclamp(int(fmodf(theta + F_TWO_PI, F_TWO_PI) / F_TWO_PI * float(numBinsX)), 0, int(numBinsX) - 1));
+    auto binIdxY = uint32_t(iclamp(int(fmodf(phi + F_TWO_PI, F_PI) / F_PI * float(numBinsY)), 0, int(numBinsY) - 1));
     obsFreqField[linearIdx] += transmittance;
-    if (linearIdx * numBins + binIdxX + binIdxY * numBinsX < 1) {
-        angularObsFreqField[linearIdx * numBins + binIdxX + binIdxY * numBinsX] += transmittance;
-    }
+    angularObsFreqField[linearIdx * numBins + binIdxX + binIdxY * numBinsX] += transmittance;
 }
+
+#define CORRECT_AREA_PRESERVATION
 
 __global__ void computeEnergyKernel(
         uint32_t depth, uint32_t height, uint32_t width, uint32_t numBinsX, uint32_t numBinsY, uint32_t numBins,
@@ -92,13 +95,29 @@ __global__ void computeEnergyKernel(
 
         // Use total variation distance.
         float entrySum = 0.0f, TV = 0.0f;
+#ifdef CORRECT_AREA_PRESERVATION
+        float areaFactorSum = 0.0f;
+#endif
         for (int binIdx = 0; binIdx < numBins; binIdx++) {
             entrySum += angularObsFreqField[linearIdx * numBins + binIdx];
+#ifdef CORRECT_AREA_PRESERVATION
+            uint32_t binIdxY = binIdx / numBinsX; // binIdxX + binIdxY * numBinsX
+            float phiMid = (float(binIdxY) + 0.5f) / float(numBinsY) * F_PI;
+            areaFactorSum += sinf(phiMid);
+#endif
         }
         if (entrySum > 1e-6f) {
             float invEntrySum = 1.0f / entrySum;
-            for (int binIdx = 0; binIdx < numBins; binIdx++) {
+            for (uint32_t binIdx = 0; binIdx < numBins; binIdx++) {
+#ifdef CORRECT_AREA_PRESERVATION
+                uint32_t binIdxY = binIdx / numBinsX; // binIdxX + binIdxY * numBinsX
+                float phiMid = (float(binIdxY) + 0.5f) / float(numBinsY) * F_PI;
+                TV +=
+                        abs(angularObsFreqField[linearIdx * numBins + binIdx] * invEntrySum - invEntrySum)
+                        * sinf(phiMid) / areaFactorSum;
+#else
                 TV += abs(angularObsFreqField[linearIdx * numBins + binIdx] * invEntrySum - invEntrySum);
+#endif
             }
             energyTermLocal += 1.0f - TV * 0.5f;
         }

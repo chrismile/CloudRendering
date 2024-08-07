@@ -27,7 +27,6 @@
  */
 
 #include <memory>
-#include <boost/algorithm/string/case_conv.hpp>
 
 #include <json/json.h>
 #include <c10/core/MemoryFormat.h>
@@ -37,8 +36,10 @@
 
 #include <Math/Math.hpp>
 #include <Utils/AppSettings.hpp>
+#include <Utils/StringUtils.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
+#include <Graphics/Texture/Bitmap.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #ifdef SUPPORT_CUDA_INTEROP
@@ -129,7 +130,8 @@ void PyTorchDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
 }
 
 void PyTorchDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
-    if (featureMapType == FeatureMapType::COLOR) {
+    // COLOR and CLOUDONLY seem to be mutually exclusive at the moment.
+    if (featureMapType == FeatureMapType::COLOR || featureMapType == FeatureMapType::CLOUDONLY) {
         inputImageVulkan = featureTexture->getImageView();
     }
     if (featureMapType == FeatureMapType::BACKGROUND) {
@@ -246,6 +248,60 @@ void PyTorchDenoiser::denoise() {
             inputImageVulkan->getImage()->copyToBuffer(
                     inputImageBufferVk, renderer->getVkCommandBuffer());
         } else {
+            // Code below outputs feature maps for testing purposes.
+            /*renderImageStagingBuffers.resize(inputFeatureMapsUsed.size());
+            sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+            renderer->syncWithCpu();
+            for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+                uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
+                renderImageStagingBuffers.at(i) = std::make_shared<sgl::vk::Buffer>(
+                        device, sizeof(float) * width * height * numChannelsFeaturePadded,
+                        VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_GPU_TO_CPU);
+
+                const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
+                renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+                featureMap->getImage()->copyToBuffer(
+                        renderImageStagingBuffers.at(i), renderer->getVkCommandBuffer());
+            }
+            renderer->syncWithCpu();
+            for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
+                uint32_t numChannelsFeaturePadded = FEATURE_MAP_NUM_CHANNELS_PADDED[int(inputFeatureMapsUsed.at(i))];
+
+                sgl::BitmapPtr bitmap(new sgl::Bitmap(width, height, 32));
+                auto* pixels = bitmap->getPixels();
+                const sgl::vk::BufferPtr& renderImageStagingBuffer = renderImageStagingBuffers.at(i);
+                auto* mappedData = (float*)renderImageStagingBuffer->mapMemory();
+                uint32_t numChannelsFeature = FEATURE_MAP_NUM_CHANNELS[int(inputFeatureMapsUsed.at(i))];
+                for (uint32_t y = 0; y < height; y++) {
+                    for (uint32_t x = 0; x < width; x++) {
+                        uint32_t writeLocation = (x + y * width) * 4;
+                        pixels[writeLocation + 0] = 0;
+                        pixels[writeLocation + 1] = 0;
+                        pixels[writeLocation + 2] = 0;
+                        pixels[writeLocation + 3] = 255;
+                    }
+                }
+                for (uint32_t y = 0; y < height; y++) {
+                    for (uint32_t x = 0; x < width; x++) {
+                        uint32_t readLocation = (x + y * width) * numChannelsFeaturePadded;
+                        uint32_t writeLocation = (x + y * width) * 4;
+                        for (uint32_t c = 0; c < numChannelsFeature; c++) {
+                            if (std::isnan(mappedData[readLocation + c])) {
+                                sgl::Logfile::get()->throwError(
+                                        std::string() + "Error: Detected NaN for layer "
+                                        + FEATURE_MAP_NAMES[int(inputFeatureMapsUsed.at(i))]
+                                        + " at x=" + std::to_string(x) + ", y=" + std::to_string(y)
+                                        + ", c=" + std::to_string(c) + ".");
+                            }
+                            pixels[writeLocation + c] = std::clamp(int(mappedData[readLocation + c] * 255), 0, 255);
+                        }
+                    }
+                }
+                renderImageStagingBuffer->unmapMemory();
+                std::string filename = std::string() + FEATURE_MAP_NAMES[int(inputFeatureMapsUsed.at(i))] + ".png";
+                bitmap->savePNG(filename.c_str());
+            }*/
+
             for (size_t i = 0; i < inputFeatureMapsUsed.size(); i++) {
                 const sgl::vk::TexturePtr& featureMap = inputFeatureMaps.at(i);
                 renderer->transitionImageLayout(featureMap->getImage(), VK_IMAGE_LAYOUT_GENERAL);
@@ -288,11 +344,29 @@ void PyTorchDenoiser::denoise() {
     }
 #endif
 
+    // Test code for NaN values.
+    /*if (pyTorchDevice == PyTorchDevice::CUDA) {
+        cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+        renderer->getDevice()->waitIdle();
+        cudaStreamSynchronize(stream);
+    }
+    if (inputTensor.isnan().any().item().toBool()) {
+        std::cout << "NaN detected." << std::endl;
+        auto t = inputTensor.cpu();
+        auto* data = reinterpret_cast<float*>(t.data_ptr());
+        size_t dataSize = height * width * numChannels;
+        for (size_t i = 0; i < dataSize; i++) {
+            if (std::isnan(data[i])) {
+                sgl::Logfile::get()->throwError("Error: Detected NaN in debug code (2).");
+            }
+        }
+    }*/
+
     std::vector<torch::jit::IValue> inputs;
-    if (useFP16){
+    if (useFP16) {
         inputTensor = inputTensor.toType(torch::kFloat16);
     }
-    if (!inputTensor.is_contiguous()){
+    if (!inputTensor.is_contiguous()) {
         //std::cout << "input not contiguous" << std::endl;
         inputTensor = inputTensor.contiguous();
     }
@@ -317,9 +391,9 @@ void PyTorchDenoiser::denoise() {
                 previousTensor = torch::zeros(inputSizes, torch::TensorOptions().dtype(torch::kFloat32).device(deviceType));
             }
         }
-        if (useFP16){
+        if (useFP16) {
             previousTensor = previousTensor.toType(torch::kFloat16);
-        }else{
+        } else {
             previousTensor = previousTensor.toType(torch::kFloat32);
         }
         inputs.emplace_back(previousTensor);
@@ -330,7 +404,7 @@ void PyTorchDenoiser::denoise() {
         wrapper->module.to(torch::kFloat32);
     }
     at::Tensor outputTensor;
-    if (blend_inv_iter){
+    if (blend_inv_iter) {
 #ifdef USE_KPN_MODULE
         c10::IValue layer_outputs = wrapper->module.forward(inputs);
         at::Tensor lprev = layer_outputs.toTuple()->elements()[0].toTensor().to(torch::kFloat32);
@@ -343,12 +417,13 @@ void PyTorchDenoiser::denoise() {
         at::Tensor x2 = torch::avg_pool2d(x1, 2, 2);
 
         int kernelSize = 5;
-        if (l0.size(1) < 25){
+        if (l0.size(1) < 25) {
             kernelSize = 3;
         }
 
-        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4,6)});
-        torch::Tensor reproj0 = torch::grid_sampler_2d(previousTensor.to(torch::kFloat32), reproj_uv.permute({0,2,3,1}) * 2 - 1, 0,0, false);
+        torch::Tensor reproj_uv = inputTensor.index({torch::indexing::Slice(),torch::indexing::Slice(4 ,6)});
+        torch::Tensor reproj0 = torch::grid_sampler_2d(
+                previousTensor.to(torch::kFloat32), reproj_uv.permute({0, 2, 3, 1}) * 2 - 1, 0, 0, false);
 
         reproj0 = perPixelKernelForward(reproj0, torch::softmax(lprev, 1), kernelSize);
         torch::Tensor reproj1 = torch::avg_pool2d(reproj0, 2, 2);
@@ -359,7 +434,7 @@ void PyTorchDenoiser::denoise() {
 
         outputTensor = kp0;
 #endif
-    } else{
+    } else {
         outputTensor = wrapper->module.forward(inputs).toTensor().to(torch::kFloat32);
     }
     previousTensor = outputTensor.clone().detach();
@@ -612,7 +687,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
             wrapper = {};
             return false;
         }
-        std::string bt = boost::to_lower_copy(blendType.asString());
+        std::string bt = sgl::toLowerCopy(blendType.asString());
         if (bt == "inv_iter") {
 #ifdef USE_KPN_MODULE
             blend_inv_iter = true;
@@ -698,10 +773,10 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
             wrapper = {};
             return false;
         }
-        std::string inputFeatureMapName = boost::to_lower_copy(inputFeatureMapNode.asString());
+        std::string inputFeatureMapName = sgl::toLowerCopy(inputFeatureMapNode.asString());
         int i;
         for (i = 0; i < IM_ARRAYSIZE(FEATURE_MAP_NAMES); i++) {
-            if (boost::to_lower_copy(std::string() + FEATURE_MAP_NAMES[i]) == inputFeatureMapName) {
+            if (sgl::toLowerCopy(std::string() + FEATURE_MAP_NAMES[i]) == inputFeatureMapName) {
                 inputFeatureMapsUsed.push_back(FeatureMapType(i));
                 break;
             }
@@ -721,7 +796,7 @@ bool PyTorchDenoiser::loadModelFromFile(const std::string& modelPath) {
     }
     inputFeatureMaps.resize(inputFeatureMapsUsed.size());
     computeNumChannels();
-    if (inputFeatureMapsUsed != inputFeatureMapsUsedOld) {
+    if (inputFeatureMapsUsed != inputFeatureMapsUsedOld && inputImageVulkan) {
         renderer->getDevice()->waitIdle();
         recreateSwapchain(
                 inputImageVulkan->getImage()->getImageSettings().width,
@@ -747,6 +822,10 @@ void PyTorchDenoiser::setPyTorchDevice(PyTorchDevice pyTorchDeviceNew) {
     if (wrapper) {
         wrapper->module.to(getTorchDeviceType(pyTorchDevice));
     }
+}
+
+void PyTorchDenoiser::setOutputForegroundMap(bool _shallOutputForegroundMap) {
+    addBackground = !_shallOutputForegroundMap;
 }
 
 bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
@@ -851,7 +930,7 @@ bool FeatureCombinePass::getUseFeatureMap(FeatureMapType featureMapType) {
 
 std::string FeatureCombinePass::getFeatureMapImageName(FeatureMapType featureMapType) {
     std::string baseName = FEATURE_MAP_NAMES[int(featureMapType)];
-    return boost::to_lower_copy(baseName) + "Map";
+    return sgl::toLowerCopy(baseName) + "Map";
 }
 
 void FeatureCombinePass::setUsedInputFeatureMaps(
@@ -907,7 +986,7 @@ void FeatureCombinePass::loadShader() {
         auto it = inputFeatureMapsIndexMap.find(featureMapType);
         if (it != inputFeatureMapsIndexMap.end()) {
             std::string baseName = FEATURE_MAP_NAMES[i];
-            preprocessorDefines.insert(std::make_pair("USE_" + boost::to_upper_copy(baseName), ""));
+            preprocessorDefines.insert(std::make_pair("USE_" + sgl::toUpperCopy(baseName), ""));
         }
     }
     shaderStages = sgl::vk::ShaderManager->getShaderStages(
