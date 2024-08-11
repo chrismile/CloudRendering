@@ -155,6 +155,7 @@ public:
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 
     void setUseHeadlight(bool _useHeadlight);
+    void setHeadlightType(HeadlightType _headlightType);
     void setUseHeadlightDistance(bool _useHeadlightDistance);
     void setHeadlightColor(const glm::vec3& _headlightColor);
     void setHeadlightIntensity(float _headlightIntensity);
@@ -373,6 +374,9 @@ private:
     float sheenTint = 0.5;
     float clearcoat = 0.0;
     float clearcoatGloss = 1.0;
+
+    // Headlight
+    HeadlightType headlightType = HeadlightType::POINT;
 
     // Uniform buffer object storing the scene and camera settings.
     struct UniformData {

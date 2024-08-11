@@ -388,12 +388,26 @@ vec3 getHeadlightDirection(vec3 pos) {
 }
 
 vec3 sampleHeadlight(vec3 pos) {
-#ifdef USE_HEADLIGHT_DISTANCE
-    const vec3 diff = cameraPosition - pos;
-    const float distFactor = max(dot(diff, diff), 1e-3);
-    return (parameters.headlightIntensity / distFactor) * parameters.headlightColor;
-#else
-    return parameters.headlightIntensity * parameters.headlightColor;
+#ifdef HEADLIGHT_TYPE_POINT
+    #ifdef USE_HEADLIGHT_DISTANCE
+        const vec3 diff = cameraPosition - pos;
+        const float distFactor = max(dot(diff, diff), 1e-3);
+        return (parameters.headlightIntensity / distFactor) * parameters.headlightColor;
+    #else
+        return parameters.headlightIntensity * parameters.headlightColor;
+    #endif
+#endif
+
+#ifdef HEADLIGHT_TYPE_SPOT
+    const float falloffStart = cos(PI/128.0);
+    const float totalWidth = cos(PI/16.0);
+    
+    vec3 z = parameters.camForward;
+    vec3 p = pos-cameraPosition;
+    float cosTheta = dot(z, p)/(length(z)*length(p));
+    float coneFactor = smoothstep(totalWidth, falloffStart, cosTheta);
+
+    return coneFactor * (parameters.headlightIntensity) * parameters.headlightColor;
 #endif
 }
 
@@ -1113,7 +1127,6 @@ bool getIsoSurfaceHit(
 }
 
 #endif
-
 
 #if defined(USE_ISOSURFACE_RENDERING) || (defined(USE_ISOSURFACES) && defined(USE_RAY_MARCHING_EMISSION_ABSORPTION))
 #include "Lighting.glsl"
