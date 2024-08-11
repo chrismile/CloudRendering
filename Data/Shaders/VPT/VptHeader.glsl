@@ -106,6 +106,10 @@ layout (binding = 3) uniform Parameters {
     
     vec3 camForward;
     float clearcoatGloss;
+
+    
+    float headlightSpotTotalWidth;
+    float headlightSpotFalloffStart;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {

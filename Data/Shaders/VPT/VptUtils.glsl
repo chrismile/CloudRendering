@@ -399,8 +399,9 @@ vec3 sampleHeadlight(vec3 pos) {
 #endif
 
 #ifdef HEADLIGHT_TYPE_SPOT
-    const float falloffStart = cos(PI/128.0);
-    const float totalWidth = cos(PI/16.0);
+    const float totalWidth = cos(parameters.headlightSpotTotalWidth);
+    const float falloffStart = parameters.headlightSpotTotalWidth > parameters.headlightSpotFalloffStart ? cos(parameters.headlightSpotFalloffStart) : totalWidth;
+
     
     vec3 z = parameters.camForward;
     vec3 p = pos-cameraPosition;
@@ -409,20 +410,6 @@ vec3 sampleHeadlight(vec3 pos) {
 
     return coneFactor * (parameters.headlightIntensity) * parameters.headlightColor;
 #endif
-}
-
-vec3 sampleSpotLight(vec3 pos) {
-    
-    const float falloffStart = cos(PI/128.0);
-    const float totalWidth = cos(PI/16.0);
-    
-    vec3 z = parameters.camForward;
-    vec3 p = pos-cameraPosition;
-    float cosTheta = dot(z, p)/(length(z)*length(p));
-    float coneFactor = smoothstep(totalWidth, falloffStart, cosTheta);
-
-    return coneFactor * (parameters.headlightIntensity) * parameters.headlightColor;
-
 }
 
 #endif

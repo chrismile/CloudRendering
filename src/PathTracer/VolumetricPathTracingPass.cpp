@@ -1000,6 +1000,21 @@ void VolumetricPathTracingPass::setHeadlightType(HeadlightType _headlightType) {
         setShaderDirty();
     }
 }
+void VolumetricPathTracingPass::setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth) {
+    if (headlightSpotTotalWidth != _headlightSpotTotalWidth) {
+        this->headlightSpotTotalWidth = _headlightSpotTotalWidth;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightSpotFalloffStart(float _headlightSpotFalloffStart) {
+    if (headlightSpotFalloffStart != _headlightSpotFalloffStart) {
+        this->headlightSpotFalloffStart = _headlightSpotFalloffStart;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
 
 void VolumetricPathTracingPass::setUseHeadlightDistance(bool _useHeadlightDistance) {
     if (useHeadlightDistance != _useHeadlightDistance) {
@@ -1675,6 +1690,8 @@ void VolumetricPathTracingPass::_render() {
 
         uniformData.headlightColor = headlightColor;
         uniformData.headlightIntensity = headlightIntensity;
+        uniformData.headlightSpotTotalWidth = headlightSpotTotalWidth;
+        uniformData.headlightSpotFalloffStart = headlightSpotFalloffStart;
 
         uniformData.isosurfaceColor = isosurfaceColor;
         uniformData.isoValue = isoValue;
@@ -2238,6 +2255,20 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                         setShaderDirty();
                         reRender = true;
                         frameInfo.frameCount = 0;
+                    }
+                    
+                    if (headlightType == HeadlightType::SPOT) {
+                        if (propertyEditor.addSliderFloat("Total Cone Width Angle", (float*)&headlightSpotTotalWidth, 0.0, M_PI/2)) {
+                            setShaderDirty();
+                            reRender = true;
+                            frameInfo.frameCount = 0;
+                        }
+
+                        if (propertyEditor.addSliderFloat("Falloff Start Angle", (float*)&headlightSpotFalloffStart, 0.0, M_PI/2)) {
+                            setShaderDirty();
+                            reRender = true;
+                            frameInfo.frameCount = 0;
+                        }
                     }
                     
                     if (propertyEditor.addCheckbox("Use Headlight Distance", &useHeadlightDistance)) {
