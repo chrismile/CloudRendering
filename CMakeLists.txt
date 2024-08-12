@@ -409,6 +409,14 @@ if (${USE_GTEST})
     target_include_directories(CloudRendering_test PRIVATE submodules)
 endif()
 if (${PYTORCH_MODULE_ENABLED})
+    # When linking the static library libIsoSurfaceCpp.a into the shared library libvpt.so, GCC 14.2 on Fedora 40
+    # produced this error:
+    # "/usr/bin/ld: submodules/IsosurfaceCpp/libIsosurfaceCpp.a(MarchingCubes.cpp.o):
+    # relocation R_X86_64_32S against `.rodata' can not be used when making a shared object; recompile with -fPIC".
+    # Thus, on Unix systems, we will set POSITION_INDEPENDENT_CODE to "ON" when libvpt.so is built.
+    if (UNIX)
+        set_target_properties(IsosurfaceCpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
     target_link_libraries(vpt PRIVATE IsosurfaceCpp)
     target_include_directories(vpt PRIVATE submodules)
 endif()

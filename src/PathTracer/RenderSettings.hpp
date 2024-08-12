@@ -98,6 +98,14 @@ const char* const SURFACE_BRDF_NAMES[] = {
         "Lambertian", "Blinn Phong", "Disney (2012)", "Cook Torrance", "Ambient"
 };
 
+enum class HeadlightType {
+    POINT, SPOT
+};
+
+const char* const HEADLIGHT_TYPES[] = {
+        "Point Light", "Spotlight"
+};
+
 struct CameraPose {
     glm::vec3 position;
     glm::vec3 front;
