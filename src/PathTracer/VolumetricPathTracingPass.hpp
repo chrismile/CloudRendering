@@ -154,6 +154,13 @@ public:
     void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 
+    // Environment
+    void disableEnvMapRot();
+    void setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles);
+    void setEnvMapRotYawPitchRoll(const glm::vec3& _yawPitchRoll);
+    void setEnvMapRotAngleAxis(const glm::vec3& _axis, float _angle);
+    void setEnvMapRotQuaternion(const glm::quat& _quaternion);
+
     void setUseHeadlight(bool _useHeadlight);
     void setHeadlightType(HeadlightType _headlightType);
     void setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth);

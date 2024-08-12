@@ -42,6 +42,12 @@ MODULE_OP_API void loadEnvironmentMap(const std::string& filename);
 MODULE_OP_API void setUseBuiltinEnvironmentMap(const std::string& envMapName);
 MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 
+MODULE_OP_API void disableEnvMapRot();
+MODULE_OP_API void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec);
+MODULE_OP_API void setEnvMapRotYawPitchRoll(std::vector<double> yawPitchRollVec);
+MODULE_OP_API void setEnvMapRotAngleAxis(std::vector<double> _axisVec, double _angle);
+MODULE_OP_API void setEnvMapRotQuaternion(std::vector<double> _quaternionVec);
+
 MODULE_OP_API void setScatteringAlbedo(std::vector<double> albedo);
 MODULE_OP_API void setExtinctionScale(double extinctionScale);
 MODULE_OP_API void setExtinctionBase(std::vector<double> extinctionBase);

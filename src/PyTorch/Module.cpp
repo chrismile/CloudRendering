@@ -65,6 +65,11 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::load_environment_map", loadEnvironmentMap);
     m.def("vpt::set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
+    m.def("vpt::disable_env_map_rot", disableEnvMapRot);
+    m.def("vpt::set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
+    m.def("vpt::set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
+    m.def("vpt::set_env_map_rot_angle_axis", setEnvMapRotAngleAxis);
+    m.def("vpt::set_env_map_rot_quaternion", setEnvMapRotQuaternion);
     m.def("vpt::set_scattering_albedo", setScatteringAlbedo);
     m.def("vpt::set_extinction_base", setExtinctionBase);
     m.def("vpt::set_extinction_scale", setExtinctionScale);
@@ -624,6 +629,42 @@ void loadEmissionFile(const std::string& filename) {
 }
 
 
+bool parseVector3(const std::vector<double>& data, glm::vec3& out) {
+    if (data.size() != 3) {
+        sgl::Logfile::get()->writeError("Error in parseVector3: Expected vector of size 3.");
+        return false;
+    }
+    out.x = float(data[0]);
+    out.y = float(data[1]);
+    out.z = float(data[2]);
+    return true;
+}
+
+bool parseVector4(const std::vector<double>& data, glm::vec4& out) {
+    if (data.size() != 4) {
+        sgl::Logfile::get()->writeError("Error in parseVector4: Expected vector of size 4.");
+        return false;
+    }
+    out.x = float(data[0]);
+    out.y = float(data[1]);
+    out.z = float(data[2]);
+    out.w = float(data[3]);
+    return true;
+}
+
+bool parseQuaternion(const std::vector<double>& data, glm::quat& out) {
+    if (data.size() != 4) {
+        sgl::Logfile::get()->writeError("Error in parseQuaternion: Expected vector of size 4.");
+        return false;
+    }
+    out.x = float(data[0]);
+    out.y = float(data[1]);
+    out.z = float(data[2]);
+    out.w = float(data[3]);
+    return true;
+}
+
+
 void loadEnvironmentMap(const std::string& filename) {
     //std::cout << "loadEnvironmentMap from " << filename << std::endl;
     vptRenderer->loadEnvironmentMapImage(filename);
@@ -638,20 +679,41 @@ void setEnvironmentMapIntensityFactor(double intensityFactor) {
     vptRenderer->setEnvironmentMapIntensityFactor(intensityFactor);
 }
 
-bool parseVector3(std::vector<double> data, glm::vec3& out){
-    if (data.size() != 3){
-        std::cerr << "exptected vector of size 3" << std:: endl;
-        return false;
-    }
-    out.x = data[0];
-    out.y = data[1];
-    out.z = data[2];
- 
-    return true;
+void disableEnvMapRot() {
+    vptRenderer->getVptPass()->disableEnvMapRot();
 }
 
+void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec) {
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
+    if (parseVector3(eulerAnglesVec, vec)) {
+        vptRenderer->getVptPass()->setEnvMapRotEulerAngles(vec);
+    }
+}
+
+void setEnvMapRotYawPitchRoll(std::vector<double> yawPitchRollVec) {
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
+    if (parseVector3(yawPitchRollVec, vec)) {
+        vptRenderer->getVptPass()->setEnvMapRotYawPitchRoll(vec);
+    }
+}
+
+void setEnvMapRotAngleAxis(std::vector<double> _axisVec, double _angle) {
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
+    if (parseVector3(_axisVec, vec)) {
+        vptRenderer->getVptPass()->setEnvMapRotAngleAxis(vec, float(_angle));
+    }
+}
+
+void setEnvMapRotQuaternion(std::vector<double> _quaternionVec) {
+    auto quaternionRot = glm::identity<glm::quat>();
+    if (parseQuaternion(_quaternionVec, quaternionRot)) {
+        vptRenderer->getVptPass()->setEnvMapRotQuaternion(quaternionRot);
+    }
+}
+
+
 void setScatteringAlbedo(std::vector<double> albedo) {
-    glm::vec3 vec = glm::vec3(0,0,0);
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(albedo, vec)) {
         //std::cout << "setScatteringAlbedo to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
         vptRenderer->setScatteringAlbedo(vec);
@@ -664,7 +726,7 @@ void setExtinctionScale(double extinctionScale) {
 }
 
 void setExtinctionBase(std::vector<double> extinctionBase) {
-    glm::vec3 vec = glm::vec3(0,0,0);
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(extinctionBase, vec)) {
         //std::cout << "setExtinctionBase to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
         vptRenderer->setExtinctionBase(vec);
@@ -726,7 +788,7 @@ void setUseHeadlightDistance(bool _useHeadlightDistance) {
 }
 
 void setHeadlightColor(std::vector<double> _headlightColor) {
-    glm::vec3 color = glm::vec3(0,0,0);
+    glm::vec3 color = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(_headlightColor, color)) {
         vptRenderer->getVptPass()->setHeadlightColor(color);
     }
@@ -746,7 +808,7 @@ void setIsoValue(double _isoValue) {
 }
 
 void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor) {
-    glm::vec3 color = glm::vec3(0,0,0);
+    glm::vec3 color = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(_isoSurfaceColor, color)) {
         vptRenderer->getVptPass()->setIsoSurfaceColor(color);
     }
@@ -814,7 +876,7 @@ double getCameraFOVy() {
 }
 
 void setCameraPosition(std::vector<double> cameraPosition) {
-    glm::vec3 vec = glm::vec3(0,0,0);
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(cameraPosition, vec)) {
         //std::cout << "setCameraPosition to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
         vptRenderer->setCameraPosition(vec);
@@ -822,7 +884,7 @@ void setCameraPosition(std::vector<double> cameraPosition) {
 }
 
 void setCameraTarget(std::vector<double> cameraTarget) {
-    glm::vec3 vec = glm::vec3(0,0,0);
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(cameraTarget, vec)) {
         //std::cout << "setCameraTarget to " << vec.x << ", " << vec.y << ", " << vec.z << std::endl;
         vptRenderer->setCameraTarget(vec);

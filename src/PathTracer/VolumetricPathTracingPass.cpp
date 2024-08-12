@@ -985,6 +985,55 @@ void VolumetricPathTracingPass::setEnvironmentMapIntensityFactor(float intensity
     this->environmentMapIntensityFactor = intensityFactor;
 }
 
+void VolumetricPathTracingPass::disableEnvMapRot() {
+    if (useEnvMapRot) {
+        useEnvMapRot = false;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles) {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    envMapRotWidget.setEulerAngles(_eulerAngles);
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
+void VolumetricPathTracingPass::setEnvMapRotYawPitchRoll(const glm::vec3& _yawPitchRoll) {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    envMapRotWidget.setYawPitchRoll(_yawPitchRoll);
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
+void VolumetricPathTracingPass::setEnvMapRotAngleAxis(const glm::vec3& _axis, float _angle) {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    envMapRotWidget.setAngleAxis(_axis, _angle);
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
+void VolumetricPathTracingPass::setEnvMapRotQuaternion(const glm::quat& _quaternion) {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    envMapRotWidget.setQuaternion(_quaternion);
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
 void VolumetricPathTracingPass::setUseHeadlight(bool _useHeadlight) {
     if (useHeadlight != _useHeadlight) {
         this->useHeadlight = _useHeadlight;

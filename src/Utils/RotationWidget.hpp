@@ -47,6 +47,10 @@ class RotationWidget {
 public:
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
     glm::mat3 getMat3();
+    void setEulerAngles(const glm::vec3& _eulerAngles);
+    void setYawPitchRoll(const glm::vec3& _yawPitchRoll);
+    void setAngleAxis(const glm::vec3& _axis, float _angle);
+    void setQuaternion(const glm::quat& _quaternion);
 
 private:
     OrientationMode orientationMode = OrientationMode::EULER_ANGLES;

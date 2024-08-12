@@ -66,3 +66,24 @@ glm::mat3 RotationWidget::getMat3() {
         return glm::toMat3(quaternion);
     }
 }
+
+void RotationWidget::setEulerAngles(const glm::vec3& _eulerAngles) {
+    orientationMode = OrientationMode::EULER_ANGLES;
+    eulerAngles = _eulerAngles;
+}
+
+void RotationWidget::setYawPitchRoll(const glm::vec3& _yawPitchRoll) {
+    orientationMode = OrientationMode::YAW_PITCH_ROLL;
+    yawPitchRoll = _yawPitchRoll;
+}
+
+void RotationWidget::setAngleAxis(const glm::vec3& _axis, float _angle) {
+    orientationMode = OrientationMode::ANGLE_AXIS;
+    axis = _axis;
+    angle = _angle;
+}
+
+void RotationWidget::setQuaternion(const glm::quat& _quaternion) {
+    orientationMode = OrientationMode::QUATERNION;
+    quaternion = _quaternion;
+}
