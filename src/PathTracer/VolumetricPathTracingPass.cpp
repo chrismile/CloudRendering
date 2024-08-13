@@ -982,7 +982,17 @@ void VolumetricPathTracingPass::setUseBuiltinEnvironmentMap(const std::string& e
 }
 
 void VolumetricPathTracingPass::setEnvironmentMapIntensityFactor(float intensityFactor) {
-    this->environmentMapIntensityFactor = intensityFactor;
+    useEnvironmentMapIntensityFactorRgb = false;
+    environmentMapIntensityFactor = intensityFactor;
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
+void VolumetricPathTracingPass::setEnvironmentMapIntensityFactorRgb(const glm::vec3& rgbFactor) {
+    useEnvironmentMapIntensityFactorRgb = true;
+    environmentMapIntensityFactorRgb = rgbFactor;
+    reRender = true;
+    frameInfo.frameCount = 0;
 }
 
 void VolumetricPathTracingPass::disableEnvMapRot() {
@@ -1663,7 +1673,11 @@ void VolumetricPathTracingPass::_render() {
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
-        uniformData.environmentMapIntensityFactor = environmentMapIntensityFactor;
+        if (useEnvironmentMapIntensityFactorRgb) {
+            uniformData.environmentMapIntensityFactor = environmentMapIntensityFactorRgb;
+        } else {
+            uniformData.environmentMapIntensityFactor = glm::vec3(environmentMapIntensityFactor);
+        }
         uniformData.numFeatureMapSamplesPerFrame = numFeatureMapSamplesPerFrame;
         if (useSparseGrid) {
             if (cloudData->getGridSizeX() >= 8 && cloudData->getGridSizeY() >= 8 && cloudData->getGridSizeZ() >= 8) {
@@ -2167,12 +2181,25 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                             "", 1, nullptr,
                             ImGuiFileDialogFlags_None);
                 }
-                if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
-                        "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
+                if (useEnvironmentMapIntensityFactorRgb) {
+                    if (useEnvironmentMapImage && propertyEditor.addSliderFloat3(
+                            "Env. Map Intensity", &environmentMapIntensityFactorRgb.x, 0.0f, 5.0f)) {
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                } else {
+                    if (useEnvironmentMapImage && propertyEditor.addSliderFloat(
+                            "Env. Map Intensity", &environmentMapIntensityFactor, 0.0f, 5.0f)) {
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                }
+
+                if (useEnvironmentMapImage && propertyEditor.addCheckbox(
+                        "Env. Map RGB Factor", &useEnvironmentMapIntensityFactorRgb)) {
                     reRender = true;
                     frameInfo.frameCount = 0;
                 }
-
                 if (useEnvironmentMapImage && propertyEditor.addCheckbox(
                         "Env. Map Linear RGB", &envMapImageUsesLinearRgb)) {
                     setShaderDirty();
