@@ -163,6 +163,9 @@ public:
     void setEnvMapRotQuaternion(const glm::quat& _quaternion);
 
     void setUseHeadlight(bool _useHeadlight);
+    void setHeadlightType(HeadlightType _headlightType);
+    void setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth);
+    void setHeadlightSpotFalloffStart(float _headlightSpotFalloffStart);
     void setUseHeadlightDistance(bool _useHeadlightDistance);
     void setHeadlightColor(const glm::vec3& _headlightColor);
     void setHeadlightIntensity(float _headlightIntensity);
@@ -384,6 +387,12 @@ private:
     float clearcoat = 0.0;
     float clearcoatGloss = 1.0;
 
+    float headlightSpotTotalWidth = 0.0981747704;
+    float headlightSpotFalloffStart = 0.0245436926;
+
+    // Headlight
+    HeadlightType headlightType = HeadlightType::POINT;
+
     // Uniform buffer object storing the scene and camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
@@ -443,7 +452,11 @@ private:
         float sheen = 0.0;
         float sheenTint = 0.5;
         float clearcoat = 0.0;
+        glm::vec3 camForward;
         float clearcoatGloss = 1.0;
+
+        float headlightSpotTotalWidth = 0.0981747704;
+        float headlightSpotFalloffStart = 0.0245436926;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

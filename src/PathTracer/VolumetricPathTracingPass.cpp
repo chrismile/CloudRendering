@@ -1052,6 +1052,29 @@ void VolumetricPathTracingPass::setUseHeadlight(bool _useHeadlight) {
     }
 }
 
+void VolumetricPathTracingPass::setHeadlightType(HeadlightType _headlightType) {
+    if (headlightType != _headlightType) {
+        this->headlightType = _headlightType;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+void VolumetricPathTracingPass::setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth) {
+    if (headlightSpotTotalWidth != _headlightSpotTotalWidth) {
+        this->headlightSpotTotalWidth = _headlightSpotTotalWidth;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
+void VolumetricPathTracingPass::setHeadlightSpotFalloffStart(float _headlightSpotFalloffStart) {
+    if (headlightSpotFalloffStart != _headlightSpotFalloffStart) {
+        this->headlightSpotFalloffStart = _headlightSpotFalloffStart;
+        frameInfo.frameCount = 0;
+        setShaderDirty();
+    }
+}
+
 void VolumetricPathTracingPass::setUseHeadlightDistance(bool _useHeadlightDistance) {
     if (useHeadlightDistance != _useHeadlightDistance) {
         this->useHeadlightDistance = _useHeadlightDistance;
@@ -1380,7 +1403,15 @@ void VolumetricPathTracingPass::loadShader() {
 
     if (useHeadlight) {
         customPreprocessorDefines.insert({ "USE_HEADLIGHT", "" });
+
+        if (headlightType == HeadlightType::POINT) {
+            customPreprocessorDefines.insert({ "HEADLIGHT_TYPE_POINT", "" });
+        }
+        else if (headlightType == HeadlightType::SPOT) {
+            customPreprocessorDefines.insert({ "HEADLIGHT_TYPE_SPOT", "" });
+        }
     }
+
     if (useHeadlightDistance) {
         customPreprocessorDefines.insert({ "USE_HEADLIGHT_DISTANCE", "" });
     }
@@ -1671,6 +1702,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.emissionStrength = emissionStrength;
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
+        uniformData.camForward = (*camera)->getCameraFront();
         uniformData.sunDirection = sunlightDirection;
         uniformData.sunIntensity = sunlightIntensity * sunlightColor;
         if (useEnvironmentMapIntensityFactorRgb) {
@@ -1721,6 +1753,8 @@ void VolumetricPathTracingPass::_render() {
 
         uniformData.headlightColor = headlightColor;
         uniformData.headlightIntensity = headlightIntensity;
+        uniformData.headlightSpotTotalWidth = headlightSpotTotalWidth;
+        uniformData.headlightSpotFalloffStart = headlightSpotFalloffStart;
 
         uniformData.isosurfaceColor = isosurfaceColor;
         uniformData.isoValue = isoValue;
@@ -2292,6 +2326,27 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     setShaderDirty();
                 }
                 if (useHeadlight) {
+                    if (propertyEditor.addCombo("Headlight Type", (int*)&headlightType, HEADLIGHT_TYPES, IM_ARRAYSIZE(HEADLIGHT_TYPES))) {
+                        optionChanged = true;
+                        setShaderDirty();
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                    
+                    if (headlightType == HeadlightType::SPOT) {
+                        if (propertyEditor.addSliderFloat("Total Cone Width Angle", (float*)&headlightSpotTotalWidth, 0.0, M_PI/2)) {
+                            setShaderDirty();
+                            reRender = true;
+                            frameInfo.frameCount = 0;
+                        }
+
+                        if (propertyEditor.addSliderFloat("Falloff Start Angle", (float*)&headlightSpotFalloffStart, 0.0, M_PI/2)) {
+                            setShaderDirty();
+                            reRender = true;
+                            frameInfo.frameCount = 0;
+                        }
+                    }
+                    
                     if (propertyEditor.addCheckbox("Use Headlight Distance", &useHeadlightDistance)) {
                         optionChanged = true;
                         setShaderDirty();
