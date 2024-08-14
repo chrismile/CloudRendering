@@ -62,7 +62,7 @@ bool CloudData::loadFromVdbFile(const std::string& filename) {
     sparseGridHandle = nanovdb::openToNanoVDB(*srcGrid);
 
     std::string filenameNvdb = sgl::FileUtils::get()->removeExtension(filename) + ".nvdb";
-    if (!sgl::FileUtils::get()->exists(filenameNvdb)) {
+    if (cacheSparseGrid && !sgl::FileUtils::get()->exists(filenameNvdb)) {
         nanovdb::io::writeGrid(filenameNvdb, sparseGridHandle);
     }
 
