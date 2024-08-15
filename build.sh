@@ -999,7 +999,7 @@ if $use_open_image_denoise; then
         wget "https://github.com/OpenImageDenoise/oidn/releases/download/v${oidn_version}/oidn-${oidn_version}.x86_64.linux.tar.gz"
         tar -xvzf "oidn-${oidn_version}.x86_64.linux.tar.gz"
     fi
-    params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/embree-${oidn_version}.x86_64.linux/lib/cmake/OpenImageDenoise-${oidn_version}")
+    params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/oidn-${oidn_version}.x86_64.linux/lib/cmake/OpenImageDenoise-${oidn_version}")
 fi
 
 popd >/dev/null # back to project root
