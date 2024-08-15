@@ -74,6 +74,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/Denoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/EAWDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/SVGF.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/CameraPoseLinePass.cpp
@@ -189,6 +190,17 @@ endif()
 if (NOT SUPPORT_OPTIX)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.hpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp)
+endif()
+
+find_package(OpenImageDenoise QUIET)
+if (OpenImageDenoise_FOUND)
+    MESSAGE(STATUS "OpenImageDenoise ${OpenImageDenoise_VERSION} found. Enabling OpenImageDenoise support.")
+else()
+    MESSAGE(STATUS "OpenImageDenoise not found. Disabling OpenImageDenoise support.")
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.hpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.hpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp)
 endif()
 
 find_package(Imath CONFIG QUIET)
@@ -481,6 +493,19 @@ if (${SUPPORT_OPTIX})
                 target_link_libraries(vpt PRIVATE cfgmgr32)
             endif()
 		endif()
+    endif()
+endif()
+
+if (OpenImageDenoise_FOUND)
+    target_link_libraries(CloudRendering PRIVATE OpenImageDenoise)
+    target_compile_definitions(CloudRendering PRIVATE SUPPORT_OPEN_IMAGE_DENOISE)
+    if (${USE_GTEST})
+        target_link_libraries(CloudRendering_test PRIVATE OpenImageDenoise)
+        target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_OPEN_IMAGE_DENOISE)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE OpenImageDenoise)
+        target_compile_definitions(vpt PRIVATE SUPPORT_OPEN_IMAGE_DENOISE)
     endif()
 endif()
 

@@ -59,7 +59,7 @@ public:
     explicit OptixVptDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha);
     ~OptixVptDenoiser() override;
 
-    DenoiserType getDenoiserType() const override { return DenoiserType::OPTIX; }
+    [[nodiscard]] DenoiserType getDenoiserType() const override { return DenoiserType::OPTIX; }
     [[nodiscard]] const char* getDenoiserName() const override { return "OptiX Denoiser"; }
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
     void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;
