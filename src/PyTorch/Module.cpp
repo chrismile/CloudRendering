@@ -65,6 +65,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::load_environment_map", loadEnvironmentMap);
     m.def("vpt::set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
+    m.def("vpt::set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
     m.def("vpt::disable_env_map_rot", disableEnvMapRot);
     m.def("vpt::set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
     m.def("vpt::set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
@@ -677,6 +678,13 @@ void setUseBuiltinEnvironmentMap(const std::string& envMapName) {
 void setEnvironmentMapIntensityFactor(double intensityFactor) {
     //std::cout << "setEnvironmentMapIntensityFactor to " << intensityFactor << std::endl;
     vptRenderer->setEnvironmentMapIntensityFactor(intensityFactor);
+}
+
+void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor) {
+    glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
+    if (parseVector3(intensityFactor, vec)) {
+        vptRenderer->getVptPass()->setEnvironmentMapIntensityFactorRgb(vec);
+    }
 }
 
 void disableEnvMapRot() {

@@ -41,6 +41,7 @@ MODULE_OP_API void loadEmissionFile(const std::string& filename);
 MODULE_OP_API void loadEnvironmentMap(const std::string& filename);
 MODULE_OP_API void setUseBuiltinEnvironmentMap(const std::string& envMapName);
 MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
+MODULE_OP_API void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor);
 
 MODULE_OP_API void disableEnvMapRot();
 MODULE_OP_API void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec);
