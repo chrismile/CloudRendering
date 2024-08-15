@@ -851,6 +851,44 @@ vec3 computeGradient(vec3 texCoords) {
 #endif
 }
 
+// Version before commit ec19aebe3fd8df5571cca8ee7449c00d5874e613
+vec3 computeGradientLegacy(vec3 texCoords) {
+#ifdef DIFFERENCES_NEIGHBOR
+    const float dx = 1.0;
+    const float dy = 1.0;
+    const float dz = 1.0;
+    float gradX =
+            (sampleIsoImageOffset(texCoords, ivec3(-1, 0, 0))
+            - sampleIsoImageOffset(texCoords, ivec3(1, 0, 0))) * 0.5 / dx;
+    float gradY =
+            (sampleIsoImageOffset(texCoords, ivec3(0, -1, 0))
+            - sampleIsoImageOffset(texCoords, ivec3(0, 1, 0))) * 0.5 / dy;
+    float gradZ =
+            (sampleIsoImageOffset(texCoords, ivec3(0, 0, -1))
+            - sampleIsoImageOffset(texCoords, ivec3(0, 0, 1))) * 0.5 / dz;
+#else
+    const float dx = parameters.voxelTexelSize.x * 1;
+    const float dy = parameters.voxelTexelSize.y * 1;
+    const float dz = parameters.voxelTexelSize.z * 1;
+    float gradX =
+            (sampleIsoImage(texCoords - vec3(dx, 0.0, 0.0))
+            - sampleIsoImage(texCoords + vec3(dx, 0.0, 0.0))) * 0.5;
+    float gradY =
+            (sampleIsoImage(texCoords - vec3(0.0, dy, 0.0))
+            - sampleIsoImage(texCoords + vec3(0.0, dy, 0.0))) * 0.5;
+    float gradZ =
+            (sampleIsoImage(texCoords - vec3(0.0, 0.0, dz))
+            - sampleIsoImage(texCoords + vec3(0.0, 0.0, dz))) * 0.5;
+#endif
+
+    vec3 grad = vec3(gradX, gradY, gradZ);
+    float gradLength = length(grad);
+    if (gradLength < 1e-3) {
+        return vec3(0.0, 0.0, 1.0);
+    }
+    return grad / gradLength;
+}
+
 const int MAX_NUM_REFINEMENT_STEPS = 8;
 
 void refineIsoSurfaceHit(inout vec3 currentPoint, vec3 lastPoint, float stepSign) {
