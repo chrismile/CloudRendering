@@ -1153,6 +1153,15 @@ bool getIsoSurfaceHit(
 
     w = dirOut;
     throughput *= colorOut;
+
+    if(isnan(colorOut[0]) || isinf(colorOut[0])) {
+        debugPrintfEXT("------------- VPT UILS Final Check");
+
+        debugPrintfEXT("Error, colorOut: %f",colorOut[0]);
+
+        debugPrintfEXT("-------------");
+    }
+
     return true;
 }
 

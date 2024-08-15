@@ -64,6 +64,11 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out
 
     // Compute light Vector l
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+    
+    vec3 normalVector = vec3(frameMatrix[2].x,frameMatrix[2].y,frameMatrix[2].z);
+    if(dot(lightVector, normalVector) == -1.0 || dot(lightVector, normalVector) == 1.0) {
+        debugPrintfEXT("Wrong Light Vector Clearcoat");
+    }
     return lightVector;
 }
 
@@ -78,10 +83,15 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h)
     float phi = 2 * M_PI * v;
     theta_h = theta;
 
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
+    vec3 lightVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+    //vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+    
+    vec3 normalVector = vec3(frameMatrix[2].x,frameMatrix[2].y,frameMatrix[2].z);
+    if(dot(lightVector, normalVector) == -1.0 || dot(lightVector, normalVector) == 1.0) {
+        debugPrintfEXT("Wrong Light Vector Diffuse");
+    }
     return lightVector;
 }
 
@@ -93,11 +103,15 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     float theta = acos(sqrt((1-v)/(1+((cos(phi)*cos(phi)/(ax*ax))+(sin(phi)*sin(phi)/(ay*ay)))*v)));
     theta_h = theta;
 
-    // Pronblem:
+    // Problem:
     // sqrt macht Problem für negativ
     // NMormalize macht problem für nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
     vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+
+    if(dot(lightVector, normalVector) == -1.0 || dot(lightVector, normalVector) == 1.0) {
+        debugPrintfEXT("Wrong LightVector: Specular");
+    }
     return lightVector;
 }
 
@@ -118,7 +132,18 @@ float smithG_GGX(float NdotV, float alphaG) {
 
     float a = alphaG * alphaG;
     float b = NdotV * NdotV;
-    return 1 / (NdotV + sqrt(a + b - a * b));
+
+    float result = 1.0 / (NdotV + sqrt(a + b - a * b));
+    if(isnan(result) || isinf(result) || result == 0) {
+        debugPrintfEXT("-------- smithG_GGX");
+        debugPrintfEXT("NaN Value for result: %f",result);
+        debugPrintfEXT("NaN Value for NdotV: %f",NdotV);
+        debugPrintfEXT("NaN Value for a: %f",a);
+        debugPrintfEXT("NaN Value for b: %f",b);
+        debugPrintfEXT("NaN Value for sqr: %f",sqrt(a + b - a * b));
+
+    }
+    return result;
 }
 
 // ---------- BRDF Interface ----------
@@ -194,7 +219,7 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
     float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
     float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
+    float f_d_subsurface = 1.25 * (f_subsurface * (1.0/max(theta_l + theta_v,0.001) - 0.5) + 0.5);
 
     // Sheen
     float f_h = pow((1 - theta_d), 5.0);
@@ -202,6 +227,30 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 
     vec3 diffuse = (col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
     
+    if(isnan(f_d_subsurface) || isinf(f_d_subsurface)) {
+        debugPrintfEXT("NaN Value for f_d_subsurface: %f",f_d_subsurface);
+    }
+
+    if(isnan(theta_v) || isinf(theta_v)) {
+        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
+    }
+    if(isnan(theta_l) || isinf(theta_l)) {
+        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
+    }
+
+
+    if(isnan(f_d_subsurface_90) || isinf(f_d_subsurface_90)) {
+        debugPrintfEXT("NaN Value for f_d_subsurface_90: %f",f_d_subsurface_90);
+    }
+
+    if(isnan(f_subsurface) || isinf(f_subsurface)) {
+        debugPrintfEXT("NaN Value for f_subsurface: %f",f_subsurface);
+    }
+
+    if(isnan(f_d) || isinf(f_d)) {
+        debugPrintfEXT("NaN Value for f_d: %f",f_d);
+    }
+
     // Specular F (Schlick Fresnel Approximation)
     vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
     
@@ -221,8 +270,22 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     float f_clearcoat = mix(0.04,1.0,f_h);
     float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
+
         
-    float clear = parameters.clearcoat*f_clearcoat*g_clearcoat*NdotL*VdotH * sin(th)/NdotH;
+    float clear = parameters.clearcoat * f_clearcoat * g_clearcoat*NdotL * VdotH * sin(th)/NdotH;
+    
+    if(isnan(g_clearcoat) || isinf(g_clearcoat)) {
+        debugPrintfEXT("-------- EvaluateBRDF: Check if g_clearcoat fails");
+        debugPrintfEXT("NaN Value for g_clearcoat: %f",g_clearcoat);
+        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
+        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
+        debugPrintfEXT("normalVector: %f %f %f",normalVector[0],normalVector[1],normalVector[2]);
+        debugPrintfEXT("lightVector: %f %f %f",lightVector[0],lightVector[1],lightVector[2]);
+        debugPrintfEXT("NdotL: %f",dot(normalVector,lightVector));
+        debugPrintfEXT("HitFlags spec: %d",hitFlags.specularHit);
+        debugPrintfEXT("HitFlags clear: %d",hitFlags.clearcoatHit);
+    }
+
     // Result
 
     if (hitFlags.specularHit) {
@@ -234,7 +297,22 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     } else {
         samplingPDF = (1.0/M_PI);
     }
+    
+    if(isnan(diffuse[0]) || isinf(diffuse[0])) {
+        debugPrintfEXT("-------- EvaluateBRDF: Diffuse Final Check");
+        debugPrintfEXT("NaN Value for diffuse: %f",diffuse[0]);
+    }
 
+    if(isnan(specular[0]) || isinf(specular[0])) {
+            debugPrintfEXT("-------- EvaluateBRDF: Specular Final Check");
+
+        debugPrintfEXT("NaN Value for spec: %f",specular[0]);
+    }
+    if(isnan(clear) || isinf(clear)) {
+            debugPrintfEXT("-------- EvaluateBRDF: Clear Final Check");
+
+        debugPrintfEXT("NaN Value for clear: %f",clear);
+    }
     return diffuse + specular + clear;
 }
 
@@ -342,5 +420,12 @@ vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 
 
     float th;
     lightVector = sampleBrdf(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, parameters.subsurface, viewVector, frame, ax, ay, normalVector, tangentVector, bitangentVector, th, hitFlags);
+    
+    if(dot(lightVector, normalVector) == -1.0 || dot(lightVector, normalVector) == 1.0) {
+        debugPrintfEXT("computeBrdf: Light Vector is wrong! %f", dot(lightVector, normalVector));
+        debugPrintfEXT("%d", hitFlags.specularHit);
+        debugPrintfEXT("%d", hitFlags.clearcoatHit);
+    }
+    
     return evaluateBrdf(viewVector, lightVector, normalVector, isoSurfaceColor, th, ax, ay, tangentVector, bitangentVector, hitFlags, samplingPDF);
 }
