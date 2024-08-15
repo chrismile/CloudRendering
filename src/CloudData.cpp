@@ -804,7 +804,7 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
         densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
     } else if (formatString == "MET_FLOAT16" || formatString == "MET_HALF") {
         auto* densityFieldHalf = new HalfFloat[totalSize];
-        memcpy(densityFieldHalf, bufferRaw, sizeof(HalfFloat) * totalSize);
+        memcpy((void*)densityFieldHalf, (const void*)bufferRaw, sizeof(HalfFloat) * totalSize);
         if (useCustomTransform) {
             transposeField(densityFieldHalf, xs, ys, zs, mirrorAxes);
         }

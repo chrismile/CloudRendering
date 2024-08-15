@@ -61,7 +61,12 @@ glm::mat3 RotationWidget::getMat3() {
     } else if (orientationMode == OrientationMode::YAW_PITCH_ROLL) {
         return glm::yawPitchRoll(yawPitchRoll.x, yawPitchRoll.y, yawPitchRoll.z);
     } else if (orientationMode == OrientationMode::ANGLE_AXIS) {
-        return glm::toMat3(glm::angleAxis(angle, axis));
+        auto axisLength = glm::length(axis);
+        glm::vec3 normalizedAxis = axis;
+        if (axisLength > 1e-6f) {
+            normalizedAxis /= axisLength;
+        }
+        return glm::toMat3(glm::angleAxis(angle, normalizedAxis));
     } else {
         return glm::toMat3(quaternion);
     }

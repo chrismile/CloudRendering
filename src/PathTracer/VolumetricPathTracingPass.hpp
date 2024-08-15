@@ -153,6 +153,7 @@ public:
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
     void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
+    void setEnvironmentMapIntensityFactorRgb(const glm::vec3& rgbFactor);
 
     // Environment
     void disableEnvMapRot();
@@ -314,7 +315,9 @@ private:
     void createEnvironmentMapOctahedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
+    bool useEnvironmentMapIntensityFactorRgb = false;
     float environmentMapIntensityFactor = 1;
+    glm::vec3 environmentMapIntensityFactorRgb = glm::vec3(1.0f);
     bool useEnvMapRot = false;
     glm::mat3 envMapRot = glm::identity<glm::mat3>();
     RotationWidget envMapRotWidget;
@@ -408,8 +411,8 @@ private:
 
         float G = 0.5f; // 0.875f
         glm::vec3 sunDirection; float pad7;
-        glm::vec3 sunIntensity;
-        float environmentMapIntensityFactor;
+        glm::vec3 sunIntensity; float pad8;
+        glm::vec3 environmentMapIntensityFactor; float pad9;
         float envMapDirRot[12]; //< Environment map sampling direction rotation matrix (mat3).
         float invEnvMapDirRot[12]; //< Inverse of matrix above.
 
@@ -421,10 +424,10 @@ private:
         int useLinearRGB;
 
         // For decomposition and residual ratio tracking.
-        glm::ivec3 superVoxelSize; int pad8;
-        glm::ivec3 superVoxelGridSize; int pad9;
+        glm::ivec3 superVoxelSize; int pad10;
+        glm::ivec3 superVoxelGridSize; int pad11;
 
-        glm::ivec3 gridResolution; int pad10;
+        glm::ivec3 gridResolution; int pad12;
         glm::vec3 voxelTexelSize;
         float farDistance;
 

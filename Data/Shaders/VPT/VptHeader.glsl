@@ -63,7 +63,7 @@ layout (binding = 3) uniform Parameters {
     // Sky properties.
     vec3 sunDirection;
     vec3 sunIntensity;
-    float environmentMapIntensityFactor;
+    vec3 environmentMapIntensityFactor;
     mat3 envMapDirRot; //< Environment map sampling direction rotation matrix (mat3).
     mat3 invEnvMapDirRot; //< Inverse of matrix above.
 
