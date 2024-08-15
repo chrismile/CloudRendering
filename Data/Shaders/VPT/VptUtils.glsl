@@ -1101,6 +1101,7 @@ bool getIsoSurfaceHit(
                         2.0 * throughput * rdfNee * weightNee / pdfLightNee *
                         calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
                         (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+
                 colorNee +=
                         2.0 * throughput * weightOut * colorOut *
                         calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
@@ -1108,6 +1109,24 @@ bool getIsoSurfaceHit(
             }
 
 #else
+                if(isnan(calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee)) ||isinf(calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee))) {
+                    debugPrintfEXT("Transmittance is the problem!");
+                }
+                if(isnan(weightNee) || isinf(weightNee)) {
+                    debugPrintfEXT("weight is the problem");
+                    debugPrintfEXT("PDF Light Nee %f",pdfLightNee);
+                    debugPrintfEXT("PDF Sampling Nee %f",pdfSamplingNee);
+
+                }
+                if(isnan(pdfLightNee) || isinf(pdfLightNee) || pdfLightNee == 0) {
+                    debugPrintfEXT("pdf is the problem");
+                }
+                if(isnan(sampleSkybox(dirLightNee)[0]) || isinf(sampleSkybox(dirLightNee)[0])) {
+                    debugPrintfEXT("sampleSkyBox is the problem");
+                }
+                if(isnan(sampleLight(dirOut)[0]) || isinf(sampleLight(dirOut)[0])) {
+                    debugPrintfEXT("sampleLight is the problem");
+                }
 
             colorNee +=
                     throughput * rdfNee * weightNee / pdfLightNee *
@@ -1137,6 +1156,18 @@ bool getIsoSurfaceHit(
                         (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
             }
 #else
+                if(isnan(rdfNee[0]) || isinf(rdfNee[0])) {
+                    debugPrintfEXT("rdfNee is the problem");
+                }
+                                if(isnan(pdfLightNee) || isinf(pdfLightNee)) {
+                    debugPrintfEXT("pdf is the problem");
+                }
+                if(isnan(sampleSkybox(dirLightNee)[0]) || isinf(sampleSkybox(dirLightNee)[0])) {
+                    debugPrintfEXT("sampleSkyBox is the problem");
+                }
+                if(isnan(sampleLight(dirLightNee)[0]) || isinf(sampleLight(dirLightNee)[0])) {
+                    debugPrintfEXT("sampleLight is the problem");
+                }
         colorNee +=
                 throughput * rdfNee / pdfLightNee *
                 calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
@@ -1158,6 +1189,16 @@ bool getIsoSurfaceHit(
         debugPrintfEXT("------------- VPT UILS Final Check");
 
         debugPrintfEXT("Error, colorOut: %f",colorOut[0]);
+        debugPrintfEXT("Normal %f %f %f: ", surfaceNormal[0], surfaceNormal[1], surfaceNormal[2]);
+
+        debugPrintfEXT("-------------");
+    }
+    if(isnan(colorNee[0]) || isinf(colorNee[0])) {
+        debugPrintfEXT("------------- VPT UILS Final Check");
+
+        debugPrintfEXT("Error, colorNee: %f",colorNee[0]);
+        debugPrintfEXT("useMIS: %d",useMIS);
+
 
         debugPrintfEXT("-------------");
     }
