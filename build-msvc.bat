@@ -70,8 +70,8 @@ if %clean% == true (
     echo ------------------------
     echo  cleaning up old files
     echo ------------------------
-    rd /s /q ".third_party\sgl"
-    rd /s /q ".third_party\vcpkg"
+    rd /s /q "third_party\sgl"
+    rd /s /q "third_party\vcpkg"
     rd /s /q ".build"
     rd /s /q "Shipping"
 )
@@ -176,6 +176,16 @@ if %build_with_openvdb_support% == true (
     )
 )
 set cmake_args=%cmake_args% -DCMAKE_MODULE_PATH="third_party/openvdb/lib/cmake/OpenVDB"
+
+set oidn_version=2.3.0
+if not exist ".\oidn-%oidn_version%.x64.windows" (
+    echo ------------------------
+    echo downloading OpenImageDenoise
+    echo ------------------------
+    curl.exe -L "https://github.com/OpenImageDenoise/oidn/releases/download/v%oidn_version%/oidn-%oidn_version%.x64.windows.zip" --output oidn-%oidn_version%.x64.windows.zip
+    tar -xvzf "oidn-%oidn_version%.x64.windows.zip"
+)
+set cmake_args=%cmake_args% -DOpenImageDenoise_DIR="third_party/oidn-%oidn_version%.x64.windows/lib/cmake/OpenImageDenoise-%oidn_version%"
 
 popd
 

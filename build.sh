@@ -64,6 +64,11 @@ install_module=false
 use_download_swapchain=false
 use_custom_jsoncpp=false
 use_custom_openexr=false
+use_open_image_denoise=true
+if $use_macos || $use_msys; then
+    # OpenImageDenoise needs more testing on macOS (due to Metal buffer sharing) and MinGW (due to MSVC compat tests).
+    use_open_image_denoise=false
+fi
 
 # Check if a conda environment is already active.
 if $use_conda; then
@@ -981,6 +986,22 @@ if $use_custom_openexr; then
     params+=(-DOpenEXR_DIR="${projectpath}/third_party/openexr/lib/cmake/OpenEXR")
 fi
 
+if $use_open_image_denoise; then
+    oidn_version="2.3.0"
+    if [ ! -d "./oidn-${oidn_version}.x86_64.linux" ]; then
+        echo "------------------------"
+        echo "downloading OpenImageDenoise"
+        echo "------------------------"
+        #https://github.com/OpenImageDenoise/oidn/releases/download/v2.3.0/oidn-2.3.0.x86_64.linux.tar.gz
+        #https://github.com/OpenImageDenoise/oidn/releases/download/v2.3.0/oidn-2.3.0.x64.windows.zip
+        #https://github.com/OpenImageDenoise/oidn/releases/download/v2.3.0/oidn-2.3.0.arm64.macos.tar.gz
+        #https://github.com/OpenImageDenoise/oidn/releases/download/v2.3.0/oidn-2.3.0.x86_64.macos.tar.gz
+        wget "https://github.com/OpenImageDenoise/oidn/releases/download/v${oidn_version}/oidn-${oidn_version}.x86_64.linux.tar.gz"
+        tar -xvzf "oidn-${oidn_version}.x86_64.linux.tar.gz"
+    fi
+    params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/oidn-${oidn_version}.x86_64.linux/lib/cmake/OpenImageDenoise-${oidn_version}")
+fi
+
 popd >/dev/null # back to project root
 
 if [ $debug = true ]; then
@@ -1070,6 +1091,9 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
         cp $(ldd $build_dir/libvpt.so | grep libOpenEXR | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
         cp $(ldd $build_dir/libvpt.so | grep libIex | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
         cp $(ldd $build_dir/libvpt.so | grep libIlmThread | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+    fi
+    if $use_open_image_denoise; then
+        cp $(ldd $build_dir/libvpt.so | grep OpenImage | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi

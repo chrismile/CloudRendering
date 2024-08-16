@@ -51,6 +51,9 @@ enum class DenoiserType {
 #ifdef SUPPORT_OPTIX
     OPTIX,
 #endif
+#ifdef SUPPORT_OPEN_IMAGE_DENOISE
+    OPEN_IMAGE_DENOISE,
+#endif
     SVGF
 };
 const char* const DENOISER_NAMES[] = {
@@ -61,6 +64,9 @@ const char* const DENOISER_NAMES[] = {
 #endif
 #ifdef SUPPORT_OPTIX
         "OptiX Denoiser",
+#endif
+#ifdef SUPPORT_OPEN_IMAGE_DENOISE
+        "OpenImageDenoise",
 #endif
         "SVGF"
 };
@@ -111,7 +117,7 @@ const uint32_t FEATURE_MAP_NUM_CHANNELS_PADDED[] = {
 class Denoiser {
 public:
     virtual ~Denoiser() = default;
-    virtual DenoiserType getDenoiserType() const = 0;
+    [[nodiscard]] virtual DenoiserType getDenoiserType() const = 0;
     [[nodiscard]] virtual const char* getDenoiserName() const = 0;
     [[nodiscard]] virtual bool getIsEnabled() const { return true; }
     virtual void setOutputImage(sgl::vk::ImageViewPtr& outputImage) = 0;

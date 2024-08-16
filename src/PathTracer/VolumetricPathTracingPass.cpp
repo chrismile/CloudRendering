@@ -521,7 +521,10 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
 }*/
 
 bool VolumetricPathTracingPass::getNeedsGradientField() {
-    return isosurfaceType == IsosurfaceType::GRADIENT || (useIsosurfaceTf && isosurfaceType == IsosurfaceType::DENSITY);
+    auto* tfWindow = cloudData->getTransferFunctionWindow();
+    bool useTransferFunction = tfWindow && tfWindow->getShowWindow();
+    return isosurfaceType == IsosurfaceType::GRADIENT
+            || (useIsosurfaceTf && isosurfaceType == IsosurfaceType::DENSITY && useTransferFunction);
 }
 
 void VolumetricPathTracingPass::setGridData() {
