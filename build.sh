@@ -254,12 +254,13 @@ list_contains() {
 if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [ ! -d $build_dir_release ]; then
     if ! command -v cmake &> /dev/null || ! command -v git &> /dev/null || ! command -v rsync &> /dev/null \
             || ! command -v curl &> /dev/null || ! command -v wget &> /dev/null || ! command -v unzip &> /dev/null \
-            || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null; then
+            || ! command -v pkg-config &> /dev/null || ! command -v g++ &> /dev/null \
+            || ! command -v ntldd &> /dev/null; then
         echo "------------------------"
         echo "installing build essentials"
         echo "------------------------"
         pacman --noconfirm -S --needed make git rsync curl wget unzip mingw64/mingw-w64-x86_64-cmake \
-        mingw64/mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-gdb
+        mingw64/mingw-w64-x86_64-gcc mingw64/mingw-w64-x86_64-gdb mingw-w64-x86_64-ntldd
     fi
 
     # Dependencies of sgl and the application.
@@ -1006,6 +1007,11 @@ if $use_open_image_denoise; then
         fi
     fi
     params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/${oidn_folder_name}/lib/cmake/OpenImageDenoise-${oidn_version}")
+    if [ $use_msys = true ]; then
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/bin"
+    else
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/lib"
+    fi
 fi
 
 popd >/dev/null # back to project root
@@ -1144,14 +1150,15 @@ if $use_msys; then
     cp "$build_dir/CloudRendering.exe" "$destination_dir/bin"
 
     # Copy all dependencies of the application to the destination directory.
-    ldd_output="$(ldd $destination_dir/bin/CloudRendering.exe)"
-    for library in $ldd_output
+    ldd_output="$(ntldd -R $destination_dir/bin/CloudRendering.exe)"
+    for library_abs in $ldd_output
     do
-        if [[ $library == "$MSYSTEM_PREFIX"* ]] ;
+        library="$(cygpath "$library_abs")"
+        if [[ $library == "$MSYSTEM_PREFIX"* ]] or [[ $library == "$projectpath"* ]];
         then
             cp "$library" "$destination_dir/bin"
         fi
-        if [[ $library == libpython* ]] ;
+        if [[ $library == libpython* ]];
         then
             tmp=${library#*lib}
             Python3_VERSION=${tmp%.dll}

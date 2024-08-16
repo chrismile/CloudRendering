@@ -102,8 +102,8 @@ int main(int argc, char *argv[]) {
     sgl::Window* window = sgl::AppSettings::get()->createWindow();
 
     std::vector<const char*> optionalDeviceExtensions;
-#ifdef SUPPORT_CUDA_INTEROP
-    optionalDeviceExtensions = sgl::vk::Device::getCudaInteropDeviceExtensions();
+#if defined(SUPPORT_CUDA_INTEROP) || defined(SUPPORT_OPEN_IMAGE_DENOISE)
+    optionalDeviceExtensions = sgl::vk::Device::getVulkanInteropDeviceExtensions();
 #endif
     optionalDeviceExtensions.push_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);
 
