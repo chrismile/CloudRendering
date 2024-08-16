@@ -27,6 +27,16 @@
 // ---------- BRDF Helper Functions ----------
 
 // 1. Helper functions for sampling
+
+// Return the value further away from 0
+float avoidZero(float x, float y){
+    if ((abs(x) > abs(y))) {
+        return abs(x);
+    } else {
+        return abs(y);
+    }
+}
+
 vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
     // Source (mathematical derivation): https://www.youtube.com/watch?v=MkFS6lw6aEs
     // Generate random u and v between 0.0 and 1.0
@@ -45,7 +55,7 @@ vec3 sample_GGX(vec3 viewVector, float roughness, mat3 frameMatrix) {
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+    vec3 lightVector = 2*avoidZero(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
     return lightVector;
 }
 
@@ -61,10 +71,8 @@ vec3 sample_Lambertian(vec3 viewVector, mat3 frameMatrix) {
 
     // pdf
     //pdf_diffuse = (sin(theta)*cos(theta)/M_PI);
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
+    vec3 lightVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
 }
 
@@ -99,7 +107,7 @@ float D_Beckmann(float NdotH, float roughness) {
 float G1_GGX_Schlick(float NdotV, float roughness) {
     float alpha = roughness * roughness;
     float k = alpha / 2.0;
-    return max(NdotV, 0.001) / (NdotV * (1.0 - k) + k);
+    return max(NdotV, 0.001) / (max(NdotV, 0.001) * (1.0 - k) + k);
 }
 
 // Source: https://www.youtube.com/watch?v=gya7x9H3mV0
@@ -170,7 +178,7 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     rhoD *= (1.0 - parameters.metallic);
     vec3 diff = rhoD;
     // Whitout importance sampling: rhoD *= (1.0 / M_PI)
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
+    float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
     float cosThetaH = NdotH;
 
     if (hitFlags.specularHit) {
@@ -208,7 +216,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     // Speuclar G: G_Smith with G_1Smith-GGX
     float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
 
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
+    float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
     vec3 spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
     
     // Diffuse Part
@@ -233,7 +241,7 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
 
         vec3 halfwayVectorNee  = normalize(dirNee + viewVector);
         float cosThetaHNee = dot(halfwayVectorNee, normalVector);
-        float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
+        float sinThetaHNee = sqrt(1.0 - min(cosThetaHNee*cosThetaHNee,0.95));
 
         pdfSamplingOut = samplingPDF * cosThetaH * sinThetaH;
         pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;

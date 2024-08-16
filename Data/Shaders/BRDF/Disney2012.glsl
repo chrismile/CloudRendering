@@ -61,6 +61,14 @@ float atan2(in float y, in float x) {
     return mix(PI / 2.0 - atan(x,y), atan(y,x), s);
 }
 
+float avoidZero(float x, float y){
+    if ((abs(x) > abs(y))) {
+        return abs(x);
+    } else {
+        return abs(y);
+    }
+}
+
 vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
     // Adapated from derviations here: https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
@@ -75,9 +83,8 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
-    vec3 lightVector = 2*max(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
+    vec3 lightVector = 2*avoidZero(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
     
-    vec3 normalVector = vec3(frameMatrix[2].x,frameMatrix[2].y,frameMatrix[2].z);
     return lightVector;
 }
 
@@ -94,10 +101,6 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h)
 
     vec3 lightVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
-    // Compute light Vector l
-    //vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
-    
-    vec3 normalVector = vec3(frameMatrix[2].x,frameMatrix[2].y,frameMatrix[2].z);
     return lightVector;
 }
 
@@ -114,7 +117,7 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     // NMormalize macht problem für nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
 
-    vec3 lightVector = 2*max(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
+    vec3 lightVector = 2*avoidZero(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
 
     return lightVector;
 }
