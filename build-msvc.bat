@@ -192,6 +192,7 @@ if not exist ".\oidn-%oidn_version%.x64.windows" (
     echo ------------------------
     curl.exe -L "https://github.com/OpenImageDenoise/oidn/releases/download/v%oidn_version%/oidn-%oidn_version%.x64.windows.zip" --output oidn-%oidn_version%.x64.windows.zip
     tar -xvzf "oidn-%oidn_version%.x64.windows.zip"
+    del "oidn-%oidn_version%.x64.windows.zip"
 )
 set cmake_args=%cmake_args% -DOpenImageDenoise_DIR="third_party/oidn-%oidn_version%.x64.windows/lib/cmake/OpenImageDenoise-%oidn_version%"
 

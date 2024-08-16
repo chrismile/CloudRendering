@@ -1005,13 +1005,9 @@ if $use_open_image_denoise; then
         elif $use_macos; then
             tar -xvzf "${oidn_archive_name}"
         fi
+        rm "${oidn_archive_name}"
     fi
     params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/${oidn_folder_name}/lib/cmake/OpenImageDenoise-${oidn_version}")
-    if [ $use_msys = true ]; then
-        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/bin"
-    else
-        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/lib"
-    fi
 fi
 
 popd >/dev/null # back to project root
@@ -1137,6 +1133,47 @@ startswith() {
 }
 
 if $use_msys; then
+    if [[ -z "${PATH+x}" ]]; then
+        export PATH="${projectpath}/third_party/sgl/install/bin"
+    elif [[ ! "${PATH}" == *"${projectpath}/third_party/sgl/install/bin"* ]]; then
+        export PATH="${projectpath}/third_party/sgl/install/bin:$PATH"
+    fi
+elif $use_macos; then
+    if [ -z "${DYLD_LIBRARY_PATH+x}" ]; then
+        export DYLD_LIBRARY_PATH="${projectpath}/third_party/sgl/install/lib"
+    elif contains "${DYLD_LIBRARY_PATH}" "${projectpath}/third_party/sgl/install/lib"; then
+        export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:${projectpath}/third_party/sgl/install/lib"
+    fi
+else
+  if [[ -z "${LD_LIBRARY_PATH+x}" ]]; then
+      export LD_LIBRARY_PATH="${projectpath}/third_party/sgl/install/lib"
+  elif [[ ! "${LD_LIBRARY_PATH}" == *"${projectpath}/third_party/sgl/install/lib"* ]]; then
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/sgl/install/lib"
+  fi
+fi
+if $use_open_image_denoise; then
+    if $use_msys; then
+        if [[ -z "${PATH+x}" ]]; then
+            export PATH="${projectpath}/third_party/${oidn_folder_name}/bin"
+        elif [[ ! "${PATH}" == *"${projectpath}/third_party/${oidn_folder_name}/bin"* ]]; then
+            export PATH="${projectpath}/third_party/${oidn_folder_name}/bin:$PATH"
+        fi
+    elif $use_macos; then
+        if [ -z "${DYLD_LIBRARY_PATH+x}" ]; then
+            export DYLD_LIBRARY_PATH="${projectpath}/third_party/${oidn_folder_name}/lib"
+        elif contains "${DYLD_LIBRARY_PATH}" "${projectpath}/third_party/${oidn_folder_name}/lib"; then
+            export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/lib"
+        fi
+    else
+      if [[ -z "${LD_LIBRARY_PATH+x}" ]]; then
+          export LD_LIBRARY_PATH="${projectpath}/third_party/${oidn_folder_name}/lib"
+      elif [[ ! "${LD_LIBRARY_PATH}" == *"${projectpath}/third_party/${oidn_folder_name}/lib"* ]]; then
+          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/${oidn_folder_name}/lib"
+      fi
+    fi
+fi
+
+if $use_msys; then
     mkdir -p $destination_dir/bin
 
     # Copy sgl to the destination directory.
@@ -1150,11 +1187,15 @@ if $use_msys; then
     cp "$build_dir/CloudRendering.exe" "$destination_dir/bin"
 
     # Copy all dependencies of the application to the destination directory.
-    ldd_output="$(ntldd -R $destination_dir/bin/CloudRendering.exe)"
+    ldd_output="$(ntldd -R $build_dir/CloudRendering.exe)"
     for library_abs in $ldd_output
     do
+        if [[ $library == "not found"* ]] || [[ $library == "ext-ms-win"* ]] || [[ $library == "=>"* ]] \
+                || [[ $library == "(0x"* ]] || [[ $library == "C:\\WINDOWS"* ]]; then
+            continue
+        fi
         library="$(cygpath "$library_abs")"
-        if [[ $library == "$MSYSTEM_PREFIX"* ]] or [[ $library == "$projectpath"* ]];
+        if [[ $library == "$MSYSTEM_PREFIX"* ]] || [[ $library == "$projectpath"* ]];
         then
             cp "$library" "$destination_dir/bin"
         fi
@@ -1336,26 +1377,6 @@ fi
 echo ""
 echo "All done!"
 pushd $build_dir >/dev/null
-
-if $use_msys; then
-    if [[ -z "${PATH+x}" ]]; then
-        export PATH="${projectpath}/third_party/sgl/install/bin"
-    elif [[ ! "${PATH}" == *"${projectpath}/third_party/sgl/install/bin"* ]]; then
-        export PATH="${projectpath}/third_party/sgl/install/bin:$PATH"
-    fi
-elif $use_macos; then
-    if [ -z "${DYLD_LIBRARY_PATH+x}" ]; then
-        export DYLD_LIBRARY_PATH="${projectpath}/third_party/sgl/install/lib"
-    elif contains "${DYLD_LIBRARY_PATH}" "${projectpath}/third_party/sgl/install/lib"; then
-        export DYLD_LIBRARY_PATH="DYLD_LIBRARY_PATH:${projectpath}/third_party/sgl/install/lib"
-    fi
-else
-  if [[ -z "${LD_LIBRARY_PATH+x}" ]]; then
-      export LD_LIBRARY_PATH="${projectpath}/third_party/sgl/install/lib"
-  elif [[ ! "${LD_LIBRARY_PATH}" == *"${projectpath}/third_party/sgl/install/lib"* ]]; then
-      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/sgl/install/lib"
-  fi
-fi
 
 if [ $run_program = true ] && [ $use_macos = false ]; then
     ./CloudRendering ${params_run[@]+"${params_run[@]}"}
