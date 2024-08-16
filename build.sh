@@ -999,7 +999,11 @@ if $use_open_image_denoise; then
         echo "downloading OpenImageDenoise"
         echo "------------------------"
         wget "https://github.com/OpenImageDenoise/oidn/releases/download/v${oidn_version}/${oidn_archive_name}"
-        tar -xvzf "${oidn_archive_name}"
+        if $use_msys; then
+            unzip "${oidn_archive_name}"
+        elif $use_macos; then
+            tar -xvzf "${oidn_archive_name}"
+        fi
     fi
     params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/${oidn_folder_name}/lib/cmake/OpenImageDenoise-${oidn_version}")
 fi
