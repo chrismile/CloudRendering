@@ -56,6 +56,9 @@
 #ifdef SUPPORT_OPTIX
 #include "Denoiser/OptixVptDenoiser.hpp"
 #endif
+#if defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE)
+#include "Denoiser/OpenImageDenoiseDenoiser.hpp"
+#endif
 #include "DataView.hpp"
 #include "MainApp.hpp"
 
@@ -107,6 +110,11 @@ MainApp::MainApp()
 #ifdef SUPPORT_OPTIX
     if (cudaInteropInitialized) {
         optixInitialized = OptixVptDenoiser::initGlobal(cuContext, cuDevice);
+    }
+#endif
+#if defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE)
+    if (cudaInteropInitialized) {
+        OpenImageDenoiseDenoiser::initGlobalCuda(cuContext, cuDevice);
     }
 #endif
 

@@ -74,6 +74,7 @@ if %clean% == true (
     rd /s /q "third_party\vcpkg"
     rd /s /q ".build"
     rd /s /q "Shipping"
+    git submodule update --init --recursive
 )
 
 where cmake >NUL 2>&1 || echo cmake was not found but is required to build the program && exit /b 1
@@ -101,6 +102,13 @@ IF "%VULKAN_SDK%"=="" (
 )
 :vulkan_finished
 
+if not exist .\submodules\IsosurfaceCpp\src (
+   echo ------------------------
+   echo initializing submodules
+   echo ------------------------
+   git submodule init   || exit /b 1
+   git submodule update || exit /b 1
+)
 
 set third_party_dir=%~dp0/third_party
 set cmake_args=-DCMAKE_TOOLCHAIN_FILE="third_party/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
@@ -224,6 +232,7 @@ cmake --build %build_dir% --config %cmake_config% -- /m || exit /b 1
 echo ------------------------
 echo    copying new files
 echo ------------------------
+robocopy third_party\oidn-%oidn_version%.x64.windows\bin %destination_dir% *.dll >NUL
 if %debug% == true (
    if not exist %destination_dir%\*.pdb (
       del %destination_dir%\*.dll
@@ -247,6 +256,12 @@ if %devel% == true (
     cmake --build %build_dir% --config %cmake_config_opposite% -- /m || exit /b 1
     robocopy third_party\sgl\.build\Debug %build_dir%\Debug\ *.dll *.pdb >NUL
     robocopy third_party\sgl\.build\Release %build_dir%\Release\ *.dll >NUL
+    robocopy third_party\oidn-%oidn_version%.x64.windows\bin %build_dir%\Debug\ *.dll *.pdb >NUL
+    robocopy third_party\oidn-%oidn_version%.x64.windows\bin %build_dir%\Release\ *.dll >NUL
+    if %build_with_openvdb_support% == true (
+        robocopy third_party\openvdb\bin %build_dir%\Debug\ *.dll /XC /XN /XO >NUL
+        robocopy third_party\openvdb\bin %build_dir%\Release\ *.dll /XC /XN /XO >NUL
+    )
 )
 
 echo.
