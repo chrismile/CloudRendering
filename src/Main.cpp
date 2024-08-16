@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 #ifdef __linux__
     sgl::AppSettings::get()->getSettings().addKeyValue("window-useDownloadSwapchain", useDownloadSwapchain);
 #endif
-    sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
+    //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
     ImVector<ImWchar> fontRanges;
     ImFontGlyphRangesBuilder builder;

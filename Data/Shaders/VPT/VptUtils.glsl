@@ -1156,24 +1156,6 @@ bool getIsoSurfaceHit(
     w = dirOut;
     throughput *= colorOut;
 
-    if(isnan(colorOut[0]) || isinf(colorOut[0])) {
-        debugPrintfEXT("------------- VPT UILS Final Check");
-
-        debugPrintfEXT("Error, colorOut: %f",colorOut[0]);
-        debugPrintfEXT("Normal %f %f %f: ", surfaceNormal[0], surfaceNormal[1], surfaceNormal[2]);
-
-        debugPrintfEXT("-------------");
-    }
-    if(isnan(colorNee[0]) || isinf(colorNee[0])) {
-        debugPrintfEXT("------------- VPT UILS Final Check");
-
-        debugPrintfEXT("Error, colorNee: %f",colorNee[0]);
-        debugPrintfEXT("useMIS: %d",useMIS);
-
-
-        debugPrintfEXT("-------------");
-    }
-
     return true;
 }
 
