@@ -113,19 +113,9 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     // sqrt macht Problem für negativ
     // NMormalize macht problem für nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
-    if(dot(viewVector,halfwayVector) == 0) {
-        debugPrintfEXT("Dot product is 0!");
-    }
-    if(halfwayVector[0] == 0.0) {
-        debugPrintfEXT("Dot product is 0!");
-    }
 
     vec3 lightVector = 2*max(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
-    if(lightVector == -viewVector) {
-        debugPrintfEXT("halfwayVector: %f %f %f", halfwayVector[0], halfwayVector[1], halfwayVector[2]);
-        debugPrintfEXT("viewVector: %f %f %f", viewVector[0], viewVector[1], viewVector[2]);
-        debugPrintfEXT("dot Product: %f", dot(viewVector, halfwayVector));
-    }
+
     return lightVector;
 }
 
@@ -148,15 +138,7 @@ float smithG_GGX(float NdotV, float alphaG) {
     float b = NdotV * NdotV;
 
     float result = 1.0 / (max(NdotV,-0.99) + sqrt(a + b - a * b));
-    if(isnan(result) || isinf(result) || result == 0) {
-        debugPrintfEXT("-------- smithG_GGX");
-        debugPrintfEXT("NaN Value for result: %f",result);
-        debugPrintfEXT("NaN Value for NdotV: %f",NdotV);
-        debugPrintfEXT("NaN Value for a: %f",a);
-        debugPrintfEXT("NaN Value for b: %f",b);
-        debugPrintfEXT("NaN Value for sqr: %f",sqrt(a + b - a * b));
 
-    }
     return result;
 }
 
@@ -263,18 +245,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 
         
     float clear = parameters.clearcoat * f_clearcoat * g_clearcoat*NdotL * VdotH * sin(th)/NdotH;
-    
-    if(isnan(g_clearcoat) || isinf(g_clearcoat)) {
-        debugPrintfEXT("-------- EvaluateBRDF: Check if g_clearcoat fails");
-        debugPrintfEXT("NaN Value for g_clearcoat: %f",g_clearcoat);
-        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
-        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
-        debugPrintfEXT("normalVector: %f %f %f",normalVector[0],normalVector[1],normalVector[2]);
-        debugPrintfEXT("lightVector: %f %f %f",lightVector[0],lightVector[1],lightVector[2]);
-        debugPrintfEXT("NdotL: %f",dot(normalVector,lightVector));
-        debugPrintfEXT("HitFlags spec: %d",hitFlags.specularHit);
-        debugPrintfEXT("HitFlags clear: %d",hitFlags.clearcoatHit);
-    }
 
     // Result
 
@@ -289,16 +259,6 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     }
     
     vec3 result = diffuse + specular + clear;
-    if(isnan(result[0]) || isinf(result[0])) {
-        debugPrintfEXT("[[[[[[[[[ColorOut Error]]]]]]]");
-        debugPrintfEXT("lightVector: %f %f %f", lightVector[0], lightVector[1], lightVector[2]);
-        debugPrintfEXT("viewVector: %f %f %f", viewVector[0], viewVector[1], viewVector[2]);
-        debugPrintfEXT("normalVector: %f %f %f", normalVector[0], normalVector[1], normalVector[2]);
-        debugPrintfEXT("isoSurfaceColor: %f %f %f", isoSurfaceColor[0], isoSurfaceColor[1], isoSurfaceColor[2]);
-        debugPrintfEXT("Specular Hit: %d", hitFlags.specularHit);
-        debugPrintfEXT("Clearcoat Hit: %d", hitFlags.clearcoatHit);
-
-    }
 
     return result;
 }
@@ -364,60 +324,11 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float f_clearcoat = mix(0.04,1.0,f_h);
     float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
-    
-    if(isnan(d_specular) || isinf(d_specular)) {
-        debugPrintfEXT("|||||||---------------- EvaluateBRDF: Check if d_specular fails");
-        debugPrintfEXT("Error: %f",d_specular);
-        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
-        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
-        debugPrintfEXT("normalVector: %f %f %f",normalVector[0],normalVector[1],normalVector[2]);
-        debugPrintfEXT("lightVector: %f %f %f",lightVector[0],lightVector[1],lightVector[2]);
-        debugPrintfEXT("NdotL: %f",dot(normalVector,lightVector));
-    }
-
-    if(isnan(g_clearcoat) || isinf(g_clearcoat)) {
-        debugPrintfEXT("|||||||---------------- EvaluateBRDF: Check if g_clearcoat fails");
-        debugPrintfEXT("Erroo: %f",g_clearcoat);
-        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
-        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
-        debugPrintfEXT("normalVector: %f %f %f",normalVector[0],normalVector[1],normalVector[2]);
-        debugPrintfEXT("lightVector: %f %f %f",lightVector[0],lightVector[1],lightVector[2]);
-        debugPrintfEXT("NdotL: %f",dot(normalVector,lightVector));
-    }
-        if(isnan(d_clearcoat) || isinf(d_clearcoat)) {
-        debugPrintfEXT("|||||||---------------- EvaluateBRDF: Check if d_clearcoat fails");
-        debugPrintfEXT("Error: %f",d_clearcoat);
-        debugPrintfEXT("NaN Value for theta_v: %f",theta_v);
-        debugPrintfEXT("NaN Value for theta_l: %f",theta_l);
-        debugPrintfEXT("normalVector: %f %f %f",normalVector[0],normalVector[1],normalVector[2]);
-        debugPrintfEXT("lightVector: %f %f %f",lightVector[0],lightVector[1],lightVector[2]);
-        debugPrintfEXT("NdotL: %f",dot(normalVector,lightVector));
-    }
         
     float clear = parameters.clearcoat*f_clearcoat*g_clearcoat * NdotL * VdotH * sinThetaH;
-    
-    // Result       
-        if(isnan(diffuse[0]) || isinf(diffuse[0])) {
-        debugPrintfEXT("-------- EvaluateBRDFNee: Diffuse Final Check");
-        debugPrintfEXT("NaN Value for diffuse: %f",diffuse[0]);
-    }
-
-    if(isnan(specular[0]) || isinf(specular[0])) {
-            debugPrintfEXT("-------- EvaluateBRDFNee: Specular Final Check");
-
-        debugPrintfEXT("NaN Value for spec: %f",specular[0]);
-    }
-    if(isnan(clear) || isinf(clear)) {
-            debugPrintfEXT("-------- EvaluateBRDFNee: Clear Final Check");
-
-        debugPrintfEXT("NaN Value for clear: %f",clear);
-    }
 
     vec3 result = diffuse + specular + clear;
-        if(isnan(result[0]) || isinf(result[0])) {
-            debugPrintfEXT("--wbhewou------ EvaluateBRDFNee: ColorNee is wrong! Final Check");
 
-    }
     return result;
 }
 
@@ -443,12 +354,6 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
         pdfSamplingNee = samplingPDF * cosThetaHNee * sinThetaHNee;
     }       
     
-    if(isnan(pdfSamplingNee) || isinf(pdfSamplingNee)) {
-        debugPrintfEXT("PDF Sampling Nee %f",pdfSamplingNee);
-        debugPrintfEXT("PDF Sampling Nee %f",samplingPDF);
-        debugPrintfEXT("PDF Sampling Nee %f",cosThetaHNee);
-        debugPrintfEXT("PDF Sampling Nee %f",sinThetaHNee);
-    }
     return evaluateBrdfPdf(viewVector, dirNee, normalVector, isoSurfaceColor, ax, ay, tangentVector, bitangentVector) * dot(dirNee, normalVector);
 
 }
