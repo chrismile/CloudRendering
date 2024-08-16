@@ -986,17 +986,20 @@ if $use_open_image_denoise; then
     oidn_version="2.3.0"
     if $use_msys; then
         oidn_folder_name="oidn-${oidn_version}.x64.windows"
+        oidn_archive_name="${oidn_folder_name}.zip"
     elif $use_macos; then
         oidn_folder_name="oidn-${oidn_version}.${os_arch}.linux"
+        oidn_archive_name="${oidn_folder_name}.tar.gz"
     else
         oidn_folder_name="oidn-${oidn_version}.${os_arch}.macos"
+        oidn_archive_name="${oidn_folder_name}.tar.gz"
     fi
     if [ ! -d "./${oidn_folder_name}" ]; then
         echo "------------------------"
         echo "downloading OpenImageDenoise"
         echo "------------------------"
-        wget "https://github.com/OpenImageDenoise/oidn/releases/download/v${oidn_version}/${oidn_folder_name}.tar.gz"
-        tar -xvzf "oidn-${oidn_version}.x86_64.linux.tar.gz"
+        wget "https://github.com/OpenImageDenoise/oidn/releases/download/v${oidn_version}/${oidn_archive_name}"
+        tar -xvzf "${oidn_archive_name}"
     fi
     params+=(-DOpenImageDenoise_DIR="${projectpath}/third_party/${oidn_folder_name}/lib/cmake/OpenImageDenoise-${oidn_version}")
 fi
