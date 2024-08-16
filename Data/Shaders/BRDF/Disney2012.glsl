@@ -49,6 +49,26 @@
 
 // 1. Helper functions for sampling
 
+/**
+ * The OpenGL implementation of atan changes the order of x and y (compared to DirectX),
+ * and is unstable for x close to 0.
+ *
+ * For more details see:
+ * https://stackoverflow.com/questions/26070410/robust-atany-x-on-glsl-for-converting-xy-coordinate-to-angle
+ */
+float atan2(in float y, in float x) {
+    bool s = (abs(x) > abs(y));
+    return mix(PI / 2.0 - atan(x,y), atan(y,x), s);
+}
+
+float avoidZero(float x, float y){
+    if ((abs(x) > abs(y))) {
+        return abs(x);
+    } else {
+        return abs(y);
+    }
+}
+
 vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out float theta_h) {
     // Adapated from derviations here: https://www.youtube.com/watch?v=xFsJMUS94Fs
     // Generate random u and v between 0.0 and 1.0
@@ -63,7 +83,8 @@ vec3 sample_clearcoat_disney(vec3 viewVector, mat3 frameMatrix, float alpha, out
     vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
     // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+    vec3 lightVector = 2*avoidZero(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
+    
     return lightVector;
 }
 
@@ -78,10 +99,8 @@ vec3 sample_diffuse_disney(vec3 viewVector, mat3 frameMatrix, out float theta_h)
     float phi = 2 * M_PI * v;
     theta_h = theta;
 
-    vec3 halfwayVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
+    vec3 lightVector = frameMatrix*vec3(sin(theta)*cos(phi),sin(theta)*sin(phi),cos(theta));
 
-    // Compute light Vector l
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
     return lightVector;
 }
 
@@ -89,15 +108,17 @@ vec3 sample_specular_disney(vec3 viewVector, mat3 frameMatrix, float ax, float a
     // Adapated from derviations here: https://www.youtube.com/watch?v=xFsJMUS94Fs
     float u = clamp(random(),0.05, 0.95);
     float v = clamp(random(),0.05, 0.95);
-    float phi = atan((ay/ax) * tan(2*M_PI*u));
+    float phi = atan2(ay * tan(2*M_PI*u),ax);
     float theta = acos(sqrt((1-v)/(1+((cos(phi)*cos(phi)/(ax*ax))+(sin(phi)*sin(phi)/(ay*ay)))*v)));
     theta_h = theta;
 
-    // Pronblem:
+    // Problem:
     // sqrt macht Problem für negativ
     // NMormalize macht problem für nahe 0
     vec3 halfwayVector = normalize(sqrt((v)/(1-v))*(ax*cos(2*M_PI*u)*tangentVector + ay*sin(2*M_PI*u)*bitangentVector) + normalVector);
-    vec3 lightVector = 2*dot(viewVector,halfwayVector)*halfwayVector - viewVector;
+
+    vec3 lightVector = 2*avoidZero(dot(viewVector,halfwayVector),0.001)*halfwayVector - viewVector;
+
     return lightVector;
 }
 
@@ -118,7 +139,10 @@ float smithG_GGX(float NdotV, float alphaG) {
 
     float a = alphaG * alphaG;
     float b = NdotV * NdotV;
-    return 1 / (NdotV + sqrt(a + b - a * b));
+
+    float result = 1.0 / (max(NdotV,-0.99) + sqrt(a + b - a * b));
+
+    return result;
 }
 
 // ---------- BRDF Interface ----------
@@ -194,14 +218,14 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
     float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
     float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
+    float f_d_subsurface = 1.25 * (f_subsurface * (1.0/max(theta_l + theta_v,0.001) - 0.5) + 0.5);
 
     // Sheen
     float f_h = pow((1 - theta_d), 5.0);
     vec3 sheen = f_h * parameters.sheen * col_sheen;
 
     vec3 diffuse = (col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
-    
+
     // Specular F (Schlick Fresnel Approximation)
     vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
     
@@ -221,8 +245,10 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     float f_clearcoat = mix(0.04,1.0,f_h);
     float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
+
         
-    float clear = parameters.clearcoat*f_clearcoat*g_clearcoat*NdotL*VdotH * sin(th)/NdotH;
+    float clear = parameters.clearcoat * f_clearcoat * g_clearcoat*NdotL * VdotH * sin(th)/NdotH;
+
     // Result
 
     if (hitFlags.specularHit) {
@@ -234,8 +260,10 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     } else {
         samplingPDF = (1.0/M_PI);
     }
+    
+    vec3 result = diffuse + specular + clear;
 
-    return diffuse + specular + clear;
+    return result;
 }
 
 // Evaluate BRDF and prepare for Importance Sampling compensation
@@ -272,7 +300,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     // Subsurface Approximation: Inspired by Hanrahan-Krueger subsurface BRDF
     float f_d_subsurface_90 = parameters.roughness * pow(cos(theta_d), 2);
     float f_subsurface = (1.0 + (f_d_subsurface_90 - 1) * (pow(1 - cos(theta_l), 5.0))) * (1.0 + (f_d_subsurface_90 - 1.0) * (pow(1.0 - cos(theta_v), 5.0)));
-    float f_d_subsurface = 1.25 * (f_subsurface * (1/(theta_l + theta_v) - 0.5) + 0.5);
+    float f_d_subsurface = 1.25 * (f_subsurface * (1/max(theta_l + theta_v,0.01) - 0.5) + 0.5);
 
     // Sheen
     float f_h = pow((1 - theta_d), 5.0);
@@ -291,7 +319,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float g_specular = 1 / (theta_v + sqrt(sqr(dot(x,lightVector)*ax) + sqr(dot(y,lightVector)*ay) + sqr(theta_v)));
     g_specular *= (1 / (theta_v + sqrt(sqr(dot(x, viewVector) * ax) + sqr(dot(y, viewVector) * ay) + sqr(theta_v))));
 
-    float sinThetaH = sqrt(1-(NdotH*NdotH));
+    float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
 
     vec3 specular = f_specular * d_specular * g_specular * 4 * NdotL * VdotH * sinThetaH;
 
@@ -301,9 +329,10 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
         
     float clear = parameters.clearcoat*f_clearcoat*g_clearcoat * NdotL * VdotH * sinThetaH;
-    
-    // Result        
-    return diffuse + specular + clear;
+
+    vec3 result = diffuse + specular + clear;
+
+    return result;
 }
 
 vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVector, vec3 tangentVector, vec3 bitangentVector, vec3 isoSurfaceColor, bool useMIS, float samplingPDF, flags hitFlags, out float pdfSamplingOut, out float pdfSamplingNee) {
@@ -317,7 +346,8 @@ vec3 evaluateBrdfNee(vec3 viewVector, vec3 dirOut, vec3 dirNee, vec3 normalVecto
 
     vec3 halfwayVectorNee  = normalize(dirNee + viewVector);
     float cosThetaHNee = dot(halfwayVectorNee, normalVector);
-    float sinThetaHNee = sqrt(1.0 - (cosThetaHNee*cosThetaHNee));
+    float sinThetaHNee = sqrt(1.0 - min(cosThetaHNee*cosThetaHNee,0.95));
+
 
     if (hitFlags.specularHit) {
             pdfSamplingOut = samplingPDF * cosThetaH;
@@ -342,5 +372,6 @@ vec3 computeBrdf(vec3 viewVector, out vec3 lightVector, vec3 normalVector, vec3 
 
     float th;
     lightVector = sampleBrdf(parameters.metallic, parameters.specular, parameters.clearcoat, parameters.clearcoatGloss, parameters.roughness, parameters.subsurface, viewVector, frame, ax, ay, normalVector, tangentVector, bitangentVector, th, hitFlags);
+    
     return evaluateBrdf(viewVector, lightVector, normalVector, isoSurfaceColor, th, ax, ay, tangentVector, bitangentVector, hitFlags, samplingPDF);
 }

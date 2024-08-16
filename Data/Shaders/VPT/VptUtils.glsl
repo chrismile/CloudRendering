@@ -1101,6 +1101,7 @@ bool getIsoSurfaceHit(
                         2.0 * throughput * rdfNee * weightNee / pdfLightNee *
                         calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
                         (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
+
                 colorNee +=
                         2.0 * throughput * weightOut * colorOut *
                         calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
@@ -1137,6 +1138,7 @@ bool getIsoSurfaceHit(
                         (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
             }
 #else
+
         colorNee +=
                 throughput * rdfNee / pdfLightNee *
                 calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
@@ -1153,6 +1155,7 @@ bool getIsoSurfaceHit(
 
     w = dirOut;
     throughput *= colorOut;
+
     return true;
 }
 
