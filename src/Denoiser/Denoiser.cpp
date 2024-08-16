@@ -72,7 +72,7 @@ std::shared_ptr<Denoiser> createDenoiserObject(
 #endif
 #ifdef SUPPORT_OPEN_IMAGE_DENOISE
     else if (denoiserType == DenoiserType::OPEN_IMAGE_DENOISE) {
-        denoiser = std::shared_ptr<Denoiser>(new OpenImageDenoiseDenoiser(renderer));
+        denoiser = std::shared_ptr<Denoiser>(new OpenImageDenoiseDenoiser(renderer, denoiseAlpha));
     }
 #endif
     else if (denoiserType == DenoiserType::SVGF) {

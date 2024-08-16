@@ -43,10 +43,25 @@ enum class OIDNDeviceTypeCustom {
 };
 
 const char* const OIDN_DEVICE_TYPE_NAMES[] = {
-    "Default", "GPU by UUID", "CPU", "SYCL", "CUDA", "HIP"
+        "Default", "GPU by UUID", "CPU", "SYCL", "CUDA", "HIP"
 #ifdef __APPLE__
-    , "Metal"
+        , "Metal"
 #endif
+};
+
+enum class OIDNQualityCustom {
+    DEFAULT, FAST, BALANCED, HIGH
+};
+
+const char* const OIDN_QUALITY_NAMES[] = {
+        "Default", "Fast", "Balanced", "High"
+#ifdef __APPLE__
+        , "Metal"
+#endif
+};
+
+const int OIDN_QUALITY_MAP[] = {
+        OIDN_QUALITY_DEFAULT, OIDN_QUALITY_FAST, OIDN_QUALITY_BALANCED, OIDN_QUALITY_HIGH
 };
 
 namespace sgl { namespace vk {
@@ -58,7 +73,7 @@ class AlphaBlitPass;
 
 class OpenImageDenoiseDenoiser : public Denoiser {
 public:
-    explicit OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer);
+    explicit OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha);
     ~OpenImageDenoiseDenoiser() override;
 
     [[nodiscard]] DenoiserType getDenoiserType() const override { return DenoiserType::OPEN_IMAGE_DENOISE; }
@@ -67,8 +82,8 @@ public:
     void setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) override;
     [[nodiscard]] bool getUseFeatureMap(FeatureMapType featureMapType) const override;
     void setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) override;
-    void setTemporalDenoisingEnabled(bool enabled) override; //< Call if renderer doesn't support temporal denoising.
-    void resetFrameNumber() override;
+    void resetFrameNumber() override {} // No temporal denoising, thus unused.
+    void setTemporalDenoisingEnabled(bool enabled) override {} // No temporal denoising, thus unused.
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;
 
@@ -78,24 +93,34 @@ public:
 private:
     sgl::vk::Renderer* renderer = nullptr;
     std::shared_ptr<AlphaBlitPass> alphaBlitPass;
-    sgl::vk::ImageViewPtr inputImageVulkan, outputImageVulkan;
-    sgl::vk::BufferPtr inputImageBufferVk, outputImageBufferVk;
-    sgl::vk::BufferCustomInteropVkPtr inputImageBufferInterop, outputImageBufferInterop;
+    sgl::vk::ImageViewPtr inputImageVulkan, albedoImageVulkan, normalImageVulkan, outputImageVulkan;
+    sgl::vk::BufferPtr inputImageBufferVk, inputAlbedoBufferVk, inputNormalBufferVk, outputImageBufferVk;
+    sgl::vk::BufferCustomInteropVkPtr inputImageBufferInterop, inputAlbedoBufferInterop, inputNormalBufferInterop, outputImageBufferInterop;
 
     // OpenImageDenoise data.
     void _createDenoiser();
     void _freeDenoiser();
+    void _createFilter();
+    void _freeFilter();
     void _createBuffers();
     void _freeBuffers();
     uint32_t inputWidth = 0;
     uint32_t inputHeight = 0;
     OIDNDeviceTypeCustom deviceType = OIDNDeviceTypeCustom::GPU_UUID;
+    OIDNQualityCustom filterQuality = OIDNQualityCustom::DEFAULT;
+    bool useNormalMap = false;
+    bool useAlbedo = false;
+    bool denoiseAlpha = false;
     bool supportsMemoryImport = false;
     bool recreateDenoiserNextFrame = false;
+    bool recreateFilterNextFrame = false;
+    bool recreateBuffersNextFrame = false;
     OIDNDevice oidnDevice{};
     OIDNBuffer oidnInputColorBuffer{};
+    OIDNBuffer oidnInputAlbedoBuffer{};
+    OIDNBuffer oidnInputNormalBuffer{};
     OIDNBuffer oidnOutputColorBuffer{};
-    OIDNFilter oidnFilter{};
+    OIDNFilter oidnFilter{}, oidnFilterAlpha{};
 };
 
 #endif //CLOUDRENDERING_OPENIMAGEDENOISEDENOISER_HPP

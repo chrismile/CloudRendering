@@ -93,19 +93,23 @@ void AlphaBlitPass::_render() {
 
 
 
-OpenImageDenoiseDenoiser::OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer) : renderer(renderer) {
+OpenImageDenoiseDenoiser::OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha)
+        : renderer(renderer), denoiseAlpha(_denoiseAlpha) {
     alphaBlitPass = std::make_shared<AlphaBlitPass>(renderer);
     _createDenoiser();
+    _createFilter();
 }
 
 OpenImageDenoiseDenoiser::~OpenImageDenoiseDenoiser() {
     _freeBuffers();
+    _freeFilter();
     _freeDenoiser();
 }
 
 
 void OpenImageDenoiseDenoiser::_createDenoiser() {
     _freeBuffers();
+    _freeFilter();
     _freeDenoiser();
 
     if (deviceType == OIDNDeviceTypeCustom::GPU_UUID) {
@@ -129,9 +133,30 @@ void OpenImageDenoiseDenoiser::_freeDenoiser() {
     }
 }
 
+void OpenImageDenoiseDenoiser::_createFilter() {
+    oidnFilter = oidnNewFilter(oidnDevice, "RT");
+    oidnSetFilterBool(oidnFilter, "hdr", true);
+    oidnSetFilterInt(oidnFilter, "quality", OIDN_QUALITY_MAP[int(filterQuality)]);
+
+    if (denoiseAlpha) {
+        oidnFilterAlpha = oidnNewFilter(oidnDevice, "RT");
+        oidnSetFilterBool(oidnFilter, "hdr", false);
+        oidnSetFilterInt(oidnFilter, "quality", OIDN_QUALITY_MAP[int(filterQuality)]);
+    }
+}
+
+void OpenImageDenoiseDenoiser::_freeFilter() {
+    if (oidnFilter) {
+        oidnReleaseFilter(oidnFilter);
+        oidnFilter = {};
+    }
+    if (oidnFilterAlpha) {
+        oidnReleaseFilter(oidnFilterAlpha);
+        oidnFilterAlpha = {};
+    }
+}
 
 void OpenImageDenoiseDenoiser::_createBuffers() {
-    oidnFilter = oidnNewFilter(oidnDevice, "RT");
 
     auto externalMemoryTypes = (OIDNExternalMemoryTypeFlag)oidnGetDeviceInt(oidnDevice, "externalMemoryTypes");
     supportsMemoryImport = false;
@@ -163,15 +188,25 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
         bufferSettings.useDedicatedAllocationForExportedMemory = true;
 #endif
         inputImageBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
+        inputAlbedoBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
+        inputNormalBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
         outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
 #ifndef __APPLE__
         inputImageBufferInterop = std::make_shared<sgl::vk::BufferCustomInteropVk>(inputImageBufferVk);
+        inputAlbedoBufferInterop = std::make_shared<sgl::vk::BufferCustomInteropVk>(inputAlbedoBufferVk);
+        inputNormalBufferInterop = std::make_shared<sgl::vk::BufferCustomInteropVk>(inputNormalBufferVk);
         outputImageBufferInterop = std::make_shared<sgl::vk::BufferCustomInteropVk>(outputImageBufferVk);
 #endif
 #if defined(_WIN32)
         oidnInputColorBuffer = oidnNewSharedBufferFromWin32Handle(
                 oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32,
                 inputImageBufferInterop->getHandle(), nullptr, byteSizeColor);
+        oidnInputAlbedoBuffer = oidnNewSharedBufferFromWin32Handle(
+                oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32,
+                inputAlbedoBufferInterop->getHandle(), nullptr, byteSizeColor);
+        oidnInputNormalBuffer = oidnNewSharedBufferFromWin32Handle(
+                oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32,
+                inputNormalBufferInterop ->getHandle(), nullptr, byteSizeColor);
         oidnOutputColorBuffer = oidnNewSharedBufferFromWin32Handle(
                 oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_WIN32,
                 outputImageBufferInterop->getHandle(), nullptr, byteSizeColor);
@@ -179,6 +214,12 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
         oidnInputColorBuffer = oidnNewSharedBufferFromFD(
                 oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD,
                 inputImageBufferInterop->getFileDescriptor(), byteSizeColor);
+        oidnInputAlbedoBuffer = oidnNewSharedBufferFromFD(
+                oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD,
+                inputAlbedoBufferInterop->getFileDescriptor(), byteSizeColor);
+        oidnInputNormalBuffer = oidnNewSharedBufferFromFD(
+                oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD,
+                inputNormalBufferInterop->getFileDescriptor(), byteSizeColor);
         oidnOutputColorBuffer = oidnNewSharedBufferFromFD(
                 oidnDevice, OIDN_EXTERNAL_MEMORY_TYPE_FLAG_OPAQUE_FD,
                 outputImageBufferInterop->getFileDescriptor(), byteSizeColor);
@@ -195,40 +236,74 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
         outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
 
         oidnInputColorBuffer = oidnNewBuffer(oidnDevice, inputWidth * inputHeight * 4 * sizeof(float));
+        oidnInputAlbedoBuffer = oidnNewBuffer(oidnDevice, inputWidth * inputHeight * 4 * sizeof(float));
+        oidnInputNormalBuffer = oidnNewBuffer(oidnDevice, inputWidth * inputHeight * 4 * sizeof(float));
         oidnOutputColorBuffer = oidnNewBuffer(oidnDevice, inputWidth * inputHeight * 4 * sizeof(float));
     }
 
     // TODO - For manual CUDA:
     //oidnNewSharedBuffer(device, devPtr, byteSize);
 
-    // TODO: FLOAT3, FLOAT4
     oidnSetFilterImage(
             oidnFilter, "color",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
             0, 4 * sizeof(float), 0);
     oidnSetFilterImage(
+            oidnFilter, "albedo",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+            0, 4 * sizeof(float), 0);
+    oidnSetFilterImage(
+            oidnFilter, "normal",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+            0, 4 * sizeof(float), 0);
+    oidnSetFilterImage(
             oidnFilter, "output", oidnOutputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
             0, 4 * sizeof(float), 0);
-
-    oidnSetFilterBool(oidnFilter, "hdr", true);
     oidnCommitFilter(oidnFilter);
+
+    if (denoiseAlpha) {
+        oidnSetFilterImage(
+                oidnFilterAlpha, "color",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT, inputWidth, inputHeight,
+                3 * sizeof(float), 4 * sizeof(float), 0);
+        oidnSetFilterImage(
+                oidnFilterAlpha, "output", oidnOutputColorBuffer, OIDN_FORMAT_FLOAT, inputWidth, inputHeight,
+                3 * sizeof(float), 4 * sizeof(float), 0);
+        oidnCommitFilter(oidnFilterAlpha);
+    }
 }
 
 void OpenImageDenoiseDenoiser::_freeBuffers() {
+    if (oidnFilter) {
+        oidnUnsetFilterImage(oidnFilter, "color");
+        oidnUnsetFilterImage(oidnFilter, "albedo");
+        oidnUnsetFilterImage(oidnFilter, "normal");
+    }
+    if (oidnFilterAlpha) {
+        oidnUnsetFilterImage(oidnFilterAlpha, "color");
+        oidnUnsetFilterImage(oidnFilterAlpha, "albedo");
+        oidnUnsetFilterImage(oidnFilterAlpha, "normal");
+    }
+
     if (oidnInputColorBuffer) {
         oidnReleaseBuffer(oidnInputColorBuffer);
         oidnInputColorBuffer = {};
+    }
+    if (oidnInputAlbedoBuffer) {
+        oidnReleaseBuffer(oidnInputAlbedoBuffer);
+        oidnInputAlbedoBuffer = {};
+    }
+    if (oidnInputNormalBuffer) {
+        oidnReleaseBuffer(oidnInputNormalBuffer);
+        oidnInputNormalBuffer = {};
     }
     if (oidnOutputColorBuffer) {
         oidnReleaseBuffer(oidnOutputColorBuffer);
         oidnOutputColorBuffer = {};
     }
-    if (oidnFilter) {
-        oidnReleaseFilter(oidnFilter);
-        oidnFilter = {};
-    }
     inputImageBufferInterop = {};
+    inputAlbedoBufferInterop = {};
+    inputNormalBufferInterop = {};
     outputImageBufferInterop = {};
     inputImageBufferVk = {};
+    inputAlbedoBufferVk = {};
+    inputNormalBufferVk = {};
     outputImageBufferVk = {};
 }
 
@@ -239,42 +314,86 @@ void OpenImageDenoiseDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage
 void OpenImageDenoiseDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        normalImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        albedoImageVulkan = featureTexture->getImageView();
+    } else if (featureMapType == FeatureMapType::DEPTH || featureMapType == FeatureMapType::POSITION) {
+        // Ignore.
     } else {
-        sgl::Logfile::get()->writeWarning("Warning in OptixVptDenoiser::setFeatureMap: Unknown feature map.");
+        sgl::Logfile::get()->writeWarning("Warning in OpenImageDenoiseDenoiser::setFeatureMap: Unknown feature map.");
     }
 }
 
 bool OpenImageDenoiseDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
     if (featureMapType == FeatureMapType::COLOR) {
         return true;
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        return useAlbedo;
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        return useNormalMap;
     } else {
         return false;
     }
 }
 
 void OpenImageDenoiseDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) {
-    ;
-}
-
-void OpenImageDenoiseDenoiser::setTemporalDenoisingEnabled(bool enabled) {
-    ;
-}
-
-void OpenImageDenoiseDenoiser::resetFrameNumber() {
-    ;
+    if (featureMapType == FeatureMapType::COLOR) {
+        if (!useFeature) {
+            sgl::Logfile::get()->writeError(
+                    "Warning in OpenImageDenoiseDenoiser::setUseFeatureMap: Cannot disable use of color feature map.");
+        }
+    } else if (featureMapType == FeatureMapType::ALBEDO) {
+        if (useAlbedo != useFeature) {
+            useAlbedo = useFeature;
+            recreateBuffersNextFrame = true;
+        }
+    } else if (featureMapType == FeatureMapType::NORMAL) {
+        if (useNormalMap != useFeature) {
+            useNormalMap = useFeature;
+            recreateBuffersNextFrame = true;
+        }
+    }
 }
 
 void OpenImageDenoiseDenoiser::denoise() {
+    if (recreateBuffersNextFrame) {
+        _freeBuffers();
+    }
+    if (recreateFilterNextFrame) {
+        _freeFilter();
+    }
+    if (recreateDenoiserNextFrame) {
+        _freeDenoiser();
+    }
     if (recreateDenoiserNextFrame) {
         _createDenoiser();
-        recreateSwapchain(
-                inputImageVulkan->getImage()->getImageSettings().width,
-                inputImageVulkan->getImage()->getImageSettings().height);
         recreateDenoiserNextFrame = false;
+    }
+    if (recreateFilterNextFrame) {
+        _createFilter();
+        recreateFilterNextFrame = false;
+    }
+    if (recreateBuffersNextFrame) {
+        _createBuffers();
+        recreateBuffersNextFrame = false;
     }
 
     renderer->transitionImageLayout(inputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     inputImageVulkan->getImage()->copyToBuffer(inputImageBufferVk, renderer->getVkCommandBuffer());
+
+    if (useAlbedo && albedoImageVulkan) {
+        renderer->transitionImageLayout(albedoImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        albedoImageVulkan->getImage()->copyToBuffer(
+                inputAlbedoBufferVk, renderer->getVkCommandBuffer());
+    }
+
+    if (useNormalMap && normalImageVulkan) {
+        renderer->transitionImageLayout(normalImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        normalImageVulkan->getImage()->copyToBuffer(
+                inputNormalBufferVk, renderer->getVkCommandBuffer());
+    }
+
     if (supportsMemoryImport) {
         // Sharing semaphores not yet supported. Use device sync.
         renderer->syncWithCpu();
@@ -286,11 +405,19 @@ void OpenImageDenoiseDenoiser::denoise() {
         inputImageBufferVk->unmapMemory();
     }
 
-
     oidnExecuteFilter(oidnFilter);
     const char* errorMessage = nullptr;
     if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE) {
         sgl::Logfile::get()->throwError("Error in OpenImageDenoiseDenoiser::denoise: " + std::string(errorMessage));
+    }
+
+    if (oidnFilterAlpha) {
+        oidnExecuteFilter(oidnFilterAlpha);
+        const char* errorMessage = nullptr;
+        if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE) {
+            sgl::Logfile::get()->throwError(
+                    "Error in OpenImageDenoiseDenoiser::denoise[alpha]: " + std::string(errorMessage));
+        }
     }
 
     // Sharing semaphores not yet supported. Use oidnSyncDevice.
@@ -306,10 +433,12 @@ void OpenImageDenoiseDenoiser::denoise() {
         outputImageBufferVk->unmapMemory();
     }
 
-    // Copy alpha channel, as OpenImageDenoise currently only supports RGB data, or, TODO, separate filter for alpha.
-    renderer->transitionImageLayout(inputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
-    renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
-    alphaBlitPass->render();
+    if (!denoiseAlpha) {
+        // Copy alpha channel, as OpenImageDenoise currently only supports RGB data, or, separate filter for alpha.
+        renderer->transitionImageLayout(inputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
+        renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
+        alphaBlitPass->render();
+    }
 }
 
 void OpenImageDenoiseDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
@@ -329,6 +458,34 @@ bool OpenImageDenoiseDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor&
             "Denoiser Device", (int*)&deviceType, OIDN_DEVICE_TYPE_NAMES, IM_ARRAYSIZE(OIDN_DEVICE_TYPE_NAMES))) {
         reRender = true;
         recreateDenoiserNextFrame = true;
+    }
+
+    if (propertyEditor.addCombo(
+            "Filter Quality", (int*)&filterQuality, OIDN_QUALITY_NAMES, IM_ARRAYSIZE(OIDN_QUALITY_NAMES))) {
+        reRender = true;
+        recreateFilterNextFrame = true;
+    }
+
+    if (propertyEditor.addCheckbox("Use Albedo", &useAlbedo)) {
+        reRender = true;
+        recreateBuffersNextFrame = true;
+    }
+
+    if (propertyEditor.addCheckbox("Use Normal Map", &useNormalMap)) {
+        reRender = true;
+        recreateBuffersNextFrame = true;
+    }
+
+    if (propertyEditor.addCheckbox("Use Alpha", &denoiseAlpha)) {
+        reRender = true;
+        recreateFilterNextFrame = true;
+    }
+
+    if (recreateDenoiserNextFrame) {
+        recreateFilterNextFrame = true;
+    }
+    if (recreateFilterNextFrame) {
+        recreateBuffersNextFrame = true;
     }
 
     if (reRender) {
