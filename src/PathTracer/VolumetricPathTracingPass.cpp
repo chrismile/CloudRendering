@@ -1007,12 +1007,24 @@ void VolumetricPathTracingPass::disableEnvMapRot() {
     }
 }
 
+void VolumetricPathTracingPass::setEnvMapRotCamera() {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    useEnvMapRotCamera = false;
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
 void VolumetricPathTracingPass::setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles) {
     if (!useEnvMapRot) {
         useEnvMapRot = true;
         setShaderDirty();
     }
     envMapRotWidget.setEulerAngles(_eulerAngles);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1023,6 +1035,8 @@ void VolumetricPathTracingPass::setEnvMapRotYawPitchRoll(const glm::vec3& _yawPi
         setShaderDirty();
     }
     envMapRotWidget.setYawPitchRoll(_yawPitchRoll);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1033,6 +1047,8 @@ void VolumetricPathTracingPass::setEnvMapRotAngleAxis(const glm::vec3& _axis, fl
         setShaderDirty();
     }
     envMapRotWidget.setAngleAxis(_axis, _angle);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1043,6 +1059,8 @@ void VolumetricPathTracingPass::setEnvMapRotQuaternion(const glm::quat& _quatern
         setShaderDirty();
     }
     envMapRotWidget.setQuaternion(_quaternion);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1746,6 +1764,11 @@ void VolumetricPathTracingPass::_render() {
 
         // Environment map rotation.
         if (useEnvMapRot) {
+            // Align envmap with camera orientation.
+            if (useEnvMapRotCamera) {
+                envMapRot = (*camera)->getViewMatrix();
+            }
+
             for (int k = 0; k < 9; k++) {
                 int i = k / 3;
                 int j = k % 3;
@@ -2250,7 +2273,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                         reRender = true;
                         frameInfo.frameCount = 0;
                     }
-                    if (useEnvMapRot && envMapRotWidget.renderGuiPropertyEditorNodes(propertyEditor)) {
+                    if (useEnvMapRot && propertyEditor.addCheckbox("Align with Camera", &useEnvMapRotCamera)) {
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                    if (useEnvMapRot && !useEnvMapRotCamera && envMapRotWidget.renderGuiPropertyEditorNodes(
+                            propertyEditor)) {
                         envMapRot = envMapRotWidget.getMat3();
                         reRender = true;
                         frameInfo.frameCount = 0;

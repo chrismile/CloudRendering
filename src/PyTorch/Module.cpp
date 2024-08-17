@@ -67,6 +67,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
     m.def("vpt::set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
     m.def("vpt::disable_env_map_rot", disableEnvMapRot);
+    m.def("vpt::set_env_map_rot_camera", setEnvMapRotCamera);
     m.def("vpt::set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
     m.def("vpt::set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
     m.def("vpt::set_env_map_rot_angle_axis", setEnvMapRotAngleAxis);
@@ -689,6 +690,10 @@ void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor) {
 
 void disableEnvMapRot() {
     vptRenderer->getVptPass()->disableEnvMapRot();
+}
+
+void setEnvMapRotCamera() {
+    vptRenderer->getVptPass()->setEnvMapRotCamera();
 }
 
 void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec) {

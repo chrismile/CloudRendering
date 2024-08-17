@@ -157,6 +157,7 @@ public:
 
     // Environment
     void disableEnvMapRot();
+    void setEnvMapRotCamera();
     void setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles);
     void setEnvMapRotYawPitchRoll(const glm::vec3& _yawPitchRoll);
     void setEnvMapRotAngleAxis(const glm::vec3& _axis, float _angle);
@@ -319,6 +320,7 @@ private:
     float environmentMapIntensityFactor = 1;
     glm::vec3 environmentMapIntensityFactorRgb = glm::vec3(1.0f);
     bool useEnvMapRot = false;
+    bool useEnvMapRotCamera = false; ///< Align envmap with camera orientation.
     glm::mat3 envMapRot = glm::identity<glm::mat3>();
     RotationWidget envMapRotWidget;
     bool useTransferFunctionCached = false;

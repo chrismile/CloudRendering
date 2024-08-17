@@ -44,6 +44,7 @@ MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 MODULE_OP_API void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor);
 
 MODULE_OP_API void disableEnvMapRot();
+MODULE_OP_API void setEnvMapRotCamera();
 MODULE_OP_API void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec);
 MODULE_OP_API void setEnvMapRotYawPitchRoll(std::vector<double> yawPitchRollVec);
 MODULE_OP_API void setEnvMapRotAngleAxis(std::vector<double> _axisVec, double _angle);
