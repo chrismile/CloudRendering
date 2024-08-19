@@ -197,6 +197,11 @@ public:
     [[nodiscard]] IsosurfaceType getIsosurfaceType() const { return isosurfaceType; }
     [[nodiscard]] bool getUseIsosurfaceTf() const { return useIsosurfaceTf; }
 
+    // Clip Plane
+    void setUseClipPlane(bool useClipPlane);
+    void setClipPlaneNormal(const glm::vec3& clipPlaneNormal);
+    void setClipPlaneDistance(float clipPlaneDistance);
+
     // For debug rendering.
     void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
 
@@ -375,6 +380,11 @@ private:
     bool useEmptySpaceSkipping = false;
     std::shared_ptr<OccupancyGridPass> occupancyGridPass;
 
+    // Clip Plane
+    bool useClipPlane = false;
+    glm::vec3 clipPlaneNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+    float clipPlaneDistance = 0.0f;
+
     glm::mat4 previousViewProjMatrix = glm::zero<glm::mat4>();
 
     // Disney BRDF
@@ -443,6 +453,11 @@ private:
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;
         int numAoSamples = 4;
+
+        // Clip Plane
+        int useClipPlane;
+        glm::vec3 clipPlaneNormal;
+        float clipPlaneDistance;
 
         // Disney BRDF
         float subsurface = 0.0;

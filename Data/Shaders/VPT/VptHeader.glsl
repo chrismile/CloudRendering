@@ -93,6 +93,10 @@ layout (binding = 3) uniform Parameters {
     float maxAoDist;
     int numAoSamples;
 
+    // Clip plane
+    vec3 clipPlaneNormal;
+    float clipPlaneDistance;
+
     // Disney BRDF
     float subsurface;
     float metallic;

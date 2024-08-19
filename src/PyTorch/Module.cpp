@@ -103,6 +103,9 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
     m.def("vpt::set_use_isosurface_tf", setUseIsosurfaceTf);
     m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
+    m.def("vpt::set_use_clip_plane", setUseClipPlane);
+    m.def("vpt::set_clip_plane_normal", setClipPlaneNormal);
+    m.def("vpt::set_clip_plane_distance", setClipPlaneDistance);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -851,6 +854,21 @@ void setUseIsosurfaceTf(bool _useIsosurfaceTf) {
 
 void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
     vptRenderer->getVptPass()->setNumIsosurfaceSubdivisions(_subdivs);
+}
+
+void setUseClipPlane(bool _useClipPlane) {
+    vptRenderer->getVptPass()->setUseClipPlane(_useClipPlane);
+}
+
+void setClipPlaneNormal(std::vector<double> _clipPlaneNormal) {
+    glm::vec3 normal = glm::vec3(0,0,0);
+    if (parseVector3(_clipPlaneNormal, normal)) {
+        vptRenderer->getVptPass()->setClipPlaneNormal(normal);
+    }
+}
+
+void setClipPlaneDistance(double _clipPlaneDistance) {
+    vptRenderer->getVptPass()->setClipPlaneDistance(_clipPlaneDistance);
 }
 
 
