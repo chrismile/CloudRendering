@@ -1315,7 +1315,6 @@ elif [ $use_macos = true ] && [ $use_vcpkg = false ]; then
             codesign --force -s - "$filename" &> /dev/null
         fi
     done
-${copy_dependencies_macos_post}
 else
     mkdir -p $destination_dir/bin
 
@@ -1325,6 +1324,19 @@ else
     # Copy all dependencies of the application to the destination directory.
     ldd_output="$(ldd $build_dir/CloudRendering)"
 
+    if $use_open_image_denoise; then
+        # Copy OpenImageDenoise device libraries.
+        for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/lib/libOpenImageDenoise_device_"*; do
+            ldd_output="$ldd_output ${oidn_lib_file}"
+        done
+        # Copy other dependencies.
+        for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/lib/lib"*; do
+            oidn_lib_file_basename="$(basename ${oidn_lib_file})"
+            if [[ ${oidn_lib_file_basename} != "libOpenImageDenoise"* ]]; then
+                ldd_output="$ldd_output ${oidn_lib_file}"
+            fi
+        done
+    fi
     library_blacklist=(
         "libOpenGL" "libGLdispatch" "libGL.so" "libGLX.so"
         "libwayland" "libffi." "libX" "libxcb" "libxkbcommon"
