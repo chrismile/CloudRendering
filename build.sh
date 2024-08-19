@@ -1102,6 +1102,11 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
     fi
     if $use_open_image_denoise; then
         cp $(ldd $build_dir/libvpt.so | grep OpenImage | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+        if [ $use_macos = false ] && [ $use_vcpkg = false ]; then
+            for oidn_file in "$install_dir/modules/libOpenImageDenoise.*"; do
+                patchelf --set-rpath '$ORIGIN' "${oidn_file}"
+            done
+        fi
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
