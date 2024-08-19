@@ -878,6 +878,31 @@ void VolumetricPathTracingPass::setNumIsosurfaceSubdivisions(int _subdivs) {
     }
 }
 
+void VolumetricPathTracingPass::setUseClipPlane(bool _useClipPlane) {
+    if (useClipPlane != _useClipPlane) {
+        useClipPlane = _useClipPlane;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setClipPlaneNormal(const glm::vec3& _clipPlaneNormal) {
+    if (clipPlaneNormal != _clipPlaneNormal) {
+        clipPlaneNormal = _clipPlaneNormal;
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setClipPlaneDistance(float _clipPlaneDistance) {
+    if (clipPlaneDistance != _clipPlaneDistance) {
+        clipPlaneDistance = _clipPlaneDistance;
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -1487,6 +1512,10 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_OCCUPANCY_GRID", "" });
     }
 
+    if (useClipPlane) {
+        customPreprocessorDefines.insert({ "USE_CLIP_PLANE", "" });
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -1802,6 +1831,9 @@ void VolumetricPathTracingPass::_render() {
 
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
+
+        uniformData.clipPlaneNormal = clipPlaneNormal;
+        uniformData.clipPlaneDistance = clipPlaneDistance;
 
         if (useGlobalFrameNumber) {
             frameInfo.globalFrameNumber = globalFrameNumber;
@@ -2586,6 +2618,20 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 frameInfo.frameCount = 0;
             }
             propertyEditor.endNode();
+        }
+
+        if (propertyEditor.addCheckbox(
+                "Use Clip Plane", &useClipPlane)) {
+            setShaderDirty();
+            optionChanged = true;
+        }
+
+        if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, 0.01f, 1.0f)) {
+            optionChanged = true;
+        }
+
+        if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -1.0f, 1.0f)) {
+            optionChanged = true;
         }
 
         propertyEditor.endNode();

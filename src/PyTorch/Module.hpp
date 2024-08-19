@@ -90,6 +90,10 @@ MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
 MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
 
+MODULE_OP_API void setUseClipPlane(bool _useClipPlane);
+MODULE_OP_API void setClipPlaneNormal(std::vector<double> _clipPlaneNormal);
+MODULE_OP_API void setClipPlaneDistance(double _clipPlaneDistance);
+
 MODULE_OP_API void setSeedOffset(int64_t offset);
 
 MODULE_OP_API void setViewProjectionMatrixAsPrevious();
