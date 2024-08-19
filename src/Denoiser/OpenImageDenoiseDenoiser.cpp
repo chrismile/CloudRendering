@@ -190,8 +190,14 @@ void OpenImageDenoiseDenoiser::_createDenoiser() {
     else {
         oidnDevice = oidnNewDevice(OIDNDeviceType(std::max(int(deviceType) - 1, 0)));
     }
+    if (!oidnDevice) {
+        const char* errorMessage = nullptr;
+        if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE) {
+            sgl::Logfile::get()->throwError(
+                    "Error in OpenImageDenoiseDenoiser::_createDenoiser: " + std::string(errorMessage));
+        }
+    }
     oidnCommitDevice(oidnDevice);
-
 }
 
 void OpenImageDenoiseDenoiser::_freeDenoiser() {

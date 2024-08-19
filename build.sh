@@ -1106,6 +1106,19 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
             for oidn_file in "$install_dir/modules/libOpenImageDenoise."*; do
                 patchelf --set-rpath '$ORIGIN' "${oidn_file}"
             done
+            # Copy OpenImageDenoise device libraries.
+            for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/lib/libOpenImageDenoise_device_"*; do
+                cp "${oidn_lib_file}" "$install_dir/modules"
+                patchelf --set-rpath '$ORIGIN' "$install_dir/modules/$(basename ${oidn_lib_file})"
+            done
+            # Copy other dependencies.
+            for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/lib/lib"*; do
+                oidn_lib_file_basename="$(basename ${oidn_lib_file})"
+                if [[ ${oidn_lib_file_basename} != "libOpenImageDenoise"* ]]; then
+                    cp "${oidn_lib_file}" "$install_dir/modules"
+                    patchelf --set-rpath '$ORIGIN' "$install_dir/modules/${oidn_lib_file_basename}"
+                fi
+            done
         fi
     fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
