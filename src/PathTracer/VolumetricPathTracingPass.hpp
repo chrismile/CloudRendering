@@ -57,6 +57,7 @@ class OctahedralMappingPass;
 class OccupationVolumePass;
 class OccupancyGridPass;
 class CameraPoseLinePass;
+class NormalizeNormalsPass;
 
 namespace IGFD {
 class FileDialog;
@@ -64,13 +65,15 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
-    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, TRANSMITTANCE_VOLUME,
+    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA,
+    DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, ALBEDO,
+    TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
-        "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Transmittance Volume",
+        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Flow", "Depth (nabla)",
+        "Depth (fwidth)", "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Albedo",
+        "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -104,7 +107,7 @@ private:
 
 const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
-        {FeatureMapType::ALBEDO, FeatureMapTypeVpt::RESULT},
+        {FeatureMapType::ALBEDO, FeatureMapTypeVpt::ALBEDO},
         {FeatureMapType::FLOW, FeatureMapTypeVpt::FLOW},
         {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
@@ -274,6 +277,7 @@ private:
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
     sgl::vk::TexturePtr normalTexture;
+    sgl::vk::TexturePtr normalLen1Texture;
     sgl::vk::TexturePtr cloudOnlyTexture;
     sgl::vk::TexturePtr depthTexture;
     sgl::vk::TexturePtr densityTexture;
@@ -284,6 +288,7 @@ private:
     sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
+    sgl::vk::TexturePtr albedoTexture;
     sgl::vk::TexturePtr transmittanceVolumeTexture; //< 3D feature map.
     uint32_t dsSecondaryVolume = 1; //< Downscaling factor for secondary volumes like @see transmittanceVolumeTexture.
     bool accumulateInputs = true;
@@ -337,6 +342,7 @@ private:
     glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float headlightIntensity = 0.5f;
 
+    std::shared_ptr<NormalizeNormalsPass> normalizeNormalsPass;
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     // Use the two passes below if a compute queue is used and raster-blitting is not available.
     sgl::vk::BlitComputePassPtr resultImageBlitPass;

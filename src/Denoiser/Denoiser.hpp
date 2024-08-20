@@ -79,6 +79,7 @@ const char* const DENOISER_NAMES[] = {
     FEATURE_MAP(FLOW,                 "Flow",                 2, 2) \
     FEATURE_MAP(POSITION,             "Position",             3, 4) \
     FEATURE_MAP(NORMAL,               "Normal",               3, 4) \
+    FEATURE_MAP(NORMAL_LEN_1,         "Normal (Length 1)",    3, 4) \
     FEATURE_MAP(CLOUDONLY,            "CloudOnly",            4, 4) \
     FEATURE_MAP(DEPTH,                "Depth",                2, 2) \
     FEATURE_MAP(DENSITY,              "Density",              2, 2) \
@@ -125,7 +126,7 @@ public:
     [[nodiscard]] virtual bool getUseFeatureMap(FeatureMapType featureMapType) const = 0;
     [[nodiscard]] virtual bool getWantsAccumulatedInput() const { return true; }
     [[nodiscard]] virtual bool getWantsGlobalFrameNumber() const { return false; }
-    virtual void setUseFeatureMap(FeatureMapType featureMapType, bool useNormals) = 0;
+    virtual void setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) = 0;
     virtual void setTemporalDenoisingEnabled(bool enabled) = 0;
     virtual void resetFrameNumber() = 0; // For temporal denoisers to indicate reset of temporal accumulation.
     virtual void denoise() = 0;

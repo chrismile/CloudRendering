@@ -186,7 +186,7 @@ void OptixVptDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
 void OptixVptDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         normalImageVulkan = featureTexture->getImageView();
     } else if (featureMapType == FeatureMapType::ALBEDO) {
         albedoImageVulkan = featureTexture->getImageView();
@@ -204,7 +204,7 @@ bool OptixVptDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
         return true;
     } else if (featureMapType == FeatureMapType::ALBEDO) {
         return useAlbedo;
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         return useNormalMap;
     } else if (featureMapType == FeatureMapType::FLOW) {
         return denoiserModelKind == OPTIX_DENOISER_MODEL_KIND_TEMPORAL;
@@ -215,7 +215,7 @@ bool OptixVptDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
 
 void OptixVptDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useFeature) {
     if ((featureMapType == FeatureMapType::ALBEDO && useAlbedo != useFeature)
-            || (featureMapType == FeatureMapType::NORMAL && useNormalMap != useFeature)
+            || (featureMapType == FeatureMapType::NORMAL_LEN_1 && useNormalMap != useFeature)
             || (featureMapType == FeatureMapType::FLOW && getUseFeatureMap(FeatureMapType::FLOW) != useFeature)) {
         recreateDenoiserNextFrame = true;
     }
@@ -226,7 +226,7 @@ void OptixVptDenoiser::setUseFeatureMap(FeatureMapType featureMapType, bool useF
         }
     } else if (featureMapType == FeatureMapType::ALBEDO) {
         useAlbedo = useFeature;
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         useNormalMap = useFeature;
     } else if (featureMapType == FeatureMapType::FLOW) {
         denoiserModelKind = useFeature ? OPTIX_DENOISER_MODEL_KIND_HDR : OPTIX_DENOISER_MODEL_KIND_TEMPORAL;

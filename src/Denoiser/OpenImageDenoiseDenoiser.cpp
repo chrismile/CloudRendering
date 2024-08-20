@@ -340,6 +340,8 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
         bufferSettings.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         bufferSettings.memoryUsage = VMA_MEMORY_USAGE_GPU_TO_CPU;
         inputImageBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
+        if (useAlbedo) inputAlbedoBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
+        if (useAlbedo) inputNormalBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
         bufferSettings.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         bufferSettings.memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU;
         outputImageBufferVk = std::make_shared<sgl::vk::Buffer>(device, bufferSettings);
@@ -354,10 +356,10 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
             oidnFilter, "color",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
             0, 4 * sizeof(float), 0);
     if (useAlbedo) oidnSetFilterImage(
-            oidnFilter, "albedo",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+            oidnFilter, "albedo",  oidnInputAlbedoBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
             0, 4 * sizeof(float), 0);
     if (useNormalMap) oidnSetFilterImage(
-            oidnFilter, "normal",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+            oidnFilter, "normal",  oidnInputNormalBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
             0, 4 * sizeof(float), 0);
     oidnSetFilterImage(
             oidnFilter, "output", oidnOutputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
@@ -369,10 +371,10 @@ void OpenImageDenoiseDenoiser::_createBuffers() {
                 oidnFilterAlpha, "color",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT, inputWidth, inputHeight,
                 3 * sizeof(float), 4 * sizeof(float), 0);
         if (useAlbedo) oidnSetFilterImage(
-                oidnFilterAlpha, "albedo",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+                oidnFilterAlpha, "albedo",  oidnInputAlbedoBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
                 0, 4 * sizeof(float), 0);
         if (useNormalMap) oidnSetFilterImage(
-                oidnFilterAlpha, "normal",  oidnInputColorBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
+                oidnFilterAlpha, "normal",  oidnInputNormalBuffer, OIDN_FORMAT_FLOAT3, inputWidth, inputHeight,
                 0, 4 * sizeof(float), 0);
         oidnSetFilterImage(
                 oidnFilterAlpha, "output", oidnOutputColorBuffer, OIDN_FORMAT_FLOAT, inputWidth, inputHeight,
@@ -432,7 +434,7 @@ void OpenImageDenoiseDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage
 void OpenImageDenoiseDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         normalImageVulkan = featureTexture->getImageView();
     } else if (featureMapType == FeatureMapType::ALBEDO) {
         albedoImageVulkan = featureTexture->getImageView();
@@ -448,7 +450,7 @@ bool OpenImageDenoiseDenoiser::getUseFeatureMap(FeatureMapType featureMapType) c
         return true;
     } else if (featureMapType == FeatureMapType::ALBEDO) {
         return useAlbedo;
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         return useNormalMap;
     } else {
         return false;
@@ -466,7 +468,7 @@ void OpenImageDenoiseDenoiser::setUseFeatureMap(FeatureMapType featureMapType, b
             useAlbedo = useFeature;
             recreateBuffersNextFrame = true;
         }
-    } else if (featureMapType == FeatureMapType::NORMAL) {
+    } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         if (useNormalMap != useFeature) {
             useNormalMap = useFeature;
             recreateBuffersNextFrame = true;
@@ -546,6 +548,18 @@ void OpenImageDenoiseDenoiser::denoise() {
         auto* colorPtr = reinterpret_cast<float*>(oidnGetBufferData(oidnInputColorBuffer));
         memcpy(colorPtr, inputImageBufferVkPtr, inputWidth * inputHeight * 4 * sizeof(float));
         inputImageBufferVk->unmapMemory();
+        if (useAlbedo) {
+            auto* inputAlbedoBufferVkPtr = reinterpret_cast<float*>(inputAlbedoBufferVk->mapMemory());
+            auto* albedoPtr = reinterpret_cast<float*>(oidnGetBufferData(oidnInputAlbedoBuffer));
+            memcpy(albedoPtr, inputAlbedoBufferVkPtr, inputWidth * inputHeight * 4 * sizeof(float));
+            inputAlbedoBufferVk->unmapMemory();
+        }
+        if (useNormalMap) {
+            auto* inputNormalBufferVkPtr = reinterpret_cast<float*>(inputNormalBufferVk->mapMemory());
+            auto* normalPtr = reinterpret_cast<float*>(oidnGetBufferData(oidnInputNormalBuffer));
+            memcpy(normalPtr, inputNormalBufferVkPtr, inputWidth * inputHeight * 4 * sizeof(float));
+            inputNormalBufferVk->unmapMemory();
+        }
     }
 
     oidnExecuteFilter(oidnFilter);
@@ -586,16 +600,15 @@ void OpenImageDenoiseDenoiser::denoise() {
 #endif
     }
 
-    renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    outputImageVulkan->getImage()->copyFromBuffer(outputImageBufferVk, renderer->getVkCommandBuffer());
-
     if (!supportsMemoryImport) {
-        renderer->syncWithCpu();
         auto* outputImageBufferVkPtr = reinterpret_cast<float*>(outputImageBufferVk->mapMemory());
         auto* colorPtr = reinterpret_cast<float*>(oidnGetBufferData(oidnOutputColorBuffer));
         memcpy(outputImageBufferVkPtr, colorPtr, inputWidth * inputHeight * 4 * sizeof(float));
         outputImageBufferVk->unmapMemory();
     }
+
+    renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    outputImageVulkan->getImage()->copyFromBuffer(outputImageBufferVk, renderer->getVkCommandBuffer());
 
     if (!denoiseAlpha) {
         // Copy alpha channel, as OpenImageDenoise currently only supports RGB data, or, separate filter for alpha.
