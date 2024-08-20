@@ -1206,10 +1206,24 @@ if $use_msys; then
 
     # Copy all dependencies of the application to the destination directory.
     ldd_output="$(ntldd -R $build_dir/CloudRendering.exe)"
+    if $use_open_image_denoise; then
+        # Copy OpenImageDenoise device libraries.
+        for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/bin/OpenImageDenoise_device_"*; do
+            ldd_output="$ldd_output ${oidn_lib_file}"
+        done
+        # Copy other dependencies.
+        for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/bin/"*.dll; do
+            oidn_lib_file_basename="$(basename ${oidn_lib_file})"
+            if [[ ${oidn_lib_file_basename} != "OpenImageDenoise"* ]]; then
+                ldd_output="$ldd_output ${oidn_lib_file}"
+            fi
+        done
+    fi
     for library_abs in $ldd_output
     do
-        if [[ $library == "not found"* ]] || [[ $library == "ext-ms-win"* ]] || [[ $library == "=>"* ]] \
-                || [[ $library == "(0x"* ]] || [[ $library == "C:\\WINDOWS"* ]]; then
+        if [[ $library_abs == "not found"* ]] || [[ $library_abs == "ext-ms-win"* ]] || [[ $library_abs == "=>" ]] \
+                || [[ $library_abs == "(0x"* ]] || [[ $library_abs == "C:\\WINDOWS"* ]] \
+                || [[ $library_abs == "not" ]] || [[ $library_abs == "found"* ]]; then
             continue
         fi
         library="$(cygpath "$library_abs")"

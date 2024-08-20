@@ -1069,7 +1069,7 @@ void VolumetricPathTracingPass::setEnvMapRotCamera() {
         useEnvMapRot = true;
         setShaderDirty();
     }
-    useEnvMapRotCamera = false;
+    useEnvMapRotCamera = true;
     reRender = true;
     frameInfo.frameCount = 0;
 }

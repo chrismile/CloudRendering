@@ -108,6 +108,7 @@ OpenImageDenoiseDenoiser::OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer, 
         : renderer(renderer), denoiseAlpha(_denoiseAlpha) {
     alphaBlitPass = std::make_shared<AlphaBlitPass>(renderer);
     for (int i = 0; i < IM_ARRAYSIZE(OIDN_DEVICE_TYPE_NAMES) - 2; i++) {
+        // TODO: Use oidnIsCPUDeviceSupported, ...
         deviceTypes.push_back(OIDNDeviceTypeCustom(i));
         deviceTypeNames.push_back(OIDN_DEVICE_TYPE_NAMES[i]);
     }
