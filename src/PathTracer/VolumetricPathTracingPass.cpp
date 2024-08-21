@@ -942,9 +942,17 @@ void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDial
 void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
     if (denoiserType != _denoiserType) {
         denoiserType = _denoiserType;
+        denoiserSettings = {};
         denoiserChanged = true;
         reRender = true;
     }
+}
+
+void VolumetricPathTracingPass::setDenoiserSettings(
+        const std::unordered_map<std::string, std::string>& _denoiserSettings) {
+    denoiserSettings = _denoiserSettings;
+    denoiserSettingsChanged = true;
+    reRender = true;
 }
 
 void VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath) {
@@ -1692,6 +1700,12 @@ void VolumetricPathTracingPass::checkRecreateDenoiser() {
     if (denoiserChanged) {
         createDenoiser();
         denoiserChanged = false;
+    }
+    if (denoiserSettingsChanged) {
+        if (denoiser) {
+            denoiser->setSettings(denoiserSettings);
+        }
+        denoiserSettingsChanged = false;
     }
 }
 

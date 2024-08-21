@@ -144,6 +144,7 @@ public:
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
     void setDenoiserType(DenoiserType denoiserType);
+    void setDenoiserSettings(const std::unordered_map<std::string, std::string>& denoiserSettings);
     void checkRecreateDenoiser();
     void setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath);
     void setOutputForegroundMap(bool _shallOutputForegroundMap);
@@ -358,9 +359,10 @@ private:
     void setDenoiserFeatureMaps();
     void checkResetDenoiserFeatureMaps();
     DenoiserType denoiserType = DenoiserType::EAW;
+    std::unordered_map<std::string, std::string> denoiserSettings;
     bool useDenoiser = true;
     bool isIntermediatePass = false; //< Whether this rendering pass should not yet use the denoiser.
-    bool denoiserChanged = false;
+    bool denoiserChanged = false, denoiserSettingsChanged = false;
     bool denoiseAlpha = false;
     bool shallOutputForegroundMap = false;
     std::shared_ptr<Denoiser> denoiser;

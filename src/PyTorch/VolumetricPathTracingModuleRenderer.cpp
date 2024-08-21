@@ -250,13 +250,22 @@ void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt ty
 void VolumetricPathTracingModuleRenderer::setDenoiserType(DenoiserType _denoiserType) {
     if (denoiserType != _denoiserType) {
         denoiserType = _denoiserType;
+        denoiserSettings.clear();
         isDenoiserDirty = true;
     }
+}
+
+void VolumetricPathTracingModuleRenderer::setDenoiserProperty(const std::string& key, const std::string& value) {
+    denoiserSettings.insert(std::make_pair(key, value));
+    isDenoiserDirty = true;
 }
 
 void VolumetricPathTracingModuleRenderer::checkDenoiser() {
     if (isDenoiserDirty) {
         vptPass->setDenoiserType(denoiserType);
+        if (!denoiserSettings.empty()) {
+            vptPass->setDenoiserSettings(denoiserSettings);
+        }
         isDenoiserDirty = false;
     }
 }

@@ -96,6 +96,7 @@ public:
     void setUseFeatureMaps(const std::unordered_set<FeatureMapTypeVpt>& featureMapSet);
     void setFeatureMapType(FeatureMapTypeVpt type);
     void setDenoiserType(DenoiserType _denoiserType);
+    void setDenoiserProperty(const std::string& key, const std::string& value);
     void checkDenoiser();
 
     void setEmissionCap(double emissionCap);
@@ -181,6 +182,7 @@ private:
     std::shared_ptr<ConvertTransmittanceVolumePass> convertTransmittanceVolumePass;
 
     DenoiserType denoiserType = DenoiserType::NONE;
+    std::unordered_map<std::string, std::string> denoiserSettings;
     bool isDenoiserDirty = false;
 
     sgl::vk::ImageViewPtr renderImageView;

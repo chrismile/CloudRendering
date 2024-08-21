@@ -562,7 +562,7 @@ bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
     bool reRender = false;
 
     if (propertyEditor.addCombo(
-            "Feature Map", (int*)&denoiserModelKindIndex,
+            "Model Type", (int*)&denoiserModelKindIndex,
             OPTIX_DENOISER_MODEL_KIND_NAME, numDenoisersSupported)) {
         reRender = true;
         if (denoiserModelKindIndex == 0) {
@@ -590,6 +590,30 @@ bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
     }
 
     return reRender;
+}
+
+void OptixVptDenoiser::setSettings(const std::unordered_map<std::string, std::string>& settings) {
+    auto itModelType = settings.find("model_type");
+    if (itModelType != settings.end()) {
+        const std::string& modelTypeString = itModelType->second;
+        for (int i = 0; i < IM_ARRAYSIZE(OPTIX_DENOISER_MODEL_KIND_NAME); i++) {
+            if (modelTypeString == OPTIX_DENOISER_MODEL_KIND_NAME[i]) {
+                denoiserModelKindIndex = i;
+                recreateDenoiserNextFrame = true;
+                break;
+            }
+        }
+    }
+    auto itAlbedo = settings.find("use_albedo");
+    if (itAlbedo != settings.end()) {
+        useAlbedo = sgl::fromString<bool>(itAlbedo->second);
+        recreateDenoiserNextFrame = true;
+    }
+    auto itNormalMal = settings.find("use_normal_map");
+    if (itNormalMal != settings.end()) {
+        useNormalMap = sgl::fromString<bool>(itNormalMal->second);
+        recreateDenoiserNextFrame = true;
+    }
 }
 
 

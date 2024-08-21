@@ -717,3 +717,27 @@ bool OpenImageDenoiseDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor&
 
     return reRender;
 }
+
+void OpenImageDenoiseDenoiser::setSettings(const std::unordered_map<std::string, std::string>& settings) {
+    auto itFilterQuality = settings.find("filter_quality");
+    if (itFilterQuality != settings.end()) {
+        const std::string& filterQualityString = itFilterQuality->second;
+        for (int i = 0; i < IM_ARRAYSIZE(OIDN_QUALITY_NAMES); i++) {
+            if (filterQualityString == OIDN_QUALITY_NAMES[i]) {
+                filterQuality = OIDNQualityCustom(i);
+                recreateFilterNextFrame = true;
+                break;
+            }
+        }
+    }
+    auto itAlbedo = settings.find("use_albedo");
+    if (itAlbedo != settings.end()) {
+        useAlbedo = sgl::fromString<bool>(itAlbedo->second);
+        recreateFilterNextFrame = true;
+    }
+    auto itNormalMal = settings.find("use_normal_map");
+    if (itNormalMal != settings.end()) {
+        useNormalMap = sgl::fromString<bool>(itNormalMal->second);
+        recreateFilterNextFrame = true;
+    }
+}

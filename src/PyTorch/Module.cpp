@@ -78,6 +78,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_vpt_mode", setVPTMode);
     m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
     m.def("vpt::set_denoiser", setDenoiser);
+    m.def("vpt::set_denoiser_property", setDenoiserProperty);
     m.def("vpt::set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
     m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
@@ -776,6 +777,10 @@ void setDenoiser(const std::string& denoiserName) {
     if (mode == IM_ARRAYSIZE(DENOISER_NAMES)) {
         sgl::Logfile::get()->writeError("Error in setDenoiser: Invalid denoiser name \"" + denoiserName + "\".");
     }
+}
+
+void setDenoiserProperty(const std::string& key, const std::string& value) {
+    vptRenderer->setDenoiserProperty(key, value);
 }
 
 void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath) {

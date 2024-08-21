@@ -137,6 +137,7 @@ public:
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }
+    virtual void setSettings(const std::unordered_map<std::string, std::string>& settings) {}
 };
 
 enum class DenoisingMode {
