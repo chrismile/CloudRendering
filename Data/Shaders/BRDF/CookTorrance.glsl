@@ -222,7 +222,6 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     // Diffuse Part
     // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
     vec3 rhoD = baseColor;
-    rhoD *= sinThetaH * NdotH;
     
     rhoD *= vec3(1.0) - F;
     rhoD *= (1.0 - parameters.metallic);
