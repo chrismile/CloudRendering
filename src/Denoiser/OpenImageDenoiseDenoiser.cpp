@@ -740,4 +740,11 @@ void OpenImageDenoiseDenoiser::setSettings(const std::unordered_map<std::string,
         useNormalMap = sgl::fromString<bool>(itNormalMal->second);
         recreateFilterNextFrame = true;
     }
+
+    if (recreateDenoiserNextFrame) {
+        recreateFilterNextFrame = true;
+    }
+    if (recreateFilterNextFrame) {
+        recreateBuffersNextFrame = true;
+    }
 }

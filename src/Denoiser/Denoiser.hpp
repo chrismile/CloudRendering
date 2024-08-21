@@ -30,6 +30,7 @@
 #define CLOUDRENDERING_DENOISER_HPP
 
 #include <string>
+#include <unordered_map>
 
 #include <Graphics/Vulkan/Image/Image.hpp>
 
