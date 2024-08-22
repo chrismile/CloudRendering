@@ -156,8 +156,8 @@ void OptixVptDenoiser::createDenoiser() {
     }
 
     OptixDenoiserOptions options;
-    options.guideAlbedo = useAlbedo && albedoImageVulkan ? 1 : 0;
-    options.guideNormal = useNormalMap && normalImageVulkan ? 1 : 0;
+    options.guideAlbedo = useAlbedo ? 1 : 0;
+    options.guideNormal = useNormalMap ? 1 : 0;
 #if OPTIX_VERSION >= 80000
     options.denoiseAlpha = denoiseAlpha ? OPTIX_DENOISER_ALPHA_MODE_COPY : OPTIX_DENOISER_ALPHA_MODE_DENOISE;
 #endif
@@ -286,7 +286,7 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     inputImageOptix.rowStrideInBytes = inputWidth * 4 * sizeof(float);
     inputImageOptix.data = inputImageBufferCu->getCudaDevicePtr();
 
-    if (useAlbedo && albedoImageVulkan) {
+    if (useAlbedo) {
         albedoImageBufferCu = {};
         albedoImageBufferVk = std::make_shared<sgl::vk::Buffer>(
                 device, inputWidth * inputHeight * 4 * sizeof(float),
@@ -304,7 +304,7 @@ void OptixVptDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
         albedoImageOptix.data = albedoImageBufferCu->getCudaDevicePtr();
     }
 
-    if (useNormalMap && normalImageVulkan) {
+    if (useNormalMap) {
         normalImageBufferCu = {};
         normalImageBufferVk = std::make_shared<sgl::vk::Buffer>(
                 device, inputWidth * inputHeight * 3 * sizeof(float),
