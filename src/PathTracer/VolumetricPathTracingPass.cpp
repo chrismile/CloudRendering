@@ -1710,7 +1710,10 @@ void VolumetricPathTracingPass::checkRecreateDenoiser() {
 }
 
 void VolumetricPathTracingPass::_render() {
-    checkRecreateDenoiser();
+    bool useDenoiserThisFrame = featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) == featureMapSet.end();
+    if (useDenoiserThisFrame) {
+        checkRecreateDenoiser();
+    }
 
     std::string eventName = getCurrentEventName();
     if (createNewAccumulationTimer) {
@@ -2009,7 +2012,7 @@ void VolumetricPathTracingPass::_render() {
     timerStopped = false;
 
     if (featureMapType == FeatureMapTypeVpt::RESULT) {
-        if (useDenoiser && denoiser && denoiser->getIsEnabled() && !isIntermediatePass) {
+        if (useDenoiser && useDenoiserThisFrame && denoiser && denoiser->getIsEnabled() && !isIntermediatePass) {
             if (!reachedTarget){
                 denoiseTimer->startGPU("denoise");
                 accumulationTimer->startGPU("denoise");
