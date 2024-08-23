@@ -699,6 +699,30 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
     if (tMax <= tMin || tMax <= 0) {
         return false;
     }
+#ifdef USE_CLIP_PLANE
+    // Compute the intersection of the ray with the clip plane
+    float denom = dot(parameters.clipPlaneNormal, D);
+    float d = dot(parameters.clipPlaneNormal, P) - parameters.clipPlaneDistance;
+
+    if (abs(denom) < 0.001) {
+        // Ray is parallel to the clip plane, return whether we are on the positive side (visible)
+        return d > 0;
+    } else {
+        float tClip = (parameters.clipPlaneDistance - dot(parameters.clipPlaneNormal, P)) / denom;
+        if (tClip <= 0) {
+            return d > 0;
+        }
+        if (d > 0) {
+            tMax = min(tClip, tMax);
+        } else {
+            tMin = max(tClip, tMin);
+        }
+    }
+
+    if (tMax <= tMin || tMax <= 0) {
+        return false;
+    }
+#endif
     return true;
 }
 

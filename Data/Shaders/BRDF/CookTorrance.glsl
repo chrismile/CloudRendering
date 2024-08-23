@@ -189,7 +189,7 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     if (hitFlags.specularHit) {
         rhoD *= (1.0 / M_PI);
     }
-    
+   
     float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
     float cosThetaH = NdotH;
 

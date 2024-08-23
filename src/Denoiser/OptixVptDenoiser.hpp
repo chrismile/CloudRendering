@@ -72,6 +72,7 @@ public:
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
+    void setSettings(const std::unordered_map<std::string, std::string>& settings) override;
 
 private:
     sgl::vk::Renderer* renderer = nullptr;

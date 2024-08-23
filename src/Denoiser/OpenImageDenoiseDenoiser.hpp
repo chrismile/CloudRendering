@@ -31,22 +31,20 @@
 
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 
+#ifdef SUPPORT_CUDA_INTEROP
+#include <Graphics/Vulkan/Utils/InteropCuda.hpp>
+#endif
+
 #include <OpenImageDenoise/oidn.h>
 
 #include "Denoiser.hpp"
 
 enum class OIDNDeviceTypeCustom {
-    DEFAULT = 0, GPU_UUID = 1, CPU = 2, SYCL = 3, CUDA = 4, HIP = 5
-#ifdef __APPLE__
-    , METAL = 6
-#endif
+    DEFAULT = 0, GPU_UUID = 1, CPU = 2, SYCL = 3, CUDA = 4, HIP = 5, METAL = 6, CUDA_SHARED = 7
 };
 
 const char* const OIDN_DEVICE_TYPE_NAMES[] = {
-        "Default", "GPU by UUID", "CPU", "SYCL", "CUDA", "HIP"
-#ifdef __APPLE__
-        , "Metal"
-#endif
+        "Default", "GPU by UUID", "CPU", "SYCL", "CUDA", "HIP", "Metal", "CUDA (Shared)"
 };
 
 enum class OIDNQualityCustom {
@@ -55,13 +53,18 @@ enum class OIDNQualityCustom {
 
 const char* const OIDN_QUALITY_NAMES[] = {
         "Default", "Fast", "Balanced", "High"
-#ifdef __APPLE__
-        , "Metal"
-#endif
 };
 
 const int OIDN_QUALITY_MAP[] = {
         OIDN_QUALITY_DEFAULT, OIDN_QUALITY_FAST, OIDN_QUALITY_BALANCED, OIDN_QUALITY_HIGH
+};
+
+enum class OIDNFeatureMaps {
+    NONE, ALBEDO, ALBEDO_NORMAL
+};
+
+const char* const OIDN_FEATURE_MAP_NAMES[] = {
+        "None", "Albedo", "Albedo + Normal"
 };
 
 namespace sgl { namespace vk {
@@ -76,6 +79,10 @@ public:
     explicit OpenImageDenoiseDenoiser(sgl::vk::Renderer* renderer, bool _denoiseAlpha);
     ~OpenImageDenoiseDenoiser() override;
 
+#ifdef SUPPORT_CUDA_INTEROP
+    static bool initGlobalCuda(CUcontext _cuContext, CUdevice _cuDevice);
+#endif
+
     [[nodiscard]] DenoiserType getDenoiserType() const override { return DenoiserType::OPEN_IMAGE_DENOISE; }
     [[nodiscard]] const char* getDenoiserName() const override { return "OpenImageDenoise"; }
     void setOutputImage(sgl::vk::ImageViewPtr& outputImage) override;
@@ -89,6 +96,7 @@ public:
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
+    void setSettings(const std::unordered_map<std::string, std::string>& settings) override;
 
 private:
     sgl::vk::Renderer* renderer = nullptr;
@@ -96,6 +104,17 @@ private:
     sgl::vk::ImageViewPtr inputImageVulkan, albedoImageVulkan, normalImageVulkan, outputImageVulkan;
     sgl::vk::BufferPtr inputImageBufferVk, inputAlbedoBufferVk, inputNormalBufferVk, outputImageBufferVk;
     sgl::vk::BufferCustomInteropVkPtr inputImageBufferInterop, inputAlbedoBufferInterop, inputNormalBufferInterop, outputImageBufferInterop;
+
+#ifdef SUPPORT_CUDA_INTEROP
+    static CUcontext cuContext;
+    static CUdevice cuDevice;
+    CUstream cuStream{};
+    sgl::vk::BufferCudaDriverApiExternalMemoryVkPtr inputImageBufferCu, inputAlbedoBufferCu, inputNormalBufferCu, outputImageBufferCu;
+    std::vector<sgl::vk::CommandBufferPtr> postRenderCommandBuffers;
+    std::vector<sgl::vk::SemaphoreVkCudaDriverApiInteropPtr> renderFinishedSemaphores;
+    std::vector<sgl::vk::SemaphoreVkCudaDriverApiInteropPtr> denoiseFinishedSemaphores;
+    uint64_t timelineValue = 0;
+#endif
 
     // OpenImageDenoise data.
     void _createDenoiser();
@@ -107,6 +126,9 @@ private:
     uint32_t inputWidth = 0;
     uint32_t inputHeight = 0;
     OIDNDeviceTypeCustom deviceType = OIDNDeviceTypeCustom::GPU_UUID;
+    int deviceTypeIdx = int(OIDNDeviceTypeCustom::GPU_UUID);
+    std::vector<OIDNDeviceTypeCustom> deviceTypes;
+    std::vector<const char*> deviceTypeNames;
     OIDNQualityCustom filterQuality = OIDNQualityCustom::DEFAULT;
     bool useNormalMap = false;
     bool useAlbedo = false;

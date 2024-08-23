@@ -67,6 +67,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
     m.def("vpt::set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
     m.def("vpt::disable_env_map_rot", disableEnvMapRot);
+    m.def("vpt::set_env_map_rot_camera", setEnvMapRotCamera);
     m.def("vpt::set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
     m.def("vpt::set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
     m.def("vpt::set_env_map_rot_angle_axis", setEnvMapRotAngleAxis);
@@ -77,6 +78,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_vpt_mode", setVPTMode);
     m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
     m.def("vpt::set_denoiser", setDenoiser);
+    m.def("vpt::set_denoiser_property", setDenoiserProperty);
     m.def("vpt::set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
     m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
@@ -102,6 +104,9 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_surface_brdf", setSurfaceBrdf);
     m.def("vpt::set_use_isosurface_tf", setUseIsosurfaceTf);
     m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
+    m.def("vpt::set_use_clip_plane", setUseClipPlane);
+    m.def("vpt::set_clip_plane_normal", setClipPlaneNormal);
+    m.def("vpt::set_clip_plane_distance", setClipPlaneDistance);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -691,6 +696,10 @@ void disableEnvMapRot() {
     vptRenderer->getVptPass()->disableEnvMapRot();
 }
 
+void setEnvMapRotCamera() {
+    vptRenderer->getVptPass()->setEnvMapRotCamera();
+}
+
 void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec) {
     glm::vec3 vec = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(eulerAnglesVec, vec)) {
@@ -770,6 +779,10 @@ void setDenoiser(const std::string& denoiserName) {
     }
 }
 
+void setDenoiserProperty(const std::string& key, const std::string& value) {
+    vptRenderer->setDenoiserProperty(key, value);
+}
+
 void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath) {
     vptRenderer->getVptPass()->setPyTorchDenoiserModelFilePath(denoiserModelFilePath);
 }
@@ -846,6 +859,21 @@ void setUseIsosurfaceTf(bool _useIsosurfaceTf) {
 
 void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
     vptRenderer->getVptPass()->setNumIsosurfaceSubdivisions(_subdivs);
+}
+
+void setUseClipPlane(bool _useClipPlane) {
+    vptRenderer->getVptPass()->setUseClipPlane(_useClipPlane);
+}
+
+void setClipPlaneNormal(std::vector<double> _clipPlaneNormal) {
+    glm::vec3 normal = glm::vec3(0,0,0);
+    if (parseVector3(_clipPlaneNormal, normal)) {
+        vptRenderer->getVptPass()->setClipPlaneNormal(normal);
+    }
+}
+
+void setClipPlaneDistance(double _clipPlaneDistance) {
+    vptRenderer->getVptPass()->setClipPlaneDistance(_clipPlaneDistance);
 }
 
 

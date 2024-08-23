@@ -57,6 +57,7 @@ class OctahedralMappingPass;
 class OccupationVolumePass;
 class OccupancyGridPass;
 class CameraPoseLinePass;
+class NormalizeNormalsPass;
 
 namespace IGFD {
 class FileDialog;
@@ -64,13 +65,15 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA, DEPTH_FWIDTH,
-    DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, TRANSMITTANCE_VOLUME,
+    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA,
+    DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, ALBEDO,
+    TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Cloud Only", "Depth", "Flow", "Depth (nabla)", "Depth (fwidth)",
-        "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Transmittance Volume",
+        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Flow", "Depth (nabla)",
+        "Depth (fwidth)", "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Albedo",
+        "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
 
@@ -104,7 +107,7 @@ private:
 
 const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
-        {FeatureMapType::ALBEDO, FeatureMapTypeVpt::RESULT},
+        {FeatureMapType::ALBEDO, FeatureMapTypeVpt::ALBEDO},
         {FeatureMapType::FLOW, FeatureMapTypeVpt::FLOW},
         {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
@@ -141,6 +144,7 @@ public:
     void setUseLinearRGB(bool useLinearRGB);
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
     void setDenoiserType(DenoiserType denoiserType);
+    void setDenoiserSettings(const std::unordered_map<std::string, std::string>& denoiserSettings);
     void checkRecreateDenoiser();
     void setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath);
     void setOutputForegroundMap(bool _shallOutputForegroundMap);
@@ -157,6 +161,7 @@ public:
 
     // Environment
     void disableEnvMapRot();
+    void setEnvMapRotCamera();
     void setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles);
     void setEnvMapRotYawPitchRoll(const glm::vec3& _yawPitchRoll);
     void setEnvMapRotAngleAxis(const glm::vec3& _axis, float _angle);
@@ -195,6 +200,11 @@ public:
     [[nodiscard]] glm::vec3 getIsosurfaceColor() const { return isosurfaceColor; }
     [[nodiscard]] IsosurfaceType getIsosurfaceType() const { return isosurfaceType; }
     [[nodiscard]] bool getUseIsosurfaceTf() const { return useIsosurfaceTf; }
+
+    // Clip Plane
+    void setUseClipPlane(bool useClipPlane);
+    void setClipPlaneNormal(const glm::vec3& clipPlaneNormal);
+    void setClipPlaneDistance(float clipPlaneDistance);
 
     // For debug rendering.
     void setCameraPoses(const std::vector<CameraPose>& cameraPoses);
@@ -268,6 +278,7 @@ private:
     sgl::vk::TexturePtr firstXTexture;
     sgl::vk::TexturePtr firstWTexture;
     sgl::vk::TexturePtr normalTexture;
+    sgl::vk::TexturePtr normalLen1Texture;
     sgl::vk::TexturePtr cloudOnlyTexture;
     sgl::vk::TexturePtr depthTexture;
     sgl::vk::TexturePtr densityTexture;
@@ -278,6 +289,7 @@ private:
     sgl::vk::TexturePtr flowTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
+    sgl::vk::TexturePtr albedoTexture;
     sgl::vk::TexturePtr transmittanceVolumeTexture; //< 3D feature map.
     uint32_t dsSecondaryVolume = 1; //< Downscaling factor for secondary volumes like @see transmittanceVolumeTexture.
     bool accumulateInputs = true;
@@ -319,6 +331,7 @@ private:
     float environmentMapIntensityFactor = 1;
     glm::vec3 environmentMapIntensityFactorRgb = glm::vec3(1.0f);
     bool useEnvMapRot = false;
+    bool useEnvMapRotCamera = false; ///< Align envmap with camera orientation.
     glm::mat3 envMapRot = glm::identity<glm::mat3>();
     RotationWidget envMapRotWidget;
     bool useTransferFunctionCached = false;
@@ -330,6 +343,7 @@ private:
     glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
     float headlightIntensity = 0.5f;
 
+    std::shared_ptr<NormalizeNormalsPass> normalizeNormalsPass;
     sgl::vk::BlitRenderPassPtr blitResultRenderPass;
     // Use the two passes below if a compute queue is used and raster-blitting is not available.
     sgl::vk::BlitComputePassPtr resultImageBlitPass;
@@ -345,9 +359,10 @@ private:
     void setDenoiserFeatureMaps();
     void checkResetDenoiserFeatureMaps();
     DenoiserType denoiserType = DenoiserType::EAW;
+    std::unordered_map<std::string, std::string> denoiserSettings;
     bool useDenoiser = true;
     bool isIntermediatePass = false; //< Whether this rendering pass should not yet use the denoiser.
-    bool denoiserChanged = false;
+    bool denoiserChanged = false, denoiserSettingsChanged = false;
     bool denoiseAlpha = false;
     bool shallOutputForegroundMap = false;
     std::shared_ptr<Denoiser> denoiser;
@@ -372,6 +387,11 @@ private:
     void setOccupancyGridConfig();
     bool useEmptySpaceSkipping = false;
     std::shared_ptr<OccupancyGridPass> occupancyGridPass;
+
+    // Clip Plane
+    bool useClipPlane = false;
+    glm::vec3 clipPlaneNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+    float clipPlaneDistance = 0.0f;
 
     glm::mat4 previousViewProjMatrix = glm::zero<glm::mat4>();
 
@@ -441,6 +461,11 @@ private:
         float isoStepWidth = 0.25f;
         float maxAoDist = 0.05f;
         int numAoSamples = 4;
+
+        // Clip Plane
+        int useClipPlane;
+        glm::vec3 clipPlaneNormal;
+        float clipPlaneDistance;
 
         // Disney BRDF
         float subsurface = 0.0;

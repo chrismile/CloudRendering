@@ -78,6 +78,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/CameraPoseLinePass.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/NormalizeNormalsPass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/Normalization.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/RotationWidget.cpp
 )

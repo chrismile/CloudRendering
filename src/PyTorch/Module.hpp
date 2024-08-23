@@ -44,6 +44,7 @@ MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 MODULE_OP_API void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor);
 
 MODULE_OP_API void disableEnvMapRot();
+MODULE_OP_API void setEnvMapRotCamera();
 MODULE_OP_API void setEnvMapRotEulerAngles(std::vector<double> eulerAnglesVec);
 MODULE_OP_API void setEnvMapRotYawPitchRoll(std::vector<double> yawPitchRollVec);
 MODULE_OP_API void setEnvMapRotAngleAxis(std::vector<double> _axisVec, double _angle);
@@ -70,6 +71,7 @@ MODULE_OP_API void setCameraFOVy(double FOVy);
 MODULE_OP_API void setVPTMode(int64_t mode);
 MODULE_OP_API void setVPTModeFromName(const std::string& modeName);
 MODULE_OP_API void setDenoiser(const std::string& denoiserName);
+MODULE_OP_API void setDenoiserProperty(const std::string& key, const std::string& value);
 MODULE_OP_API void setPyTorchDenoiserModelFile(const std::string& denoiserModelFilePath);
 MODULE_OP_API void setOutputForegroundMap(bool _shallOutputForegroundMap);
 MODULE_OP_API void setFeatureMapType(int64_t type);
@@ -88,6 +90,10 @@ MODULE_OP_API void setIsosurfaceType(const std::string& _isosurfaceType);
 MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
 MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
+
+MODULE_OP_API void setUseClipPlane(bool _useClipPlane);
+MODULE_OP_API void setClipPlaneNormal(std::vector<double> _clipPlaneNormal);
+MODULE_OP_API void setClipPlaneDistance(double _clipPlaneDistance);
 
 MODULE_OP_API void setSeedOffset(int64_t offset);
 
