@@ -206,22 +206,31 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #endif
 
 #ifdef WRITE_DENSITY_MAP
-    vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * .001, firstEvent.density * firstEvent.density * .001 * .001) : vec2(0);
+    vec2 density = firstEvent.hasValue ? vec2(firstEvent.density * 0.001, firstEvent.density * firstEvent.density * 0.001 * 0.001) : vec2(0.0);
 #ifndef DISABLE_ACCUMULATION
-    vec2 densityOld = frame == 0 ? vec2(0) : imageLoad(densityImage, imageCoord).xy;
+    vec2 densityOld = frame == 0 ? vec2(0.0) : imageLoad(densityImage, imageCoord).xy;
     densityOld.y = densityOld.y * densityOld.y + densityOld.x * densityOld.x;
     density = mix(densityOld, density, 1.0 / float(frame + 1));
 #endif
-    imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.,density.y - density.x * density.x)),0,0));
+    imageStore(densityImage, imageCoord, vec4(density.x, sqrt(max(0.0, density.y - density.x * density.x)), 0.0, 0.0));
 #endif
 
 #ifdef WRITE_REPROJ_UV_MAP
-    vec2 oldReprojUV = frame == 0 ? vec2(-1,-1) : imageLoad(reprojUVImage, imageCoord).xy;
+    vec2 oldReprojUV = frame == 0 ? vec2(-1.0, -1.0) : imageLoad(reprojUVImage, imageCoord).xy;
     vec4 prevClip = (parameters.previousViewProjMatrix * vec4(firstEvent.x, 1));
     vec2 reprojUV = prevClip.xy / prevClip.w;
-    reprojUV = reprojUV * .5 + .5;
+    reprojUV = reprojUV * 0.5 + 0.5;
     reprojUV = firstEvent.hasValue ? reprojUV : oldReprojUV;
     imageStore(reprojUVImage, imageCoord, vec4(reprojUV, 0, 0));
+#endif
+
+#ifdef WRITE_ALBEDO_MAP
+    vec4 albedo = firstEvent.hasValue ? vec4(parameters.scatteringAlbedo, 1.0) : vec4(0.0);
+#ifndef DISABLE_ACCUMULATION
+    vec4 albedoOld = frame == 0.0 ? vec4(0) : imageLoad(albedoImage, imageCoord);
+    albedo = mix(albedoOld, albedo, 1.0 / float(frame + 1));
+#endif
+    imageStore(albedoImage, imageCoord, albedo);
 #endif
 
 #if defined(WRITE_DEPTH_NABLA_MAP) || defined(WRITE_DEPTH_FWIDTH_MAP)
@@ -239,10 +248,10 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         vec3 diff = getCloudFiniteDifference(firstEvent.x);
 #endif // USE_ISOSURFACES
 #ifndef DISABLE_ACCUMULATION
-        vec3 diffOld = frame == 0 ? vec3(0) : imageLoad(normalImage, imageCoord).xyz;
-        diff = mix(diffOld, diff, 1.0 / float(frame + 1));
+        vec3 diffOld = frame == 0 ? vec3(0.0) : imageLoad(normalImage, imageCoord).xyz;
+        diff = mix(diffOld, diff, 1.0 / float(frame + 1.0));
 #endif
-        imageStore(normalImage, imageCoord, vec4(diff,1));
+        imageStore(normalImage, imageCoord, vec4(diff, 1.0));
 #endif
 
 #ifdef WRITE_FIRST_W_MAP
@@ -260,12 +269,21 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     } else {
         //imageStore(firstX, imageCoord, vec4(0));
 
+//#ifdef WRITE_NORMAL_MAP
+//        imageStore(normalImage, imageCoord, vec4(0));
+//#endif
+
 #ifdef WRITE_NORMAL_MAP
-        imageStore(normalImage, imageCoord, vec4(0));
+#ifdef DISABLE_ACCUMULATION
+        imageStore(normalImage, imageCoord, vec4(0.0));
+#else
+        vec3 diff = frame == 0 ? vec3(0.0) : imageLoad(normalImage, imageCoord).xyz * (float(frame) / float(frame + 1.0));
+        imageStore(normalImage, imageCoord, vec4(diff, 1.0));
+#endif
 #endif
 
 #ifdef WRITE_FIRST_W_MAP
-        imageStore(firstW, imageCoord, vec4(0));
+        imageStore(firstW, imageCoord, vec4(0.0));
 #endif
     }
 

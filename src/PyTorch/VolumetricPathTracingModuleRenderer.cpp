@@ -61,6 +61,9 @@
 #ifdef SUPPORT_OPTIX
 #include "Denoiser/OptixVptDenoiser.hpp"
 #endif
+#if defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE)
+#include "Denoiser/OpenImageDenoiseDenoiser.hpp"
+#endif
 
 ConvertTransmittanceVolumePass::ConvertTransmittanceVolumePass(sgl::vk::Renderer* renderer) : ComputePass(renderer) {
 }
@@ -247,13 +250,22 @@ void VolumetricPathTracingModuleRenderer::setFeatureMapType(FeatureMapTypeVpt ty
 void VolumetricPathTracingModuleRenderer::setDenoiserType(DenoiserType _denoiserType) {
     if (denoiserType != _denoiserType) {
         denoiserType = _denoiserType;
+        denoiserSettings.clear();
         isDenoiserDirty = true;
     }
+}
+
+void VolumetricPathTracingModuleRenderer::setDenoiserProperty(const std::string& key, const std::string& value) {
+    denoiserSettings.insert(std::make_pair(key, value));
+    isDenoiserDirty = true;
 }
 
 void VolumetricPathTracingModuleRenderer::checkDenoiser() {
     if (isDenoiserDirty) {
         vptPass->setDenoiserType(denoiserType);
+        if (!denoiserSettings.empty()) {
+            vptPass->setDenoiserSettings(denoiserSettings);
+        }
         isDenoiserDirty = false;
     }
 }
@@ -380,7 +392,7 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
                         "Error in VolumetricPathTracingModuleRenderer::setRenderingResolution: "
                         "sgl::vk::initializeCudaDeviceApiFunctionTable() failed.", false);
             }
-#ifdef SUPPORT_OPTIX
+#if defined(SUPPORT_OPTIX) || (defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE))
             if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY
                     && sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
                 CUcontext cuContext = {};
@@ -389,7 +401,12 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
                         &cuContext), "Error in cuCtxGetCurrent: ");
                 sgl::vk::checkCUresult(sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxGetDevice(
                         &cuDevice), "Error in cuCtxGetDevice: ");
+#ifdef SUPPORT_OPTIX
                 optixInitialized = OptixVptDenoiser::initGlobal(cuContext, cuDevice);
+#endif
+#if defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE)
+                OpenImageDenoiseDenoiser::initGlobalCuda(cuContext, cuDevice);
+#endif
             }
 #endif
         }

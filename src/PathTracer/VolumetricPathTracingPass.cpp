@@ -57,6 +57,7 @@
 #endif
 
 #include "Utils/CameraPoseLinePass.hpp"
+#include "Utils/NormalizeNormalsPass.hpp"
 #include "CloudData.hpp"
 #include "MomentUtils.hpp"
 #include "SuperVoxelGrid.hpp"
@@ -81,6 +82,7 @@ VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer
 
     equalAreaPass = std::make_shared<OctahedralMappingPass>(renderer);
     occupancyGridPass = std::make_shared<OccupancyGridPass>(renderer);
+    normalizeNormalsPass = std::make_shared<NormalizeNormalsPass>(renderer);
 
     if (sgl::AppSettings::get()->getSettings().getValueOpt(
             "vptEnvironmentMapImage", environmentMapFilenameGui)) {
@@ -230,6 +232,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::NORMAL)) {
             denoiser->setFeatureMap(FeatureMapType::NORMAL, normalTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::NORMAL_LEN_1)) {
+            denoiser->setFeatureMap(FeatureMapType::NORMAL_LEN_1, normalLen1Texture);
+        }
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH, depthTexture);
         }
@@ -259,6 +264,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         }
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_FWIDTH)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH_FWIDTH, depthFwidthTexture);
+        }
+        if (denoiser->getUseFeatureMap(FeatureMapType::ALBEDO)) {
+            denoiser->setFeatureMap(FeatureMapType::ALBEDO, albedoTexture);
         }
 
         denoiser->setOutputImage(denoisedImageView);
@@ -292,12 +300,27 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         firstWTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
+    normalizeNormalsPass->setImages({}, {});
+    normalLen1Texture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::NORMAL_LEN_1)))
+            || featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1 || featureMapSet.find(FeatureMapTypeVpt::NORMAL_LEN_1) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        normalLen1Texture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
     normalTexture = {};
     if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::NORMAL)))
-            || featureMapType == FeatureMapTypeVpt::NORMAL || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end()) {
+            || featureMapType == FeatureMapTypeVpt::NORMAL || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end()
+            || normalLen1Texture) {
         imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         normalTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
+    // TODO
+    if (normalTexture && normalLen1Texture) {
+        normalizeNormalsPass->setImages(normalTexture->getImageView(), normalLen1Texture->getImageView());
     }
 
     cloudOnlyTexture = {};
@@ -374,10 +397,20 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
 
     depthFwidthTexture = {};
     if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FWIDTH)))
-        || featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end()) {
+            || featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end()) {
         imageSettings.format = VK_FORMAT_R32_SFLOAT;
         imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         depthFwidthTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
+    albedoTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::ALBEDO)))
+            || featureMapType == FeatureMapTypeVpt::ALBEDO || featureMapSet.find(FeatureMapTypeVpt::ALBEDO) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        imageSettings.usage =
+                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
+                | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        albedoTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
     transmittanceVolumeTexture = {};
@@ -393,19 +426,6 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         transmittanceVolumeTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings3d, samplerSettings);
     }
 
-    /*albedoTexture = {};
-    if (denoiser && denoiser->getUseFeatureMap(FeatureMapType::ALBEDO)) {
-        imageSettings.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        imageSettings.usage =
-                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT
-                | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        albedoTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
-        VkCommandBuffer commandBuffer = device->beginSingleTimeCommands();
-        albedoTexture->getImage()->transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandBuffer);
-        albedoTexture->getImageView()->clearColor(glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), commandBuffer);
-        device->endSingleTimeCommands(commandBuffer);
-    }*/
-
     globalFrameNumber = 0;
     frameInfo.frameCount = 0;
     setDenoiserFeatureMaps();
@@ -415,6 +435,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useFirstXRenderer = firstXTexture.get() != nullptr;
     bool useFirstWRenderer = firstWTexture.get() != nullptr;
     bool useNormalRenderer = normalTexture.get() != nullptr;
+    bool useNormalLen1Renderer = normalLen1Texture.get() != nullptr;
     bool useCloudOnlyRenderer = cloudOnlyTexture.get() != nullptr;
     bool useBackgroundRenderer = backgroundTexture.get() != nullptr;
     bool useDepthRenderer = depthTexture.get() != nullptr;
@@ -425,8 +446,8 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useFlowRenderer = flowTexture.get() != nullptr;
     bool useDepthNablaRenderer = depthNablaTexture.get() != nullptr;
     bool useDepthFwidthRenderer = depthFwidthTexture.get() != nullptr;
+    bool useAlbedoRenderer = albedoTexture.get() != nullptr;
     bool useTransmittanceVolumeRenderer = transmittanceVolumeTexture.get() != nullptr;
-    //bool useAlbedoRenderer = albedoTexture.get() != nullptr;
 
     bool shallRecreateFeatureMaps = false;
     if (denoiser) {
@@ -435,7 +456,11 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useFirstWRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::FIRST_W))
                     || featureMapType == FeatureMapTypeVpt::FIRST_W || featureMapSet.find(FeatureMapTypeVpt::FIRST_W) != featureMapSet.end())
                 || useNormalRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::NORMAL))
-                    || featureMapType == FeatureMapTypeVpt::NORMAL || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end())
+                    || featureMapType == FeatureMapTypeVpt::NORMAL || featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1
+                    || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end()
+                    || featureMapSet.find(FeatureMapTypeVpt::NORMAL_LEN_1) != featureMapSet.end())
+                || useNormalLen1Renderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::NORMAL_LEN_1))
+                    || featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1 || featureMapSet.find(FeatureMapTypeVpt::NORMAL_LEN_1) != featureMapSet.end())
                 || useCloudOnlyRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::CLOUD_ONLY))
                     || featureMapType == FeatureMapTypeVpt::CLOUD_ONLY || featureMapSet.find(FeatureMapTypeVpt::CLOUD_ONLY) != featureMapSet.end())
                 || useBackgroundRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::BACKGROUND))
@@ -456,6 +481,8 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                     || featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end())
                 || useDepthFwidthRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FWIDTH))
                     || featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end())
+                || useAlbedoRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::ALBEDO))
+                    || featureMapType == FeatureMapTypeVpt::ALBEDO || featureMapSet.find(FeatureMapTypeVpt::ALBEDO) != featureMapSet.end())
                 || useTransmittanceVolumeRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME))
                     || featureMapType == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME || featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) != featureMapSet.end())
         ) {
@@ -464,7 +491,11 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     } else {
         if (useFirstXRenderer != (featureMapType == FeatureMapTypeVpt::FIRST_X || featureMapSet.find(FeatureMapTypeVpt::FIRST_X) != featureMapSet.end())
                 || useFirstWRenderer != (featureMapType == FeatureMapTypeVpt::FIRST_W || featureMapSet.find(FeatureMapTypeVpt::FIRST_W) != featureMapSet.end())
-                || useNormalRenderer != (featureMapType == FeatureMapTypeVpt::NORMAL || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end())
+                || useNormalRenderer !=
+                        (featureMapType == FeatureMapTypeVpt::NORMAL || featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1
+                        || featureMapSet.find(FeatureMapTypeVpt::NORMAL) != featureMapSet.end()
+                        || featureMapSet.find(FeatureMapTypeVpt::NORMAL_LEN_1) != featureMapSet.end())
+                || useNormalLen1Renderer != (featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1 || featureMapSet.find(FeatureMapTypeVpt::NORMAL_LEN_1) != featureMapSet.end())
                 || useCloudOnlyRenderer != (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY || featureMapSet.find(FeatureMapTypeVpt::CLOUD_ONLY) != featureMapSet.end())
                 || useBackgroundRenderer != (featureMapType == FeatureMapTypeVpt::BACKGROUND || featureMapSet.find(FeatureMapTypeVpt::BACKGROUND) != featureMapSet.end())
                 || useDepthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH) != featureMapSet.end())
@@ -475,6 +506,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useFlowRenderer != (featureMapType == FeatureMapTypeVpt::FLOW || featureMapSet.find(FeatureMapTypeVpt::FLOW) != featureMapSet.end())
                 || useDepthNablaRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_NABLA || featureMapSet.find(FeatureMapTypeVpt::DEPTH_NABLA) != featureMapSet.end())
                 || useDepthFwidthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_FWIDTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FWIDTH) != featureMapSet.end())
+                || useAlbedoRenderer != (featureMapType == FeatureMapTypeVpt::ALBEDO || featureMapSet.find(FeatureMapTypeVpt::ALBEDO) != featureMapSet.end())
                 || useTransmittanceVolumeRenderer != (featureMapType == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME || featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) != featureMapSet.end())) {
             shallRecreateFeatureMaps = true;
         }
@@ -878,6 +910,31 @@ void VolumetricPathTracingPass::setNumIsosurfaceSubdivisions(int _subdivs) {
     }
 }
 
+void VolumetricPathTracingPass::setUseClipPlane(bool _useClipPlane) {
+    if (useClipPlane != _useClipPlane) {
+        useClipPlane = _useClipPlane;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setClipPlaneNormal(const glm::vec3& _clipPlaneNormal) {
+    if (clipPlaneNormal != _clipPlaneNormal) {
+        clipPlaneNormal = _clipPlaneNormal;
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
+void VolumetricPathTracingPass::setClipPlaneDistance(float _clipPlaneDistance) {
+    if (clipPlaneDistance != _clipPlaneDistance) {
+        clipPlaneDistance = _clipPlaneDistance;
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -885,9 +942,17 @@ void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDial
 void VolumetricPathTracingPass::setDenoiserType(DenoiserType _denoiserType) {
     if (denoiserType != _denoiserType) {
         denoiserType = _denoiserType;
+        denoiserSettings = {};
         denoiserChanged = true;
         reRender = true;
     }
+}
+
+void VolumetricPathTracingPass::setDenoiserSettings(
+        const std::unordered_map<std::string, std::string>& _denoiserSettings) {
+    denoiserSettings = _denoiserSettings;
+    denoiserSettingsChanged = true;
+    reRender = true;
 }
 
 void VolumetricPathTracingPass::setPyTorchDenoiserModelFilePath(const std::string& denoiserModelFilePath) {
@@ -1007,12 +1072,24 @@ void VolumetricPathTracingPass::disableEnvMapRot() {
     }
 }
 
+void VolumetricPathTracingPass::setEnvMapRotCamera() {
+    if (!useEnvMapRot) {
+        useEnvMapRot = true;
+        setShaderDirty();
+    }
+    useEnvMapRotCamera = true;
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
 void VolumetricPathTracingPass::setEnvMapRotEulerAngles(const glm::vec3& _eulerAngles) {
     if (!useEnvMapRot) {
         useEnvMapRot = true;
         setShaderDirty();
     }
     envMapRotWidget.setEulerAngles(_eulerAngles);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1023,6 +1100,8 @@ void VolumetricPathTracingPass::setEnvMapRotYawPitchRoll(const glm::vec3& _yawPi
         setShaderDirty();
     }
     envMapRotWidget.setYawPitchRoll(_yawPitchRoll);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1033,6 +1112,8 @@ void VolumetricPathTracingPass::setEnvMapRotAngleAxis(const glm::vec3& _axis, fl
         setShaderDirty();
     }
     envMapRotWidget.setAngleAxis(_axis, _angle);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1043,6 +1124,8 @@ void VolumetricPathTracingPass::setEnvMapRotQuaternion(const glm::quat& _quatern
         setShaderDirty();
     }
     envMapRotWidget.setQuaternion(_quaternion);
+    envMapRot = envMapRotWidget.getMat3();
+    useEnvMapRotCamera = false;
     reRender = true;
     frameInfo.frameCount = 0;
 }
@@ -1356,6 +1439,9 @@ void VolumetricPathTracingPass::loadShader() {
     if (depthFwidthTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_FWIDTH_MAP", ""));
     }
+    if (albedoTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_ALBEDO_MAP", ""));
+    }
     if (transmittanceVolumeTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_TRANSMITTANCE_VOLUME", ""));
     }
@@ -1469,6 +1555,10 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_OCCUPANCY_GRID", "" });
     }
 
+    if (useClipPlane) {
+        customPreprocessorDefines.insert({ "USE_CLIP_PLANE", "" });
+    }
+
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
 }
 
@@ -1548,6 +1638,9 @@ void VolumetricPathTracingPass::createComputeData(
     if (depthFwidthTexture) {
         computeData->setStaticImageView(depthFwidthTexture->getImageView(), "depthFwidthImage");
     }
+    if (albedoTexture) {
+        computeData->setStaticImageView(albedoTexture->getImageView(), "albedoImage");
+    }
     if (transmittanceVolumeTexture) {
         computeData->setStaticImageView(transmittanceVolumeTexture->getImageView(), "transmittanceVolumeImage");
     }
@@ -1608,10 +1701,19 @@ void VolumetricPathTracingPass::checkRecreateDenoiser() {
         createDenoiser();
         denoiserChanged = false;
     }
+    if (denoiserSettingsChanged) {
+        if (denoiser) {
+            denoiser->setSettings(denoiserSettings);
+        }
+        denoiserSettingsChanged = false;
+    }
 }
 
 void VolumetricPathTracingPass::_render() {
-    checkRecreateDenoiser();
+    bool useDenoiserThisFrame = featureMapSet.find(FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) == featureMapSet.end();
+    if (useDenoiserThisFrame) {
+        checkRecreateDenoiser();
+    }
 
     std::string eventName = getCurrentEventName();
     if (createNewAccumulationTimer) {
@@ -1746,6 +1848,11 @@ void VolumetricPathTracingPass::_render() {
 
         // Environment map rotation.
         if (useEnvMapRot) {
+            // Align envmap with camera orientation.
+            if (useEnvMapRotCamera) {
+                envMapRot = (*camera)->getViewMatrix();
+            }
+
             for (int k = 0; k < 9; k++) {
                 int i = k / 3;
                 int j = k % 3;
@@ -1779,6 +1886,9 @@ void VolumetricPathTracingPass::_render() {
 
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
+
+        uniformData.clipPlaneNormal = clipPlaneNormal;
+        uniformData.clipPlaneDistance = clipPlaneDistance;
 
         if (useGlobalFrameNumber) {
             frameInfo.globalFrameNumber = globalFrameNumber;
@@ -1839,6 +1949,9 @@ void VolumetricPathTracingPass::_render() {
         if (depthFwidthTexture) {
             renderer->transitionImageLayout(depthFwidthTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
+        if (albedoTexture) {
+            renderer->transitionImageLayout(albedoTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        }
         if (transmittanceVolumeTexture) {
             renderer->insertImageMemoryBarrier(
                     transmittanceVolumeTexture->getImage(),
@@ -1880,12 +1993,26 @@ void VolumetricPathTracingPass::_render() {
                 sgl::iceil(int(imageSettings.width), blockSize2D.x),
                 sgl::iceil(int(imageSettings.height), blockSize2D.y),
                 1);
+
+        if (normalLen1Texture) {
+            renderer->syncWithCpu();
+            renderer->insertImageMemoryBarrier(
+                    normalTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT);
+            renderer->insertImageMemoryBarrier(
+                    normalLen1Texture->getImage(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_NONE_KHR, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            renderer->syncWithCpu();
+            normalizeNormalsPass->render();
+        }
     }
     changedDenoiserSettings = false;
     timerStopped = false;
 
     if (featureMapType == FeatureMapTypeVpt::RESULT) {
-        if (useDenoiser && denoiser && denoiser->getIsEnabled() && !isIntermediatePass) {
+        if (useDenoiser && useDenoiserThisFrame && denoiser && denoiser->getIsEnabled() && !isIntermediatePass) {
             if (!reachedTarget){
                 denoiseTimer->startGPU("denoise");
                 accumulationTimer->startGPU("denoise");
@@ -1944,6 +2071,10 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(normalTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         normalTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::NORMAL_LEN_1) {
+        renderer->transitionImageLayout(normalLen1Texture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        normalLen1Texture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY) {
         renderer->transitionImageLayout(cloudOnlyTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1984,6 +2115,10 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(depthFwidthTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         depthFwidthTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::ALBEDO) {
+        renderer->transitionImageLayout(albedoTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        albedoTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
         sgl::Logfile::get()->writeWarning(
                 "Warning: Transmittance volume is a 3D feature map and cannot be displayed.", true);
@@ -2021,6 +2156,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return firstWTexture;
     } else if (type == FeatureMapTypeVpt::NORMAL) {
         return normalTexture;
+    } else if (type == FeatureMapTypeVpt::NORMAL_LEN_1) {
+        return normalLen1Texture;
     //} else if (type == FeatureMapTypeVpt::PRIMARY_RAY_ABSORPTION_MOMENTS) {
     //    return nullptr;
     //} else if (type == FeatureMapTypeVpt::SCATTER_RAY_ABSORPTION_MOMENTS) {
@@ -2045,6 +2182,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return depthNablaTexture;
     } else if (type == FeatureMapTypeVpt::DEPTH_FWIDTH) {
         return depthFwidthTexture;
+    } else if (type == FeatureMapTypeVpt::ALBEDO) {
+        return albedoTexture;
     } else if (type == FeatureMapTypeVpt::TRANSMITTANCE_VOLUME) {
         return transmittanceVolumeTexture;
     }
@@ -2250,7 +2389,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                         reRender = true;
                         frameInfo.frameCount = 0;
                     }
-                    if (useEnvMapRot && envMapRotWidget.renderGuiPropertyEditorNodes(propertyEditor)) {
+                    if (useEnvMapRot && propertyEditor.addCheckbox("Align with Camera", &useEnvMapRotCamera)) {
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
+                    if (useEnvMapRot && !useEnvMapRotCamera && envMapRotWidget.renderGuiPropertyEditorNodes(
+                            propertyEditor)) {
                         envMapRot = envMapRotWidget.getMat3();
                         reRender = true;
                         frameInfo.frameCount = 0;
@@ -2558,6 +2702,20 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 frameInfo.frameCount = 0;
             }
             propertyEditor.endNode();
+        }
+
+        if (propertyEditor.addCheckbox(
+                "Use Clip Plane", &useClipPlane)) {
+            setShaderDirty();
+            optionChanged = true;
+        }
+
+        if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, 0.01f, 1.0f)) {
+            optionChanged = true;
+        }
+
+        if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -1.0f, 1.0f)) {
+            optionChanged = true;
         }
 
         propertyEditor.endNode();

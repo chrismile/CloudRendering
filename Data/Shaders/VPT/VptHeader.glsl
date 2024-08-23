@@ -93,6 +93,10 @@ layout (binding = 3) uniform Parameters {
     float maxAoDist;
     int numAoSamples;
 
+    // Clip plane
+    vec3 clipPlaneNormal;
+    float clipPlaneDistance;
+
     // Disney BRDF
     float subsurface;
     float metallic;
@@ -191,8 +195,12 @@ layout (binding = 23, rg32f) uniform image2D depthNablaImage;
 layout (binding = 24, r32f) uniform image2D depthFwidthImage;
 #endif
 
+#ifdef WRITE_ALBEDO_MAP
+layout (binding = 25, rgba32f) uniform image2D albedoImage;
+#endif
+
 #ifdef WRITE_TRANSMITTANCE_VOLUME
-layout (binding = 25, r32ui) uniform uimage3D transmittanceVolumeImage;
+layout (binding = 26, r32ui) uniform uimage3D transmittanceVolumeImage;
 #endif
 
 
@@ -204,7 +212,7 @@ layout (binding = 25, r32ui) uniform uimage3D transmittanceVolumeImage;
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 26) uniform MomentUniformData {
+layout(std140, binding = 27) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
     //float overestimation;
     //float moment_bias;
@@ -212,16 +220,16 @@ layout(std140, binding = 26) uniform MomentUniformData {
 const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 27) uniform sampler1DArray transferFunctionTexture;
+layout(binding = 28) uniform sampler1DArray transferFunctionTexture;
 #endif
 
 #if defined(ISOSURFACE_TYPE_GRADIENT) || (defined(ISOSURFACE_TYPE_DENSITY) && defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION))
-layout(binding = 28) uniform sampler3D gradientImage;
+layout(binding = 29) uniform sampler3D gradientImage;
 #endif
 
 #ifdef USE_OCCUPANCY_GRID
 // The occupancy grid can be used for empty space skipping with next event tracking transmittance rays.
-layout(binding = 29, r8ui) uniform readonly uimage3D occupancyGridImage;
+layout(binding = 30, r8ui) uniform readonly uimage3D occupancyGridImage;
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {
