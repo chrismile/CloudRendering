@@ -225,10 +225,14 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     vec3 sheen = f_h * parameters.sheen * col_sheen;
 
     vec3 diffuse = (col * mix(f_d, f_d_subsurface, parameters.subsurface) + sheen) * (1.0 - parameters.metallic);
+    
+    if (hitFlags.specularHit) {
+        diffuse *= (1.0 / M_PI);
+    }
 
     // Specular F (Schlick Fresnel Approximation)
     vec3 f_specular = mix(col_spec0, vec3(1.0), f_h);
-    
+
     // GTR2
     float d_specular = 1 / (M_PI * ax * ay * sqr(sqr(dot(x, halfwayVector) / ax) + sqr(dot(y, halfwayVector) / ay)) + pow(theta_h, 2.0));
 
@@ -239,16 +243,27 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
     float sinThetaH = sin(th);
     float cosThetaH = NdotH;
 
-    vec3 specular = f_specular * g_specular * 4 * NdotL * VdotH * sin(th)/ NdotH;
+    vec3 specular;
+    
+    if (hitFlags.specularHit && !hitFlags.clearcoatHit) {
+        specular = f_specular * g_specular * 4 * NdotL * VdotH * sin(th)/ NdotH;
+    } else {
+        specular = f_specular * d_specular * g_specular * 4 * NdotL * VdotH * sin(th);
+    }
 
     // Clearcoat
     float f_clearcoat = mix(0.04,1.0,f_h);
     float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
 
-        
-    float clear = parameters.clearcoat * f_clearcoat * g_clearcoat*NdotL * VdotH * sin(th)/NdotH;
+    
+    float clear;
 
+    if (hitFlags.specularHit && hitFlags.clearcoatHit) {
+        clear = parameters.clearcoat * f_clearcoat * g_clearcoat*NdotL * VdotH * sin(th)/NdotH;
+    } else {
+        clear = parameters.clearcoat * f_clearcoat * d_clearcoat * g_clearcoat* NdotL * VdotH * sin(th);
+    }
     // Result
 
     if (hitFlags.specularHit) {
@@ -328,7 +343,7 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     float d_clearcoat = GTR1(theta_h, mix(.1, .001, parameters.clearcoatGloss));
     float g_clearcoat = smithG_GGX(theta_l, 0.25) * smithG_GGX(theta_v, 0.25);
         
-    float clear = parameters.clearcoat*f_clearcoat*g_clearcoat * NdotL * VdotH * sinThetaH;
+    float clear = parameters.clearcoat * f_clearcoat * d_clearcoat *g_clearcoat * NdotL * VdotH * sinThetaH;
 
     vec3 result = diffuse + specular + clear;
 
