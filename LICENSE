@@ -9,7 +9,7 @@ src/nanovdb/* and Data/Shaders/VPT/PNanoVDB.glsl).
 
 BSD 2-Clause License
 
-Copyright (c) 2021-2024, Christoph Neuhauser, Timm Knörle, Felix Brendel, Jonas Itt
+Copyright (c) 2021-2024, Christoph Neuhauser, Timm Knörle, Felix Brendel, Jonas Itt, Malte Schmitz
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
