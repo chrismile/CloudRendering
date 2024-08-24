@@ -454,6 +454,9 @@ private:
         // Headlight.
         glm::vec3 headlightColor;
         float headlightIntensity = 1.0f;
+        float headlightSpotTotalWidth = 0.0981747704;
+        float headlightSpotFalloffStart = 0.0245436926;
+        float pad13, pad14;
 
         // Isosurfaces.
         glm::vec3 isosurfaceColor;
@@ -476,12 +479,10 @@ private:
         float anisotropic = 0.0;
         float sheen = 0.0;
         float sheenTint = 0.5;
-        float clearcoat = 0.0;
         glm::vec3 camForward;
+        float clearcoat = 0.0;
         float clearcoatGloss = 1.0;
-
-        float headlightSpotTotalWidth = 0.0981747704;
-        float headlightSpotFalloffStart = 0.0245436926;
+        float pad15, pad16, pad17;
     };
     UniformData uniformData{};
     sgl::vk::BufferPtr uniformBuffer;

@@ -85,6 +85,8 @@ layout (binding = 3) uniform Parameters {
     // Headlight.
     vec3 headlightColor;
     float headlightIntensity;
+    float headlightSpotTotalWidth;
+    float headlightSpotFalloffStart;
 
     // Isosurfaces.
     vec3 isoSurfaceColor;
@@ -94,6 +96,7 @@ layout (binding = 3) uniform Parameters {
     int numAoSamples;
 
     // Clip plane
+    int useClipPlane;
     vec3 clipPlaneNormal;
     float clipPlaneDistance;
 
@@ -106,14 +109,9 @@ layout (binding = 3) uniform Parameters {
     float anisotropic;
     float sheen;
     float sheenTint;
-    float clearcoat;
-    
     vec3 camForward;
+    float clearcoat;
     float clearcoatGloss;
-
-    
-    float headlightSpotTotalWidth;
-    float headlightSpotFalloffStart;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {
