@@ -55,9 +55,6 @@ typedef std::shared_ptr<DataView> DataViewPtr;
 
 class MainApp : public sgl::SciVisApp {
 public:
-    /**
-     * @param supportsRaytracing Whether raytracing via OpenGL-Vulkan interoperability is supported.
-     */
     MainApp();
     ~MainApp() override;
     void render() override;
