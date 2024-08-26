@@ -125,6 +125,11 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::get_render_bounding_box", getRenderBoundingBox);
     m.def("vpt::remember_next_bounds", rememberNextBounds);
     m.def("vpt::forget_current_bounds", forgetCurrentBounds);
+    m.def("vpt::set_max_grid_extent", setMaxGridExtent);
+    m.def("vpt::set_global_world_bounding_box", setGlobalWorldBoundingBox);
+    m.def("vpt::get_vdb_world_bounding_box", getVDBWorldBoundingBox);
+    m.def("vpt::get_vdb_index_bounding_box", getVDBIndexBoundingBox);
+    m.def("vpt::get_vdb_voxel_size", getVDBVoxelSize);
     m.def("vpt::flip_yz_coordinates", flipYZ);
     m.def("vpt::triangulate_isosurfaces", triangulateIsosurfaces);
     m.def("vpt::export_vdb_volume", exportVdbVolume);
@@ -623,6 +628,9 @@ void cleanup() {
 void loadCloudFile(const std::string& filename) {
     //std::cout << "loading cloud from " << filename << std::endl;
     CloudDataPtr cloudData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
+    if (vptRenderer->getHasGlobalWorldBoundingBox()) {
+        cloudData->setGlobalWorldBoundingBox(vptRenderer->getGlobalWorldBoundingBox());
+    }
     cloudData->loadFromFile(filename);
     vptRenderer->setCloudData(cloudData);
 }
@@ -985,6 +993,29 @@ void rememberNextBounds(){
 
 void forgetCurrentBounds(){
     vptRenderer->forgetCurrentBounds();
+}
+
+void setMaxGridExtent(double maxGridExtent) {
+    vptRenderer->getCloudData()->setMaxGridExtent(maxGridExtent);
+}
+
+void setGlobalWorldBoundingBox(std::vector<double> globalBBVec) {
+    sgl::AABB3 aabb(
+            glm::vec3((float)globalBBVec[0], (float)globalBBVec[2], (float)globalBBVec[4]),
+            glm::vec3((float)globalBBVec[1], (float)globalBBVec[3], (float)globalBBVec[5]));
+    vptRenderer->setGlobalWorldBoundingBox(aabb);
+}
+
+std::vector<double> getVDBWorldBoundingBox() {
+    return vptRenderer->getCloudData()->getVDBWorldBoundingBox();
+}
+
+std::vector<int64_t> getVDBIndexBoundingBox() {
+    return vptRenderer->getCloudData()->getVDBIndexBoundingBox();
+}
+
+std::vector<double> getVDBVoxelSize() {
+    return vptRenderer->getCloudData()->getVDBVoxelSize();
 }
 
 std::vector<torch::Tensor> triangulateIsosurfaces() {

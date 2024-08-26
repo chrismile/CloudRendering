@@ -111,6 +111,9 @@ public:
     void setCameraTarget(const glm::vec3& cameraTarget);
     void setCameraFOVy(double FOVy);
 
+    void setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox);
+    [[nodiscard]] const sgl::AABB3& getGlobalWorldBoundingBox() const { return globalWorldBoundingBox; }
+    [[nodiscard]] bool getHasGlobalWorldBoundingBox() const { return hasGlobalWorldBoundingBox; }
     void rememberNextBounds();
     void forgetCurrentBounds();
 
@@ -172,6 +175,9 @@ private:
     glm::vec3 seq_bounds_max = glm::vec3(0,0,0);
     bool hasStoredBounds = false;
     bool storeNextBounds = false;
+
+    sgl::AABB3 globalWorldBoundingBox{};
+    bool hasGlobalWorldBoundingBox = false;
 
     glm::mat4 previousViewProjectionMatrix = glm::zero<glm::mat4>();
 

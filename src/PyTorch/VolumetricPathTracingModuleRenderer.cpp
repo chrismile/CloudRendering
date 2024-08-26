@@ -312,6 +312,11 @@ void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
     vptPass->onHasMoved();
 }
 
+void VolumetricPathTracingModuleRenderer::setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox) {
+    globalWorldBoundingBox = boundingBox;
+    hasGlobalWorldBoundingBox = true;
+}
+
 void VolumetricPathTracingModuleRenderer::rememberNextBounds() {
     storeNextBounds = true;
 }

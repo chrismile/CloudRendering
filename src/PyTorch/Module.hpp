@@ -108,6 +108,19 @@ MODULE_OP_API std::vector<int64_t> getVolumeVoxelSize();
 MODULE_OP_API std::vector<double> getRenderBoundingBox();
 MODULE_OP_API void rememberNextBounds();
 MODULE_OP_API void forgetCurrentBounds();
+/**
+ * Due to legacy reasons, the grid has size (-0.25, 0.25) in the largest dimension.
+ * @param maxDimSize The new extent value such that the size is (-maxGridExtent, maxGridExtent).
+ * Note: Must be called before any call to @see loadCloudFile!
+ */
+MODULE_OP_API void setMaxGridExtent(double maxGridExtent);
+/// This function can be used to normalize the grid wrt. a global bounding box.
+MODULE_OP_API void setGlobalWorldBoundingBox(std::vector<double> globalBBVec);
+
+// Interface for NanoVDB & OpenVDB.
+MODULE_OP_API std::vector<double> getVDBWorldBoundingBox();
+MODULE_OP_API std::vector<int64_t> getVDBIndexBoundingBox();
+MODULE_OP_API std::vector<double> getVDBVoxelSize();
 
 MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount);
 MODULE_OP_API void setUseFeatureMaps(std::vector<std::string> featureMapNames);
