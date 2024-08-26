@@ -1034,6 +1034,11 @@ void CloudData::printSparseGridMetadata() {
     }
 }
 
+void CloudData::setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox) {
+    globalWorldBoundingBox = boundingBox;
+    hasGlobalWorldBoundingBox = true;
+}
+
 void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max) {
     seqMin = min;
     seqMax = max;
