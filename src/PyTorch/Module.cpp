@@ -603,7 +603,8 @@ void initialize() {
         vptRenderer = new VolumetricPathTracingModuleRenderer(renderer);
 
         // TODO: Make this configurable.
-        CloudDataPtr cloudData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
+        CloudDataPtr cloudData = std::make_shared<CloudData>(
+                vptRenderer->getTransferFunctionWindow(), vptRenderer->getLightEditorWidget());
         cloudData->setNanoVdbGridHandle(nanovdb::createFogVolumeSphere<float>(
                 0.25f, nanovdb::Vec3<float>(0), 0.01f));
         vptRenderer->setCloudData(cloudData);
@@ -627,7 +628,8 @@ void cleanup() {
 
 void loadCloudFile(const std::string& filename) {
     //std::cout << "loading cloud from " << filename << std::endl;
-    CloudDataPtr cloudData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
+    CloudDataPtr cloudData = std::make_shared<CloudData>(
+            vptRenderer->getTransferFunctionWindow(), vptRenderer->getLightEditorWidget());
     if (vptRenderer->getHasGlobalWorldBoundingBox()) {
         cloudData->setGlobalWorldBoundingBox(vptRenderer->getGlobalWorldBoundingBox());
     }
@@ -637,7 +639,8 @@ void loadCloudFile(const std::string& filename) {
 
 void loadEmissionFile(const std::string& filename) {
     //std::cout << "loading emission from " << filename << std::endl;
-    CloudDataPtr emissionData = std::make_shared<CloudData>(vptRenderer->getTransferFunctionWindow());
+    CloudDataPtr emissionData = std::make_shared<CloudData>(
+            vptRenderer->getTransferFunctionWindow(), vptRenderer->getLightEditorWidget());
     emissionData->loadFromFile(filename);
     vptRenderer->setEmissionData(emissionData);
 }

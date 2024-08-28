@@ -62,6 +62,7 @@
 #include "MomentUtils.hpp"
 #include "SuperVoxelGrid.hpp"
 #include "OccupancyGrid.hpp"
+#include "LightEditorWidget.hpp"
 #include "VolumetricPathTracingPass.hpp"
 
 VolumetricPathTracingPass::VolumetricPathTracingPass(sgl::vk::Renderer* renderer, sgl::CameraPtr* camera)
@@ -1007,6 +1008,16 @@ size_t VolumetricPathTracingPass::getSecondaryVolumeSizeInBytes() {
 
 void VolumetricPathTracingPass::onHasMoved() {
     frameInfo.frameCount = 0;
+
+    if (cloudData) {
+        auto* lightEditorWidget = cloudData->getLightEditorWidget();
+        size_t numLights =
+                (lightEditorWidget && lightEditorWidget->getShowWindow()) ? lightEditorWidget->getNumLights() : 0;
+        if (numLightsCached != numLights) {
+            setShaderDirty();
+            numLightsCached = numLights;
+        }
+    }
 }
 
 void VolumetricPathTracingPass::updateVptMode() {
@@ -1256,6 +1267,24 @@ void VolumetricPathTracingPass::createEnvironmentMapOctahedralTexture(uint32_t m
     device->endSingleTimeCommands(commandBuffer, 0xFFFFFFFF, false);
 }
 
+template<typename T>
+bool computeIsImageBlack(const T* imageDataTyped, uint32_t width, uint32_t height) {
+    const auto zeroValue = T(0.0f);
+    bool isImageBlack = true;
+    for (uint32_t y = 0; y < height; y++) {
+        for (uint32_t x = 0; x < width; x++) {
+            uint32_t offset = (x + y * width) * 4;
+            if (imageDataTyped[offset + 0] != zeroValue
+                    || imageDataTyped[offset + 1] != zeroValue
+                    || imageDataTyped[offset + 2] != zeroValue) {
+                isImageBlack = false;
+                break;
+            }
+        }
+    }
+    return isImageBlack;
+}
+
 void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filename) {
     if (!sgl::FileUtils::get()->exists(filename)) {
         sgl::Logfile::get()->writeError(
@@ -1329,6 +1358,13 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     loadedEnvironmentMapFilename = filename;
     isEnvironmentMapLoaded = true;
     frameInfo.frameCount = 0;
+
+    // Check whether the image is purely black.
+    if (bytesPerPixel == 4) {
+        isEnvMapImageBlack = computeIsImageBlack(reinterpret_cast<uint8_t*>(pixelData), width, height);
+    } else {
+        isEnvMapImageBlack = computeIsImageBlack(reinterpret_cast<HalfFloat*>(pixelData), width, height);
+    }
 
     if (envMapImageUsesLinearRgb != newEnvMapImageUsesLinearRgb) {
         envMapImageUsesLinearRgb = newEnvMapImageUsesLinearRgb;
@@ -1511,6 +1547,7 @@ void VolumetricPathTracingPass::loadShader() {
 
     customPreprocessorDefines.insert({ "LOCAL_SIZE_X", std::to_string(blockSize2D.x) });
     customPreprocessorDefines.insert({ "LOCAL_SIZE_Y", std::to_string(blockSize2D.y) });
+
     auto* tfWindow = cloudData->getTransferFunctionWindow();
     bool useTransferFunction = tfWindow && tfWindow->getShowWindow();
     if (useTransferFunction) {
@@ -1520,6 +1557,10 @@ void VolumetricPathTracingPass::loadShader() {
         useTransferFunctionCached = useTransferFunction;
         frameInfo.frameCount = 0;
     }
+
+    auto* lightEditorWidget = cloudData->getLightEditorWidget();
+    size_t numLights = (lightEditorWidget && lightEditorWidget->getShowWindow()) ? lightEditorWidget->getNumLights() : 0;
+    customPreprocessorDefines.insert({ "NUM_LIGHTS", std::to_string(numLights) });
 
     if (useIsosurfaces) {
         customPreprocessorDefines.insert({ "USE_ISOSURFACES", "" });
@@ -1672,6 +1713,12 @@ void VolumetricPathTracingPass::createComputeData(
     if (tfWindow && tfWindow->getShowWindow()) {
         computeData->setStaticTexture(tfWindow->getTransferFunctionMapTextureVulkan(), "transferFunctionTexture");
     }
+
+    auto* lightEditorWidget = cloudData->getLightEditorWidget();
+    size_t numLights = (lightEditorWidget && lightEditorWidget->getShowWindow()) ? lightEditorWidget->getNumLights() : 0;
+    if (numLights > 0) {
+        computeData->setStaticBuffer(lightEditorWidget->getLightsBuffer(), "LightsBuffer");
+    }
 }
 
 void VolumetricPathTracingPass::setOccupancyGridConfig() {
@@ -1758,6 +1805,8 @@ void VolumetricPathTracingPass::_render() {
             uniformData.previousViewProjMatrix = (*camera)->getProjectionMatrix() * (*camera)->getViewMatrix();
         }
         uniformData.inverseTransposedViewMatrix = glm::transpose(glm::inverse((*camera)->getViewMatrix()));
+        uniformData.inverseViewMatrix = glm::inverse((*camera)->getViewMatrix());
+        uniformData.viewMatrix = (*camera)->getViewMatrix();
         uniformData.farDistance = (*camera)->getFarClipDistance();
         uniformData.boxMin = cloudData->getWorldSpaceBoxMin(useSparseGrid);
         uniformData.boxMax = cloudData->getWorldSpaceBoxMax(useSparseGrid);
@@ -1859,6 +1908,25 @@ void VolumetricPathTracingPass::_render() {
                 uniformData.envMapDirRot[i * 4 + j] = envMapRot[i][j];
                 uniformData.invEnvMapDirRot[i * 4 + j] = envMapRot[j][i];
             }
+        }
+
+        uniformData.isEnvMapBlack = false;
+        if (useEnvironmentMapImage && isEnvironmentMapLoaded) {
+            uniformData.isEnvMapBlack = isEnvMapImageBlack;
+            if (useEnvironmentMapIntensityFactorRgb) {
+                if (environmentMapIntensityFactorRgb.r < 1e-5f
+                        && environmentMapIntensityFactorRgb.g < 1e-5f
+                        && environmentMapIntensityFactorRgb.b < 1e-5f) {
+                    uniformData.isEnvMapBlack = true;
+                }
+            } else {
+                if (environmentMapIntensityFactor < 1e-5f) {
+                    uniformData.isEnvMapBlack = true;
+                }
+                uniformData.environmentMapIntensityFactor = glm::vec3(environmentMapIntensityFactor);
+            }
+        } else {
+            uniformData.isEnvMapBlack = builtinEnvMap == BuiltinEnvMap::BLACK;
         }
 
         uniformData.headlightColor = headlightColor;
@@ -2479,7 +2547,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                         reRender = true;
                         frameInfo.frameCount = 0;
                     }
-                    
+
                     if (headlightType == HeadlightType::SPOT) {
                         if (propertyEditor.addSliderFloat("Total Cone Width Angle", (float*)&headlightSpotTotalWidth, 0.0, M_PI/2)) {
                             setShaderDirty();
@@ -2493,7 +2561,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                             frameInfo.frameCount = 0;
                         }
                     }
-                    
+
                     if (propertyEditor.addCheckbox("Use Headlight Distance", &useHeadlightDistance)) {
                         optionChanged = true;
                         setShaderDirty();

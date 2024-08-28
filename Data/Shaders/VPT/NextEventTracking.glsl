@@ -154,15 +154,18 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bo
 
                 float pdfLightNee; // only used for skybox.
                 vec3 dirLightNee;
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
                 // We are sampling the environment map or headlight with 50/50 chance.
-                bool isSamplingHeadlight = random() > 0.5;
+                bool isSamplingHeadlight = (parameters.isEnvMapBlack != 0u) ? true : (random() > 0.5);
+                float lightProbabilityFactor = parameters.isEnvMapBlack != 0u ? 1.0 : 2.0;
+                float lightDistance = 0.0;
+                uint lightIdx = 0;
                 if (isSamplingHeadlight) {
-                    dirLightNee = getHeadlightDirection(x);
+                    dirLightNee = getHeadlightDirection(x, lightIdx, lightProbabilityFactor, lightDistance);
                 } else {
 #endif
                     dirLightNee = importanceSampleSkybox(pdfLightNee);
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
                 }
 #endif
 
@@ -171,12 +174,12 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bo
 
                 weights *= sigma_s / (majorant * Ps);
 
-#ifdef USE_HEADLIGHT
-                vec3 commonFactor = (2.0 * pdf_nee_phase) * min(weights, vec3(100000, 100000, 100000));
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
+                vec3 commonFactor = (lightProbabilityFactor * pdf_nee_phase) * min(weights, vec3(100000, 100000, 100000));
                 if (isSamplingHeadlight) {
                     color +=
-                            commonFactor * calculateTransmittanceDistance(x, dirLightNee, distance(x, cameraPosition))
-                            * sampleHeadlight(x);
+                            commonFactor * calculateTransmittanceDistance(x, dirLightNee, lightDistance)
+                            * sampleHeadlight(x, lightIdx);
                 } else {
                     color +=
                             commonFactor / pdfLightNee * calculateTransmittance(x, dirLightNee)
@@ -319,28 +322,31 @@ vec3 nextEventTracking(vec3 x, vec3 w, inout ScatterEvent firstEvent, bool onlyF
 
                 float pdfLightNee; // only used for skybox.
                 vec3 dirLightNee;
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
                 // We are sampling the environment map or headlight with 50/50 chance.
-                bool isSamplingHeadlight = random() > 0.5;
+                bool isSamplingHeadlight = (parameters.isEnvMapBlack != 0u) ? true : (random() > 0.5);
+                float lightProbabilityFactor = parameters.isEnvMapBlack != 0u ? 1.0 : 2.0;
+                float lightDistance = 0.0;
+                uint lightIdx = 0;
                 if (isSamplingHeadlight) {
-                    dirLightNee = getHeadlightDirection(x);
+                    dirLightNee = getHeadlightDirection(x, lightIdx, lightProbabilityFactor, lightDistance);
                 } else {
 #endif
                     dirLightNee = importanceSampleSkybox(pdfLightNee);
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
                 }
 #endif
 
                 float pdf_nee_phase = evaluatePhase(parameters.phaseG, w, dirLightNee);
                 w = next_w;
 
-#ifdef USE_HEADLIGHT
-                float commonFactor = 2.0 * pdf_nee_phase;
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
+                float commonFactor = lightProbabilityFactor * pdf_nee_phase;
                 vec3 colorNew;
                 if (isSamplingHeadlight) {
                     colorNew =
-                            (commonFactor * calculateTransmittanceDistance(x, dirLightNee, distance(x, cameraPosition)))
-                            * sampleHeadlight(x);
+                            (commonFactor * calculateTransmittanceDistance(x, dirLightNee, lightDistance))
+                            * sampleHeadlight(x, lightIdx);
                 } else {
                     colorNew =
                             (commonFactor / pdfLightNee * calculateTransmittance(x, dirLightNee))

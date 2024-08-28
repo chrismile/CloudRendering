@@ -44,6 +44,7 @@
 #include "SceneData.hpp"
 #include "DataSetList.hpp"
 #include "CloudData.hpp"
+#include "PathTracer/LightEditorWidget.hpp"
 #include "PathTracer/VolumetricPathTracingPass.hpp"
 
 #ifdef USE_PYTHON
@@ -119,6 +120,9 @@ private:
 
     // For mapping volume density to display density and emission.
     sgl::MultiVarTransferFunctionWindow transferFunctionWindow;
+
+    // For specifying light sources apart from the environment map.
+    LightEditorWidget* lightEditorWidget;
 
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;

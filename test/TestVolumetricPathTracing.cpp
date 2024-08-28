@@ -39,6 +39,7 @@
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
+#include "PathTracer/LightEditorWidget.hpp"
 #include "VolumetricPathTracingTestData.hpp"
 #include "VolumetricPathTracingTestRenderer.hpp"
 
@@ -49,6 +50,8 @@ protected:
         transferFunctionWindow = new sgl::MultiVarTransferFunctionWindow;
         transferFunctionWindow->setShowWindow(false);
         transferFunctionWindow->setAttributeNames({"Volume", "Isosurface"});
+        lightEditorWidget = new LightEditorWidget(renderer);
+        lightEditorWidget->setShowWindow(false);
         vptRenderer0 = std::make_shared<VolumetricPathTracingTestRenderer>(renderer);
         vptRenderer1 = std::make_shared<VolumetricPathTracingTestRenderer>(renderer);
     }
@@ -59,6 +62,10 @@ protected:
         if (transferFunctionWindow) {
             delete transferFunctionWindow;
             transferFunctionWindow = nullptr;
+        }
+        if (lightEditorWidget) {
+            delete lightEditorWidget;
+            lightEditorWidget = nullptr;
         }
         if (renderer) {
             delete renderer;
@@ -133,6 +140,7 @@ protected:
 
     sgl::vk::Renderer* renderer = nullptr;
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
+    LightEditorWidget* lightEditorWidget = nullptr;
     int numSamples = 64;
     float epsilon = 1e-3;
     int renderingResolution = 128;
@@ -146,7 +154,7 @@ protected:
  * constant density across the whole volume domain.
  */
 TEST_F(VolumetricPathTracingTest, DeltaTrackingRatioTrackingEqualMeanTest) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 1, 1, 1, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 1, 1, 1, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -155,7 +163,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingRatioTrackingEqualMeanTest) {
     testEqualMean();
 }
 TEST_F(VolumetricPathTracingTest, DeltaTrackingSeedIndependentEqualMeanTest) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 1, 1, 1, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 1, 1, 1, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -166,7 +174,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingSeedIndependentEqualMeanTest) {
 }
 // TODO: Fix this test case.
 TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid1Test) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 1, 1, 1, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 1, 1, 1, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -177,7 +185,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid1Test) {
     testEqualMean();
 }
 TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8Test) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -189,7 +197,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8Test) {
 }
 // The following two tests fail due to recent changes. Empty layers are now suppressed, and filtering can be different.
 /*TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8BoundaryLayerTest) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f, true);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f, true);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -200,7 +208,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8Test) {
     testEqualMean();
 }
 TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8BoundaryLayerTest2) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f, true);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f, true);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -229,7 +237,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingGridTypesGrid8BoundaryLayerTest2)
 }*/
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTest1) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -241,7 +249,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTes
 }
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTest2) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -253,7 +261,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTes
 }
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTest3) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f, true);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f, true);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -263,7 +271,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingDecompositionTrackingEqualMeanTes
 }
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingNextEventTrackingEqualMeanTest) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f, true);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f, true);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 
@@ -273,7 +281,7 @@ TEST_F(VolumetricPathTracingTest, DeltaTrackingNextEventTrackingEqualMeanTest) {
 }
 
 TEST_F(VolumetricPathTracingTest, DeltaTrackingNextEventTrackingEqualMeanTestSurfaces) {
-    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, 8, 8, 8, 1.0f, true);
+    CloudDataPtr cloudData = createCloudBlock(transferFunctionWindow, lightEditorWidget, 8, 8, 8, 1.0f, true);
     vptRenderer0->setCloudData(cloudData);
     vptRenderer1->setCloudData(cloudData);
 

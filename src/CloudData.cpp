@@ -49,8 +49,8 @@
 
 #include "CloudData.hpp"
 
-CloudData::CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow)
-        : transferFunctionWindow(transferFunctionWindow) {
+CloudData::CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow, LightEditorWidget* lightEditorWidget)
+        : transferFunctionWindow(transferFunctionWindow), lightEditorWidget(lightEditorWidget) {
 }
 
 CloudData::~CloudData() {

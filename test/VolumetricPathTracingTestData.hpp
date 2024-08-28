@@ -35,7 +35,7 @@ class CloudData;
 typedef std::shared_ptr<CloudData> CloudDataPtr;
 
 CloudDataPtr createCloudBlock(
-        sgl::MultiVarTransferFunctionWindow* tfWindow,
+        sgl::MultiVarTransferFunctionWindow* tfWindow, LightEditorWidget* lightEditorWidget,
         uint32_t xs, uint32_t ys, uint32_t zs, float constValue, bool useEmptyBoundaryLayer = false);
 
 #endif //LINEVIS_VOLUMETRICPATHTRACINGTESTDATA_HPP

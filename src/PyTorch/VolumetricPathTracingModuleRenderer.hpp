@@ -78,6 +78,7 @@ public:
     ~VolumetricPathTracingModuleRenderer();
 
     inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+    inline LightEditorWidget* getLightEditorWidget() { return lightEditorWidget; }
 
     /// Sets the cloud data that is rendered when calling @see renderFrameCpu.
     VolumetricPathTracingPass* getVptPass();
@@ -167,6 +168,7 @@ public:
 
 private:
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow;
+    LightEditorWidget* lightEditorWidget = nullptr;
     sgl::CameraPtr camera;
     glm::vec3 cameraPosition = glm::vec3(0,0,0);
     glm::vec3 cameraTarget = glm::vec3(0,0,0);

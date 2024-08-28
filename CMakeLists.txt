@@ -67,6 +67,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/DensityField.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/MomentUtils.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/VolumetricPathTracingPass.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/LightEditorWidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OccupationVolumePass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/OccupancyGrid.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/PathTracer/SuperVoxelGrid.cpp

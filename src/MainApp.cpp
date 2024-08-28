@@ -121,6 +121,9 @@ MainApp::MainApp()
     checkpointWindow.setStandardWindowSize(1254, 390);
     checkpointWindow.setStandardWindowPosition(841, 53);
 
+    lightEditorWidget = new LightEditorWidget(rendererVk);
+    lightEditorWidget->setShowWindow(false);
+
     propertyEditor.setInitWidthValues(sgl::ImGuiWrapper::get()->getScaleDependentSize(280.0f));
 
     camera->setNearClipDistance(1.0f / 512.0f); // 0.001953125f
@@ -203,6 +206,10 @@ MainApp::~MainApp() {
 
     volumetricPathTracingPass = {};
     dataView = {};
+    if (lightEditorWidget) {
+        delete lightEditorWidget;
+        lightEditorWidget = nullptr;
+    }
 
 #ifdef SUPPORT_OPTIX
     if (optixInitialized) {
@@ -390,6 +397,7 @@ void MainApp::renderGui() {
 
             ImGui::DockBuilderDockWindow("Multi-Var Transfer Function", dockLeftDownId);
             ImGui::DockBuilderDockWindow("Camera Checkpoints", dockLeftDownId);
+            ImGui::DockBuilderDockWindow("Light Editor", dockLeftDownId);
 
             ImGui::DockBuilderFinish(dockLeftId);
             ImGui::DockBuilderFinish(dockSpaceId);
@@ -483,6 +491,7 @@ void MainApp::renderGui() {
         reRender = false;
     }
 
+    bool showTransferFunctionWindow = transferFunctionWindow.getShowWindow();
     if (transferFunctionWindow.renderGui()) {
         reRender = true;
         if (transferFunctionWindow.getTransferFunctionMapRebuilt()) {
@@ -494,11 +503,28 @@ void MainApp::renderGui() {
             //        ON_TRANSFER_FUNCTION_MAP_REBUILT_EVENT));
         }
     }
+    if (showTransferFunctionWindow != transferFunctionWindow.getShowWindow()) {
+        volumetricPathTracingPass->setShaderDirty();
+        volumetricPathTracingPass->onHasMoved();
+        reRender = true;
+    }
 
     if (checkpointWindow.renderGui()) {
         fovDegree = camera->getFOVy() / sgl::PI * 180.0f;
         reRender = true;
         hasMoved();
+    }
+
+    bool showLightEditorWidget = lightEditorWidget->getShowWindow();
+    if (lightEditorWidget->renderGui()) {
+        fovDegree = camera->getFOVy() / sgl::PI * 180.0f;
+        reRender = true;
+        hasMoved();
+    }
+    if (showLightEditorWidget != lightEditorWidget->getShowWindow()) {
+        volumetricPathTracingPass->setShaderDirty();
+        volumetricPathTracingPass->onHasMoved();
+        reRender = true;
     }
 
     if (showPropertyEditor) {
@@ -679,10 +705,17 @@ void MainApp::renderGuiMenuBar() {
                     "Transfer Function Window", nullptr, transferFunctionWindow.getShowWindow())) {
                 transferFunctionWindow.setShowWindow(!transferFunctionWindow.getShowWindow());
                 volumetricPathTracingPass->setShaderDirty();
+                volumetricPathTracingPass->onHasMoved();
                 reRender = true;
             }
             if (ImGui::MenuItem("Checkpoint Window", nullptr, checkpointWindow.getShowWindow())) {
                 checkpointWindow.setShowWindow(!checkpointWindow.getShowWindow());
+            }
+            if (ImGui::MenuItem("Light Editor", nullptr, lightEditorWidget->getShowWindow())) {
+                lightEditorWidget->setShowWindow(!lightEditorWidget->getShowWindow());
+                volumetricPathTracingPass->setShaderDirty();
+                volumetricPathTracingPass->onHasMoved();
+                reRender = true;
             }
             ImGui::EndMenu();
         }
@@ -856,7 +889,7 @@ void MainApp::loadCloudDataSet(const std::string& fileName, const std::string& e
         //transformationMatrixPtr = &transformationMatrix;
     }
 
-    CloudDataPtr cloudData(new CloudData(&transferFunctionWindow));
+    CloudDataPtr cloudData(new CloudData(&transferFunctionWindow, lightEditorWidget));
     if (selectedDataSetInformation.axes != glm::ivec3(0, 1, 2)) {
         cloudData->setTransposeAxes(selectedDataSetInformation.axes);
     }

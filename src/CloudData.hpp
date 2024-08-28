@@ -41,10 +41,13 @@
 namespace sgl {
 class MultiVarTransferFunctionWindow;
 }
+class LightEditorWidget;
 
 class CloudData {
 public:
-    explicit CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr);
+    explicit CloudData(
+            sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr,
+            LightEditorWidget* lightEditorWidget = nullptr);
     ~CloudData();
 
     /**
@@ -127,6 +130,7 @@ public:
     /// Called when the transfer function texture was updated.
     void onTransferFunctionMapRebuilt() {}
     inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+    inline LightEditorWidget* getLightEditorWidget() { return lightEditorWidget; }
 
     void createIsoSurfaceData(
             const IsosurfaceSettings& settings,
@@ -143,6 +147,7 @@ public:
 
 private:
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
+    LightEditorWidget* lightEditorWidget = nullptr;
     std::shared_ptr<CloudData> nextCloudDataFrame;
 
     std::string gridFilename, gridName;
