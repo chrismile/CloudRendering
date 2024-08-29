@@ -152,6 +152,7 @@ public:
     void setSecondaryVolumeDownscalingFactor(uint32_t ds);
     uint32_t getSecondaryVolumeDownscalingFactor();
     size_t getSecondaryVolumeSizeInBytes();
+    void setReRender();
 
     void loadEnvironmentMapImage(const std::string& filename);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);

@@ -90,6 +90,11 @@ public:
     inline void setStandardWindowSize(int width, int height) { standardWidth = width; standardHeight = height; }
     inline void setStandardWindowPosition(int x, int y) { standardPositionX = x; standardPositionY = y; }
 
+    /// Property interface.
+    void setLightProperty(uint32_t lightIdx, const std::string& key, const std::string& value);
+    bool loadFromFile(const std::string& filePath);
+    bool saveToFile(const std::string& filePath);
+
     /// @return true if re-rendering the scene is necessary.
     bool renderGui();
 

@@ -778,6 +778,10 @@ void VolumetricPathTracingPass::setVptMode(VptMode vptMode) {
     setDataDirty();
 }
 
+void VolumetricPathTracingPass::setReRender() {
+    reRender = true;
+}
+
 void VolumetricPathTracingPass::setUseSparseGrid(bool useSparse) {
     this->useSparseGrid = useSparse;
     setGridData();
@@ -845,7 +849,7 @@ void VolumetricPathTracingPass::setUseIsosurfaces(bool _useIsosurfaces) {
             updateGridSampler();
         }
         setShaderDirty();
-        if (getNeedsGradientField() && !densityGradientFieldTexture) {
+        if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
             setGridData();
         }
         reRender = true;
@@ -873,7 +877,7 @@ void VolumetricPathTracingPass::setIsosurfaceType(IsosurfaceType _isosurfaceType
     if (isosurfaceType != _isosurfaceType) {
         isosurfaceType = _isosurfaceType;
         setShaderDirty();
-        if (getNeedsGradientField() && !densityGradientFieldTexture) {
+        if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
             setGridData();
         }
         reRender = true;
@@ -894,7 +898,7 @@ void VolumetricPathTracingPass::setUseIsosurfaceTf(bool _useIsosurfaceTf) {
     if (useIsosurfaceTf != _useIsosurfaceTf) {
         useIsosurfaceTf = _useIsosurfaceTf;
         setShaderDirty();
-        if (getNeedsGradientField() && !densityGradientFieldTexture) {
+        if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
             setGridData();
         }
         reRender = true;
@@ -2586,7 +2590,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     updateGridSampler();
                 }
                 setShaderDirty();
-                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
                     setGridData();
                 }
                 reRender = true;
@@ -2602,7 +2606,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             if (useIsosurfaces && vptMode != VptMode::ISOSURFACE_RENDERING
                     && propertyEditor.addCheckbox("Use Isosurface TF", &useIsosurfaceTf)) {
                 setShaderDirty();
-                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
                     setGridData();
                 }
                 reRender = true;
@@ -2644,7 +2648,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     "Isosurface Field", (int*)&isosurfaceType,
                     ISOSURFACE_TYPE_NAMES, IM_ARRAYSIZE(ISOSURFACE_TYPE_NAMES))) {
                 setShaderDirty();
-                if (getNeedsGradientField() && !densityGradientFieldTexture) {
+                if (cloudData && getNeedsGradientField() && !densityGradientFieldTexture) {
                     setGridData();
                 }
                 reRender = true;

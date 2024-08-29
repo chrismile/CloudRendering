@@ -78,6 +78,14 @@ MODULE_OP_API void setFeatureMapType(int64_t type);
 
 MODULE_OP_API void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
 
+MODULE_OP_API void setUseLights(bool _useLights);
+MODULE_OP_API void clearLights();
+MODULE_OP_API void addLight();
+MODULE_OP_API void removeLight(int64_t lightIdx);
+MODULE_OP_API void setLightProperty(int64_t lightIdx, const std::string& key, const std::string& value);
+MODULE_OP_API void loadLightsFromFile(const std::string& filePath);
+MODULE_OP_API void saveLightsToFile(const std::string& filePath);
+// Old light API.
 MODULE_OP_API void setUseHeadlight(bool _useHeadlight);
 MODULE_OP_API void setUseHeadlightDistance(bool _useHeadlightDistance);
 MODULE_OP_API void setHeadlightColor(std::vector<double> _headlightColor);

@@ -50,6 +50,7 @@
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
+#include "PathTracer/LightEditorWidget.hpp"
 
 #include "Config.hpp"
 #include "VolumetricPathTracingModuleRenderer.hpp"
@@ -93,6 +94,13 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_camera_FOVy", setCameraFOVy);
     m.def("vpt::set_feature_map_type", setFeatureMapType);
     m.def("vpt::set_use_empty_space_skipping", setUseEmptySpaceSkipping);
+    m.def("vpt::set_use_lights", setUseLights);
+    m.def("vpt::clear_lights", clearLights);
+    m.def("vpt::add_light", addLight);
+    m.def("vpt::remove_light", removeLight);
+    m.def("vpt::set_light_property", setLightProperty);
+    m.def("vpt::load_lights_from_file", loadLightsFromFile);
+    m.def("vpt::save_lights_to_file", saveLightsToFile);
     m.def("vpt::set_use_headlight", setUseHeadlight);
     m.def("vpt::set_use_headlight_distance", setUseHeadlightDistance);
     m.def("vpt::set_headlight_color", setHeadlightColor);
@@ -811,23 +819,79 @@ void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping) {
     vptRenderer->getVptPass()->setUseEmptySpaceSkipping(_useEmptySpaceSkipping);
 }
 
+
+void setUseLights(bool _useLights) {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->setShowWindow(_useLights);
+    vptRenderer->getVptPass()->setReRender();
+}
+
+void clearLights() {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    auto numLights = lightEditorWidget->getNumLights();
+    for (size_t i = 0; i < numLights; i++) {
+        lightEditorWidget->removeLight(lightEditorWidget->getNumLights() - 1);
+    }
+    vptRenderer->getVptPass()->setReRender();
+}
+
+void addLight() {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->addLight({});
+    vptRenderer->getVptPass()->setReRender();
+}
+
+void removeLight(int64_t lightIdx) {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->removeLight(uint32_t(lightIdx));
+    vptRenderer->getVptPass()->setReRender();
+}
+
+void setLightProperty(int64_t lightIdx, const std::string& key, const std::string& value) {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->setLightProperty(uint32_t(lightIdx), key, value);
+    vptRenderer->getVptPass()->setReRender();
+}
+
+void loadLightsFromFile(const std::string& filePath) {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->loadFromFile(filePath);
+}
+
+void saveLightsToFile(const std::string& filePath) {
+    auto* lightEditorWidget = vptRenderer->getLightEditorWidget();
+    lightEditorWidget->saveToFile(filePath);
+}
+
 void setUseHeadlight(bool _useHeadlight) {
-    vptRenderer->getVptPass()->setUseHeadlight(_useHeadlight);
+    //vptRenderer->getVptPass()->setUseHeadlight(_useHeadlight);
+    setUseLights(_useHeadlight);
+    if (_useHeadlight) {
+        clearLights();
+        addLight();
+        setLightProperty(0, "space", "View");
+        setLightProperty(0, "position", "0 0 0");
+        setLightProperty(0, "use_distance", "1");
+    }
 }
 
 void setUseHeadlightDistance(bool _useHeadlightDistance) {
-    vptRenderer->getVptPass()->setUseHeadlightDistance(_useHeadlightDistance);
+    //vptRenderer->getVptPass()->setUseHeadlightDistance(_useHeadlightDistance);
+    setLightProperty(0, "use_distance", _useHeadlightDistance ? "1" : "0");
 }
 
 void setHeadlightColor(std::vector<double> _headlightColor) {
     glm::vec3 color = glm::vec3(0.0f, 0.0f, 0.0f);
     if (parseVector3(_headlightColor, color)) {
-        vptRenderer->getVptPass()->setHeadlightColor(color);
+        //vptRenderer->getVptPass()->setHeadlightColor(color);
+        setLightProperty(
+                0, "color", std::to_string(color.r) + " " + std::to_string(color.g) + " " + std::to_string(color.b));
     }
 }
 
 void setHeadlightIntensity(double _headlightIntensity) {
-    vptRenderer->getVptPass()->setHeadlightIntensity(float(_headlightIntensity));
+    //vptRenderer->getVptPass()->setHeadlightIntensity(float(_headlightIntensity));
+    setLightProperty(0, "intensity", std::to_string(_headlightIntensity));
 }
 
 
