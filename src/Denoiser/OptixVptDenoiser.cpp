@@ -27,6 +27,7 @@
  */
 
 #include <Math/Math.hpp>
+#include <Utils/AppSettings.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Graphics/Vulkan/Utils/Swapchain.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>

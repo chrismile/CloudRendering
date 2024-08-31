@@ -68,7 +68,11 @@ void vulkanErrorCallback() {
 
 #ifdef __linux__
 void signalHandler(int signum) {
+#ifdef SGL_INPUT_API_V2
+    sgl::AppSettings::get()->captureMouse(false);
+#else
     SDL_CaptureMouse(SDL_FALSE);
+#endif
     std::cerr << "Interrupt signal (" << signum << ") received." << std::endl;
     exit(signum);
 }
@@ -296,9 +300,15 @@ void MainApp::renderGui() {
     focusedWindowIndex = -1;
     mouseHoverWindowIndex = -1;
 
+#ifdef SGL_INPUT_API_V2
+    if (sgl::Keyboard->keyPressed(ImGuiKey_O) && sgl::Keyboard->getModifier(ImGuiKey_ModCtrl)) {
+        openFileDialog();
+    }
+#else
     if (sgl::Keyboard->keyPressed(SDLK_o) && (sgl::Keyboard->getModifier() & (KMOD_LCTRL | KMOD_RCTRL)) != 0) {
         openFileDialog();
     }
+#endif
 
     if (IGFD_DisplayDialog(
             fileDialogInstance,
