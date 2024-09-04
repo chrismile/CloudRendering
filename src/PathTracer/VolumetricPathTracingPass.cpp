@@ -705,6 +705,10 @@ void VolumetricPathTracingPass::setGridData() {
             densityGradientFieldTexture = std::make_shared<sgl::vk::Texture>(device, gradImageSettings, samplerSettings);
             densityGradientFieldTexture->getImage()->uploadData(
                     numEntries * gradField->getEntrySizeInBytes(), gradField->getDataNative());
+            auto* tfWindow = cloudData->getTransferFunctionWindow();
+            if (tfWindow) {
+                tfWindow->setAttributeDataDirty(1);
+            }
         }
     }
 }
@@ -757,6 +761,44 @@ void VolumetricPathTracingPass::setCloudData(const CloudDataPtr& data) {
     setGridData();
     setDataDirty();
     updateVptMode();
+
+    auto* tfWindow = cloudData->getTransferFunctionWindow();
+    if (tfWindow) {
+        tfWindow->setRequestAttributeValuesCallback([this](
+                int varIdx, const void** values, ScalarDataFormat* fmt, size_t& numValues, float& minValue, float& maxValue) {
+            if (!cloudData) {
+                numValues = 0;
+                minValue = 0.0f;
+                maxValue = 0.0f;
+                return;
+            }
+            if (varIdx == 0) {
+                // Density
+                if (!useSparseGrid) {
+                    auto densityField = cloudData->getDenseDensityField();
+                    minValue = densityField->getMinValue();
+                    maxValue = densityField->getMaxValue();
+                } else {
+                    minValue = 0.0f;
+                    maxValue = 1.0f;
+                }
+            } else {
+                // Gradient
+                if (densityGradientFieldTexture) {
+                    minValue = minGradientVal;
+                    maxValue = maxGradientVal;
+                } else {
+                    minValue = 0.0f;
+                    maxValue = 1.0f;
+                }
+            }
+            if (values && fmt) {
+                // Not supported so far.
+            }
+        });
+        tfWindow->setAttributeDataDirty(0);
+        tfWindow->setAttributeDataDirty(1);
+    }
 }
 
 void VolumetricPathTracingPass::setEmissionData(const CloudDataPtr& data) {
@@ -1737,7 +1779,6 @@ void VolumetricPathTracingPass::setOccupancyGridConfig() {
     config.isosurfaceType = isosurfaceType;
     config.voxelValueMin = uniformData.voxelValueMin;
     config.voxelValueMax = uniformData.voxelValueMax;
-    config.maxGradientVal = maxGradientVal;
     config.minGradientVal = minGradientVal;
     config.maxGradientVal = maxGradientVal;
     occupancyGridPass->setConfig(config);
@@ -1842,19 +1883,38 @@ void VolumetricPathTracingPass::_render() {
             uniformData.gridMax = glm::vec3(1,1,1);
         }
 
-        if (!useSparseGrid) {
+        // Old code that doesn't use the UI transfer function range.
+        /*if (!useSparseGrid) {
             auto densityField = cloudData->getDenseDensityField();
             uniformData.voxelValueMin = densityField->getMinValue();
             uniformData.voxelValueMax = densityField->getMaxValue();
         } else {
             uniformData.voxelValueMin = 0.0f;
             uniformData.voxelValueMax = 1.0f;
+        }*/
+        //uniformData.minGradientVal = minGradientVal;
+        //uniformData.maxGradientVal = maxGradientVal;
+        auto* tfWindow = cloudData->getTransferFunctionWindow();
+        if (tfWindow) {
+            uniformData.voxelValueMin = tfWindow->getSelectedRangeMin(0);
+            uniformData.voxelValueMax = tfWindow->getSelectedRangeMax(0);
+            uniformData.minGradientVal = tfWindow->getSelectedRangeMin(1);
+            uniformData.maxGradientVal = tfWindow->getSelectedRangeMax(1);
+        } else {
+            if (!useSparseGrid) {
+                auto densityField = cloudData->getDenseDensityField();
+                uniformData.voxelValueMin = densityField->getMinValue();
+                uniformData.voxelValueMax = densityField->getMaxValue();
+            } else {
+                uniformData.voxelValueMin = 0.0f;
+                uniformData.voxelValueMax = 1.0f;
+            }
+            uniformData.minGradientVal = minGradientVal;
+            uniformData.maxGradientVal = maxGradientVal;
         }
         if (uniformData.voxelValueMin == uniformData.voxelValueMax) {
             uniformData.voxelValueMin = 0.0f;
         }
-        uniformData.minGradientVal = minGradientVal;
-        uniformData.maxGradientVal = maxGradientVal;
 
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;

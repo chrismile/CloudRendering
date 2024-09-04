@@ -166,6 +166,7 @@ MainApp::MainApp()
     fileDialogInstance = IGFD_Create();
     customDataSetFileName = sgl::FileUtils::get()->getUserDirectory();
     loadAvailableDataSetInformation();
+    lightEditorWidget->setFileDialogInstance(fileDialogInstance);
 
     volumetricPathTracingPass = std::make_shared<VolumetricPathTracingPass>(rendererVk, &cameraHandle);
     volumetricPathTracingPass->setUseLinearRGB(useLinearRGB);
@@ -507,11 +508,11 @@ void MainApp::renderGui() {
         if (transferFunctionWindow.getTransferFunctionMapRebuilt()) {
             if (cloudData) {
                 cloudData->onTransferFunctionMapRebuilt();
-                hasMoved();
             }
             //sgl::EventManager::get()->triggerEvent(std::make_shared<sgl::Event>(
             //        ON_TRANSFER_FUNCTION_MAP_REBUILT_EVENT));
         }
+        hasMoved();
     }
     if (showTransferFunctionWindow != transferFunctionWindow.getShowWindow()) {
         volumetricPathTracingPass->setShaderDirty();

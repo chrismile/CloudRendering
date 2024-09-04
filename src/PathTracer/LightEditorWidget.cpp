@@ -31,12 +31,15 @@
 #include <Math/Math.hpp>
 #include <Utils/Convert.hpp>
 #include <Utils/StringUtils.hpp>
+#include <Utils/AppSettings.hpp>
+#include <Utils/File/FileUtils.hpp>
 #include <Utils/File/Logfile.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Buffers/Buffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 
 #include "LightEditorWidget.hpp"
 
@@ -115,6 +118,22 @@ void LightEditorWidget::updateLightBuffer() {
 }
 
 
+void LightEditorWidget::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
+    this->fileDialogInstance = _fileDialogInstance;
+}
+
+void LightEditorWidget::openSelectLightFileDialog() {
+    if (lightFileDirectory.empty() || !sgl::FileUtils::get()->directoryExists(lightFileDirectory)) {
+        lightFileDirectory = sgl::AppSettings::get()->getDataDirectory() + "Lights/";
+        if (!sgl::FileUtils::get()->exists(lightFileDirectory)) {
+            sgl::FileUtils::get()->ensureDirectoryExists(lightFileDirectory);
+        }
+    }
+    IGFD_OpenModal(
+            fileDialogInstance, "ChooseLightFile", "Choose a File", ".json", lightFileDirectory.c_str(), "", 1, nullptr,
+            fileDialogModeSave ? ImGuiFileDialogFlags_ConfirmOverwrite : ImGuiFileDialogFlags_None);
+}
+
 bool LightEditorWidget::renderGui() {
     if (!showWindow) {
         return false;
@@ -123,6 +142,50 @@ bool LightEditorWidget::renderGui() {
     bool reRender = false;
     bool shallDeleteElement = false;
     size_t deleteElementId = 0;
+
+    if (IGFD_DisplayDialog(
+            fileDialogInstance,
+            "ChooseLightFile", ImGuiWindowFlags_NoCollapse,
+            sgl::ImGuiWrapper::get()->getScaleDependentSize(1000, 580),
+            ImVec2(FLT_MAX, FLT_MAX))) {
+        if (IGFD_IsOk(fileDialogInstance)) {
+            std::string filePathName = IGFD_GetFilePathNameString(fileDialogInstance);
+            std::string filePath = IGFD_GetCurrentPathString(fileDialogInstance);
+            std::string filter = IGFD_GetCurrentFilterString(fileDialogInstance);
+            std::string userDatas;
+            if (IGFD_GetUserDatas(fileDialogInstance)) {
+                userDatas = std::string((const char*)IGFD_GetUserDatas(fileDialogInstance));
+            }
+            auto selection = IGFD_GetSelection(fileDialogInstance);
+
+            std::string currentPath = IGFD_GetCurrentPathString(fileDialogInstance);
+            std::string filename = currentPath;
+            if (!filename.empty() && filename.back() != '/' && filename.back() != '\\') {
+                filename += "/";
+            }
+            std::string currentFileName;
+            if (filter == ".*") {
+                currentFileName = IGFD_GetCurrentFileNameRawString(fileDialogInstance);
+            } else {
+                currentFileName = IGFD_GetCurrentFileNameString(fileDialogInstance);
+            }
+            if (selection.count != 0 && selection.table[0].fileName == currentFileName) {
+                filename += selection.table[0].fileName;
+            } else {
+                filename += currentFileName;
+            }
+            IGFD_Selection_DestroyContent(&selection);
+
+            lightFileDirectory = sgl::FileUtils::get()->getPathToFile(filename);
+            if (fileDialogModeSave) {
+                saveToFile(filename);
+                reRender = true;
+            } else {
+                loadFromFile(filename);
+            }
+        }
+        IGFD_CloseDialog(fileDialogInstance);
+    }
 
     sgl::ImGuiWrapper::get()->setNextWindowStandardPosSize(
             standardPositionX, standardPositionY, standardWidth, standardHeight);
@@ -167,6 +230,15 @@ bool LightEditorWidget::renderGui() {
             light.useDistance = true;
             addLight(light);
             reRender = true;
+        }
+        if (ImGui::Button("Save to File...")) {
+            fileDialogModeSave = true;
+            openSelectLightFileDialog();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Load from File...")) {
+            fileDialogModeSave = false;
+            openSelectLightFileDialog();
         }
     }
     propertyEditor->end();
@@ -228,6 +300,11 @@ void LightEditorWidget::setLightProperty(uint32_t lightIdx, const std::string& k
 
 bool LightEditorWidget::loadFromFile(const std::string& filePath) {
     std::ifstream jsonFileStream(filePath.c_str());
+    if (!jsonFileStream.is_open()) {
+        sgl::Logfile::get()->writeError(
+                "Error in LightEditorWidget::loadFromFile: Could not open file \"" + filePath + "\" for loading.");
+        return false;
+    }
     Json::CharReaderBuilder builder;
     JSONCPP_STRING errorString;
     Json::Value root;
@@ -237,6 +314,9 @@ bool LightEditorWidget::loadFromFile(const std::string& filePath) {
     }
     jsonFileStream.close();
 
+    std::vector<Light> newLights;
+    std::vector<ptrdiff_t> newLightCreationIndices;
+    int newCurrentLightIdx = 0;
     Json::Value& lightsNode = root["lights"];
     for (Json::Value& lightNode : lightsNode) {
         Light light{};
@@ -305,7 +385,20 @@ bool LightEditorWidget::loadFromFile(const std::string& filePath) {
         if (lightNode.isMember("spot_falloff_start")) {
             light.spotFalloffStart = lightNode["spot_falloff_start"].asFloat();
         }
+
+        newLights.push_back(light);
+        newLightCreationIndices.push_back(newCurrentLightIdx++);
     }
+
+    bool numLightsChanged = lights.size() != newLights.size();
+    lights = newLights;
+    lightCreationIndices = newLightCreationIndices;
+    currentLightIdx = newCurrentLightIdx;
+    if (numLightsChanged) {
+        recreateLightBuffer();
+    }
+    updateLightBuffer();
+
     return true;
 }
 

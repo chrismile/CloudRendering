@@ -42,6 +42,12 @@ namespace sgl {
 class PropertyEditor;
 }
 
+namespace IGFD {
+class FileDialog;
+}
+typedef IGFD::FileDialog ImGuiFileDialog;
+
+
 enum class LightType : uint32_t {
     POINT = 0, SPOT = 1, DIRECTIONAL = 2
 };
@@ -89,6 +95,7 @@ public:
 
     inline void setStandardWindowSize(int width, int height) { standardWidth = width; standardHeight = height; }
     inline void setStandardWindowPosition(int x, int y) { standardPositionX = x; standardPositionY = y; }
+    void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
 
     /// Property interface.
     void setLightProperty(uint32_t lightIdx, const std::string& key, const std::string& value);
@@ -117,6 +124,11 @@ private:
     int standardHeight = 400;
     int standardPositionX = 1289;
     int standardPositionY = 62;
+
+    void openSelectLightFileDialog();
+    ImGuiFileDialog* fileDialogInstance = nullptr;
+    bool fileDialogModeSave = false;
+    std::string lightFileDirectory;
 };
 
 #endif //CLOUDRENDERING_LIGHTEDITORWIDGET_HPP
