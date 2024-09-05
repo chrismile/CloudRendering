@@ -98,6 +98,7 @@ MODULE_OP_API void setIsoValue(double _isoValue);
 MODULE_OP_API void setIsoSurfaceColor(std::vector<double> _isoSurfaceColor);
 MODULE_OP_API void setIsosurfaceType(const std::string& _isosurfaceType);
 MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
+MODULE_OP_API void setBrdfParameter(const std::string& key, const std::string& value);
 MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
 

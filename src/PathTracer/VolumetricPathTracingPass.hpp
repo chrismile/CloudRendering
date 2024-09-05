@@ -195,6 +195,7 @@ public:
     void setIsoSurfaceColor(const glm::vec3& _isoSurfaceColor);
     void setIsosurfaceType(IsosurfaceType _isosurfaceType);
     void setSurfaceBrdf(SurfaceBrdf _surfaceBrdf);
+    void setBrdfParameter(const std::string& key, const std::string& value);
     void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
     [[nodiscard]] float getIsoValue() const { return isoValue; }

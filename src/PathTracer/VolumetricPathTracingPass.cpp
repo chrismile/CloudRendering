@@ -936,6 +936,35 @@ void VolumetricPathTracingPass::setSurfaceBrdf(SurfaceBrdf _surfaceBrdf) {
     }
 }
 
+void VolumetricPathTracingPass::setBrdfParameter(const std::string& key, const std::string& value) {
+    if (key == "subsurface") {
+        subsurface = sgl::fromString<float>(value);
+    } else if (key == "metallic") {
+        metallic = sgl::fromString<float>(value);
+    } else if (key == "specular") {
+        specular = sgl::fromString<float>(value);
+    } else if (key == "specular_tint") {
+        specularTint = sgl::fromString<float>(value);
+    } else if (key == "roughness") {
+        roughness = sgl::fromString<float>(value);
+    } else if (key == "anisotropic") {
+        anisotropic = sgl::fromString<float>(value);
+    } else if (key == "sheen") {
+        sheen = sgl::fromString<float>(value);
+    } else if (key == "sheen_tint") {
+        sheenTint = sgl::fromString<float>(value);
+    } else if (key == "clearcoat") {
+        clearcoat = sgl::fromString<float>(value);
+    } else if (key == "clearcoat_gloss") {
+        clearcoatGloss = sgl::fromString<float>(value);
+    } else {
+        sgl::Logfile::get()->writeError(
+                "Error in VolumetricPathTracingPass::setBrdfParameter: Unsupported parameter \"" + key + "\".");
+    }
+    reRender = true;
+    frameInfo.frameCount = 0;
+}
+
 void VolumetricPathTracingPass::setUseIsosurfaceTf(bool _useIsosurfaceTf) {
     if (useIsosurfaceTf != _useIsosurfaceTf) {
         useIsosurfaceTf = _useIsosurfaceTf;
@@ -2764,52 +2793,42 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
 
         if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::DISNEY && propertyEditor.beginNode("Disney BRDF Parameters")) {
             if (propertyEditor.addSliderFloat("subsurface", (float*)&subsurface, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("metallic", (float*)&metallic, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("specular", (float*)&specular, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("specularTint", (float*)&specularTint, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("roughness", (float*)&roughness, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("anisotropic", (float*)&anisotropic, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("sheen", (float*)&sheen, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("sheenTint", (float*)&sheenTint, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("clearcoat", (float*)&clearcoat, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("clearcoatGloss", (float*)&clearcoatGloss, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
@@ -2819,17 +2838,14 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
 
         if (useIsosurfaces && surfaceBrdf == SurfaceBrdf::COOK_TORRANCE && propertyEditor.beginNode("Cook Torrance BRDF Parameters")) {
             if (propertyEditor.addSliderFloat("metallic", (float*)&metallic, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("specular", (float*)&specular, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
             if (propertyEditor.addSliderFloat("roughness", (float*)&roughness, 0.0, 1.0)) {
-                setShaderDirty();
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
