@@ -164,20 +164,32 @@ vec3 evaluateBrdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 iso
 
     vec3 F = fresnelSchlick(VdotH, f0);
     // Specular D: GGX Distribuition
-    
     float D = D_GGX(NdotH, clamp(parameters.roughness,0.05, 1.0));
+
     // Speuclar G: G_Smith with G_1Smith-GGX
     float G = G_Smith(VdotN, LdotN, clamp(parameters.roughness,0.05, 1.0));
     // Result
-    vec3 spec = (F * G * VdotH)/(NdotH*VdotN);
-    
+    vec3 spec;
+    if (hitFlags.specularHit && !hitFlags.clearcoatHit) {
+        spec = (F * G * VdotH)/(NdotH*VdotN);
+
+    } else {
+        float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
+        spec = (F * G * D * VdotH * sinThetaH)/(VdotN);
+    }
+
+
     // Diffuse Part
     vec3 rhoD = baseColor;
     
     rhoD *= vec3(1.0) - F;
     rhoD *= (1.0 - parameters.metallic);
     vec3 diff = rhoD;
-    // Whitout importance sampling: rhoD *= (1.0 / M_PI)
+    
+    if (hitFlags.specularHit) {
+        rhoD *= (1.0 / M_PI);
+    }
+   
     float sinThetaH = sqrt(1-(min(NdotH*NdotH,0.95)));
     float cosThetaH = NdotH;
 
@@ -222,7 +234,6 @@ vec3 evaluateBrdfPdf(vec3 viewVector, vec3 lightVector, vec3 normalVector, vec3 
     // Diffuse Part
     // Importance Sampling pdf: 1/PI sin(theta) cos(theta)
     vec3 rhoD = baseColor;
-    rhoD *= sinThetaH * NdotH;
     
     rhoD *= vec3(1.0) - F;
     rhoD *= (1.0 - parameters.metallic);
