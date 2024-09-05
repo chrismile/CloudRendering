@@ -85,6 +85,8 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_use_transfer_function", setUseTransferFunction);
     m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
     m.def("vpt::load_transfer_function_file_gradient", loadTransferFunctionFileGradient);
+    m.def("vpt::set_transfer_function_range", setTransferFunctionRange);
+    m.def("vpt::set_transfer_function_range_gradient", setTransferFunctionRangeGradient);
     m.def("vpt::get_camera_position", getCameraPosition);
     m.def("vpt::get_camera_view_matrix", getCameraViewMatrix);
     m.def("vpt::get_camera_fovy", getCameraFOVy);
@@ -965,6 +967,18 @@ void loadTransferFunctionFile(const std::string& tfFilePath) {
 void loadTransferFunctionFileGradient(const std::string& tfFilePath) {
     auto* tfWindow = vptRenderer->getTransferFunctionWindow();
     tfWindow->loadFunctionFromFile(1, tfFilePath);
+}
+
+void setTransferFunctionRange(double _minVal, double _maxVal) {
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->setSelectedRange(0, glm::vec2(float(_minVal), float(_maxVal)));
+    tfWindow->setIsSelectedRangeFixed(0, true);
+}
+
+void setTransferFunctionRangeGradient(double _minVal, double _maxVal) {
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->setSelectedRange(1, glm::vec2(float(_minVal), float(_maxVal)));
+    tfWindow->setIsSelectedRangeFixed(1, true);
 }
 
 
