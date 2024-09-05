@@ -41,10 +41,13 @@
 namespace sgl {
 class MultiVarTransferFunctionWindow;
 }
+class LightEditorWidget;
 
 class CloudData {
 public:
-    explicit CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr);
+    explicit CloudData(
+            sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr,
+            LightEditorWidget* lightEditorWidget = nullptr);
     ~CloudData();
 
     /**
@@ -91,13 +94,16 @@ public:
     [[nodiscard]] inline const glm::vec3& getWorldSpaceSparseGridMin() const { return gridMinSparse; }
     [[nodiscard]] inline const glm::vec3& getWorldSpaceSparseGridMax() const { return gridMaxSparse; }
 
-    void setNextCloudDataFrame(std::shared_ptr<CloudData>nextFrame) {
+    void setNextCloudDataFrame(std::shared_ptr<CloudData> nextFrame) {
         nextCloudDataFrame = nextFrame;
     }
 
-    std::shared_ptr<CloudData> getNextCloudDataFrame(){ return nextCloudDataFrame; }
+    std::shared_ptr<CloudData> getNextCloudDataFrame() { return nextCloudDataFrame; }
+
+    static void setMaxGridExtent(float _maxGridExtent) { maxGridExtent = _maxGridExtent; }
 
     void setClearColor(const sgl::Color& clearColor) {}
+    void setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox);
     void setSeqBounds(glm::vec3 min, glm::vec3 max);
     void setTransposeAxes(const glm::ivec3& axes);
 
@@ -117,10 +123,14 @@ public:
     [[nodiscard]] inline bool hasSparseData() const { return !sparseGridHandle.empty(); }
     [[nodiscard]] inline size_t getSparseDataSizeInBytes() const { return sparseGridHandle.gridMetaData()->gridSize(); }
     inline void setCacheSparseGrid(bool cache) { cacheSparseGrid = true; }
+    std::vector<double> getVDBWorldBoundingBox();
+    std::vector<int64_t> getVDBIndexBoundingBox();
+    std::vector<double> getVDBVoxelSize();
 
     /// Called when the transfer function texture was updated.
     void onTransferFunctionMapRebuilt() {}
     inline sgl::MultiVarTransferFunctionWindow* getTransferFunctionWindow() { return transferFunctionWindow; }
+    inline LightEditorWidget* getLightEditorWidget() { return lightEditorWidget; }
 
     void createIsoSurfaceData(
             const IsosurfaceSettings& settings,
@@ -137,6 +147,7 @@ public:
 
 private:
     sgl::MultiVarTransferFunctionWindow* transferFunctionWindow = nullptr;
+    LightEditorWidget* lightEditorWidget = nullptr;
     std::shared_ptr<CloudData> nextCloudDataFrame;
 
     std::string gridFilename, gridName;
@@ -146,8 +157,13 @@ private:
     glm::vec3 boxMinSparse{}, boxMaxSparse{}; // Box in which to render
     glm::vec3 gridMinDense{}, gridMaxDense{}; // Box from which to sample density values. (0,0,0) to (1,1,1) for dense.
     glm::vec3 gridMinSparse{}, gridMaxSparse{}; // Box from which to sample density values.
+    sgl::AABB3 globalWorldBoundingBox{};
+    bool hasGlobalWorldBoundingBox = false;
     bool gotSeqBounds = false;
     glm::vec3 seqMin{}, seqMax{}; // World space bounds of sequence
+    /// Due to legacy reasons, the grid has min, max boxMin{Dense,Sparse} = -0.25, 0.25.
+    /// This value can be used to change the extents in the minimum/maximum dimension.
+    inline static float maxGridExtent = 0.25f;
 
     void computeGridBounds();
 

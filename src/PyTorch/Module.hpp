@@ -78,6 +78,14 @@ MODULE_OP_API void setFeatureMapType(int64_t type);
 
 MODULE_OP_API void setUseEmptySpaceSkipping(bool _useEmptySpaceSkipping);
 
+MODULE_OP_API void setUseLights(bool _useLights);
+MODULE_OP_API void clearLights();
+MODULE_OP_API void addLight();
+MODULE_OP_API void removeLight(int64_t lightIdx);
+MODULE_OP_API void setLightProperty(int64_t lightIdx, const std::string& key, const std::string& value);
+MODULE_OP_API void loadLightsFromFile(const std::string& filePath);
+MODULE_OP_API void saveLightsToFile(const std::string& filePath);
+// Old light API.
 MODULE_OP_API void setUseHeadlight(bool _useHeadlight);
 MODULE_OP_API void setUseHeadlightDistance(bool _useHeadlightDistance);
 MODULE_OP_API void setHeadlightColor(std::vector<double> _headlightColor);
@@ -108,6 +116,19 @@ MODULE_OP_API std::vector<int64_t> getVolumeVoxelSize();
 MODULE_OP_API std::vector<double> getRenderBoundingBox();
 MODULE_OP_API void rememberNextBounds();
 MODULE_OP_API void forgetCurrentBounds();
+/**
+ * Due to legacy reasons, the grid has size (-0.25, 0.25) in the largest dimension.
+ * @param maxDimSize The new extent value such that the size is (-maxGridExtent, maxGridExtent).
+ * Note: Must be called before any call to @see loadCloudFile!
+ */
+MODULE_OP_API void setMaxGridExtent(double maxGridExtent);
+/// This function can be used to normalize the grid wrt. a global bounding box.
+MODULE_OP_API void setGlobalWorldBoundingBox(std::vector<double> globalBBVec);
+
+// Interface for NanoVDB & OpenVDB.
+MODULE_OP_API std::vector<double> getVDBWorldBoundingBox();
+MODULE_OP_API std::vector<int64_t> getVDBIndexBoundingBox();
+MODULE_OP_API std::vector<double> getVDBVoxelSize();
 
 MODULE_OP_API torch::Tensor renderFrame(torch::Tensor inputTensor, int64_t frameCount);
 MODULE_OP_API void setUseFeatureMaps(std::vector<std::string> featureMapNames);

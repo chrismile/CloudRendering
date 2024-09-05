@@ -44,6 +44,7 @@
 #include "SceneData.hpp"
 #include "DataSetList.hpp"
 #include "CloudData.hpp"
+#include "PathTracer/LightEditorWidget.hpp"
 #include "PathTracer/VolumetricPathTracingPass.hpp"
 
 #ifdef USE_PYTHON
@@ -55,9 +56,6 @@ typedef std::shared_ptr<DataView> DataViewPtr;
 
 class MainApp : public sgl::SciVisApp {
 public:
-    /**
-     * @param supportsRaytracing Whether raytracing via OpenGL-Vulkan interoperability is supported.
-     */
     MainApp();
     ~MainApp() override;
     void render() override;
@@ -122,6 +120,9 @@ private:
 
     // For mapping volume density to display density and emission.
     sgl::MultiVarTransferFunctionWindow transferFunctionWindow;
+
+    // For specifying light sources apart from the environment map.
+    LightEditorWidget* lightEditorWidget;
 
     std::shared_ptr<VolumetricPathTracingPass> volumetricPathTracingPass;
     bool usesNewState = true;

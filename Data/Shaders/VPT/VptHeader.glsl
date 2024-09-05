@@ -47,6 +47,8 @@ layout (binding = 3) uniform Parameters {
     mat4 inverseViewProjMatrix;
     mat4 previousViewProjMatrix;
     mat4 inverseTransposedViewMatrix;
+    mat4 inverseViewMatrix;
+    mat4 viewMatrix;
 
     // Cloud properties.
     vec3 boxMin; float voxelValueMin;
@@ -85,6 +87,9 @@ layout (binding = 3) uniform Parameters {
     // Headlight.
     vec3 headlightColor;
     float headlightIntensity;
+    float headlightSpotTotalWidth;
+    float headlightSpotFalloffStart;
+    uint isEnvMapBlack;
 
     // Isosurfaces.
     vec3 isoSurfaceColor;
@@ -94,6 +99,7 @@ layout (binding = 3) uniform Parameters {
     int numAoSamples;
 
     // Clip plane
+    int useClipPlane;
     vec3 clipPlaneNormal;
     float clipPlaneDistance;
 
@@ -106,14 +112,9 @@ layout (binding = 3) uniform Parameters {
     float anisotropic;
     float sheen;
     float sheenTint;
-    float clearcoat;
-    
     vec3 camForward;
+    float clearcoat;
     float clearcoatGloss;
-
-    
-    float headlightSpotTotalWidth;
-    float headlightSpotFalloffStart;
 } parameters;
 
 layout (binding = 4) uniform FrameInfo {
@@ -230,6 +231,33 @@ layout(binding = 29) uniform sampler3D gradientImage;
 #ifdef USE_OCCUPANCY_GRID
 // The occupancy grid can be used for empty space skipping with next event tracking transmittance rays.
 layout(binding = 30, r8ui) uniform readonly uimage3D occupancyGridImage;
+#endif
+
+#if NUM_LIGHTS > 0
+// Light::lightType
+const uint LIGHT_TYPE_POINT = 0u;
+const uint LIGHT_TYPE_SPOT = 1u;
+const uint LIGHT_TYPE_DIRECTIONAL = 2u;
+// Light::lightSpace
+const uint LIGHT_SPACE_WORLD = 0u; // Positions & directions are in world space.
+const uint LIGHT_SPACE_VIEW = 1u; // Positions & directions are in view space.
+const uint LIGHT_SPACE_VIEW_ORIENTATION = 2u; // Positions are in world space, directions in view space.
+struct Light {
+    uint lightType;
+    uint lightSpace; ///< All types; world space or view space position/direction?
+    float spotTotalWidth; ///< SPOT
+    float spotFalloffStart; ///< SPOT
+
+    vec3 color; ///< All types
+    float intensity; ///< All types
+
+    // Point light & spotlight.
+    vec3 position; ///< POINT & SPOT; distance for DIRECTIONAL.
+    uint useDistance; ///< POINT & SPOT
+};
+layout (binding = 31) uniform LightsBuffer {
+    Light lights[NUM_LIGHTS];
+};
 #endif
 
 vec2 Multiply(vec2 LHS, vec2 RHS) {

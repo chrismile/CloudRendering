@@ -89,6 +89,7 @@ Data/Screenshots/*
 Data/PyTorch/*
 Data/Videos/*
 Data/TransferFunctions/*
+Data/Lights/*
 Data/ReplayScripts/__pycache__/*
 
 Data/ControlPoints.txt

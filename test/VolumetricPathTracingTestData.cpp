@@ -30,7 +30,7 @@
 #include "VolumetricPathTracingTestData.hpp"
 
 CloudDataPtr createCloudBlock(
-        sgl::MultiVarTransferFunctionWindow* tfWindow,
+        sgl::MultiVarTransferFunctionWindow* tfWindow, LightEditorWidget* lightEditorWidget,
         uint32_t xs, uint32_t ys, uint32_t zs, float constValue, bool useEmptyBoundaryLayer) {
     auto* gridData = new float[xs * ys * zs];
     if (useEmptyBoundaryLayer && xs >= 3 && ys >= 3 && zs >= 3) {
@@ -55,7 +55,7 @@ CloudDataPtr createCloudBlock(
         }
     }
 
-    CloudDataPtr cloudData = std::make_shared<CloudData>(tfWindow);
+    CloudDataPtr cloudData = std::make_shared<CloudData>(tfWindow, lightEditorWidget);
     cloudData->setDensityField(xs, ys, zs, gridData);
     return cloudData;
 }

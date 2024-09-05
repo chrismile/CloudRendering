@@ -36,6 +36,7 @@
 #include "CloudData.hpp"
 
 #include "PathTracer/VolumetricPathTracingPass.hpp"
+#include "PathTracer/LightEditorWidget.hpp"
 #include "PathTracer/OccupationVolumePass.hpp"
 
 #include "Config.hpp"
@@ -134,6 +135,8 @@ VolumetricPathTracingModuleRenderer::VolumetricPathTracingModuleRenderer(sgl::vk
     transferFunctionWindow->setShowWindow(false);
     transferFunctionWindow->setAttributeNames({"Volume", "Isosurface"});
 
+    lightEditorWidget = new LightEditorWidget(renderer);
+
     sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
     vptPass = std::make_shared<VolumetricPathTracingPass>(renderer, &camera);
     renderFinishedFence = std::make_shared<sgl::vk::Fence>(device);
@@ -168,6 +171,9 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
 #endif
 
     delete transferFunctionWindow;
+    transferFunctionWindow = nullptr;
+    delete lightEditorWidget;
+    lightEditorWidget = nullptr;
     renderer->getDevice()->waitIdle();
 }
 
@@ -310,6 +316,11 @@ void VolumetricPathTracingModuleRenderer::setCameraTarget(const glm::vec3& camer
 void VolumetricPathTracingModuleRenderer::setCameraFOVy(double FOVy) {
     camera->setFOVy(FOVy);
     vptPass->onHasMoved();
+}
+
+void VolumetricPathTracingModuleRenderer::setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox) {
+    globalWorldBoundingBox = boundingBox;
+    hasGlobalWorldBoundingBox = true;
 }
 
 void VolumetricPathTracingModuleRenderer::rememberNextBounds() {

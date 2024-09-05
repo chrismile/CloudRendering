@@ -254,7 +254,7 @@ float calculateTransmittance(vec3 x, vec3 w) {
 #endif
 
 
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
 float calculateTransmittanceDistance(vec3 x, vec3 w, float maxDist) {
     float majorant = parameters.extinction.x;
     float absorptionAlbedo = 1.0 - parameters.scatteringAlbedo.x;

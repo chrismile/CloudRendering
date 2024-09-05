@@ -380,14 +380,73 @@ vec3 sampleLight(in vec3 dir) {
 #endif // USE_ENVIRONMENT_MAP_DEFAULT
 
 
-#ifdef USE_HEADLIGHT
-vec3 getHeadlightDirection(vec3 pos) {
+#if NUM_LIGHTS > 0
+
+vec3 getHeadlightDirection(vec3 pos, inout uint lightIdx, inout float lightProbabilityFactor, inout float lightDistance) {
+#if NUM_LIGHTS > 1
+    // Sample a random light.
+    lightIdx = min(uint(random() * float(NUM_LIGHTS)), NUM_LIGHTS - 1u);
+    lightProbabilityFactor *= float(NUM_LIGHTS);
+#endif
+
+    Light light = lights[lightIdx];
+    vec3 lightPosition = light.position;
+    if (light.lightSpace == LIGHT_SPACE_VIEW || light.lightSpace == LIGHT_SPACE_VIEW_ORIENTATION) {
+        const float homComp =
+                light.lightType == LIGHT_TYPE_DIRECTIONAL || light.lightSpace == LIGHT_SPACE_VIEW_ORIENTATION
+                ? 0.0 : 1.0;
+        lightPosition = (parameters.inverseViewMatrix * vec4(lightPosition, homComp)).xyz;
+    }
+    vec3 dir;
+    if (light.lightType == LIGHT_TYPE_POINT || light.lightType == LIGHT_TYPE_SPOT) {
+        dir = lightPosition - pos;
+    } else {
+        dir = lightPosition;
+    }
+    lightDistance = length(dir);
+    return dir / (lightDistance + 1e-5);
+}
+
+vec3 sampleHeadlight(vec3 pos, uint lightIdx) {
+    Light light = lights[lightIdx];
+    vec3 lightPosition = light.position;
+    if (light.lightSpace == LIGHT_SPACE_VIEW || light.lightSpace == LIGHT_SPACE_VIEW_ORIENTATION) {
+        const float homComp =
+                light.lightType == LIGHT_TYPE_DIRECTIONAL || light.lightSpace == LIGHT_SPACE_VIEW_ORIENTATION
+                ? 0.0 : 1.0;
+        lightPosition = (parameters.inverseViewMatrix * vec4(lightPosition, homComp)).xyz;
+    }
+
+    float lightFactor = light.intensity;
+    if ((light.lightType == LIGHT_TYPE_POINT || light.lightType == LIGHT_TYPE_SPOT) && light.useDistance != 0u) {
+        const vec3 diff = lightPosition - pos;
+        const float distFactor = max(dot(diff, diff), 1e-3);
+        lightFactor /= distFactor;
+    }
+    if (light.lightType == LIGHT_TYPE_SPOT) {
+        const float totalWidth = cos(light.spotTotalWidth);
+        const float falloffStart =
+                light.spotTotalWidth > light.spotFalloffStart ? cos(light.spotFalloffStart) : totalWidth;
+        vec3 p = pos - lightPosition;
+        vec3 z = light.lightSpace == LIGHT_SPACE_VIEW ? parameters.camForward : normalize(-lightPosition);
+        float cosTheta = dot(z, p) / (length(z) * length(p));
+        float coneFactor = smoothstep(totalWidth, falloffStart, cosTheta);
+        lightFactor *= coneFactor;
+    }
+
+    return lightFactor * light.color;
+}
+
+#elif defined(USE_HEADLIGHT)
+
+vec3 getHeadlightDirection(vec3 pos, inout uint lightIdx, inout float lightProbabilityFactor, inout float lightDistance) {
     const vec3 diff = cameraPosition - pos;
-    return diff / (length(diff) + 1e-5);
+    lightDistance = length(diff);
+    return diff / (lightDistance + 1e-5);
     //return normalize(cameraPosition - pos);
 }
 
-vec3 sampleHeadlight(vec3 pos) {
+vec3 sampleHeadlight(vec3 pos, inout uint lightIdx) {
 #ifdef HEADLIGHT_TYPE_POINT
     #ifdef USE_HEADLIGHT_DISTANCE
         const vec3 diff = cameraPosition - pos;
@@ -417,7 +476,7 @@ vec3 sampleHeadlight(vec3 pos) {
 #endif
 }
 
-#endif
+#endif // defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
 
 #ifdef USE_NANOVDB
 pnanovdb_readaccessor_t createAccessor() {
@@ -1077,15 +1136,18 @@ bool getIsoSurfaceHit(
     float pdfLightNee;  // only used for skybox.
     vec3 dirLightNee;
 
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
     // We are sampling the environment map or headlight with 50/50 chance.
-    bool isSamplingHeadlight = random() > 0.5;
+    bool isSamplingHeadlight = (parameters.isEnvMapBlack != 0u) ? true : (random() > 0.5);
+    float lightProbabilityFactor = parameters.isEnvMapBlack != 0u ? 1.0 : 2.0;
+    float lightDistance = 0.0;
+    uint lightIdx = 0;
     if (isSamplingHeadlight) {
-        dirLightNee = getHeadlightDirection(currentPoint);
+        dirLightNee = getHeadlightDirection(currentPoint, lightIdx, lightProbabilityFactor, lightDistance);
     } else {
 #endif
         dirLightNee = importanceSampleSkybox(pdfLightNee);
-#ifdef USE_HEADLIGHT
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
     }
 #endif
 
@@ -1110,24 +1172,23 @@ bool getIsoSurfaceHit(
             float weightNee = pdfLightNee / (pdfLightNee + pdfSamplingNee);
             float weightOut = pdfSamplingOut / (pdfLightOut + pdfSamplingOut);
 
-#ifdef USE_HEADLIGHT
-            // vec3 commonFactor = 2.0 * throughput * rdfNee;
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
             if (isSamplingHeadlight) {
                 weightNee = 1.0;
                 weightOut = 1.0;
 
                 colorNee +=
-                        2.0 * throughput * rdfNee * weightNee *
-                        calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
-                        sampleHeadlight(currentPoint);
+                        lightProbabilityFactor * throughput * rdfNee * weightNee *
+                        calculateTransmittanceDistance(currentPoint + dirLightNee * 1e-4, dirLightNee, lightDistance) *
+                        sampleHeadlight(currentPoint, lightIdx);
             } else {
                 colorNee +=
-                        2.0 * throughput * rdfNee * weightNee / pdfLightNee *
+                        lightProbabilityFactor * throughput * rdfNee * weightNee / pdfLightNee *
                         calculateTransmittance(currentPoint + dirLightNee * 1e-4, dirLightNee) *
                         (sampleSkybox(dirLightNee) + sampleLight(dirLightNee));
 
                 colorNee +=
-                        2.0 * throughput * weightOut * colorOut *
+                        lightProbabilityFactor * throughput * weightOut * colorOut *
                         calculateTransmittance(currentPoint + dirOut * 1e-4, dirOut) *
                         (sampleSkybox(dirOut) + sampleLight(dirOut));
             }
@@ -1148,13 +1209,13 @@ bool getIsoSurfaceHit(
 #endif
 
 // Normal NEE.
-#ifdef USE_HEADLIGHT
-            vec3 commonFactor = 2.0 * throughput * rdfNee;
+#if defined(USE_HEADLIGHT) || NUM_LIGHTS > 0
+            vec3 commonFactor = lightProbabilityFactor * throughput * rdfNee;
             if (isSamplingHeadlight) {
                 colorNee +=
                         commonFactor *
-                        calculateTransmittanceDistance( currentPoint + dirLightNee * 1e-4, dirLightNee, distance(currentPoint, cameraPosition)) *
-                        sampleHeadlight(currentPoint);
+                        calculateTransmittanceDistance( currentPoint + dirLightNee * 1e-4, dirLightNee, lightDistance) *
+                        sampleHeadlight(currentPoint, lightIdx);
             } else {
                 colorNee +=
                         commonFactor / pdfLightNee *

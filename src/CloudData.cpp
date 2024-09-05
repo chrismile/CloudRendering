@@ -49,8 +49,8 @@
 
 #include "CloudData.hpp"
 
-CloudData::CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow)
-        : transferFunctionWindow(transferFunctionWindow) {
+CloudData::CloudData(sgl::MultiVarTransferFunctionWindow* transferFunctionWindow, LightEditorWidget* lightEditorWidget)
+        : transferFunctionWindow(transferFunctionWindow), lightEditorWidget(lightEditorWidget) {
 }
 
 CloudData::~CloudData() {
@@ -65,10 +65,10 @@ void CloudData::computeGridBounds() {
     float sy = float(gridSizeY) * voxelSizeY;
     float sz = float(gridSizeZ) * voxelSizeZ;
     float maxSize = std::max(sx, std::max(sy, sz));
-    boxMaxDense = glm::vec3(sx, sy, sz) * 0.25f / maxSize;
+    boxMaxDense = glm::vec3(sx, sy, sz) * maxGridExtent / maxSize;
     boxMinDense = -boxMaxDense;
     //uint32_t maxDim = std::max(gridSizeX, std::max(gridSizeY, gridSizeZ));
-    //boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * 0.25f / float(maxDim);
+    //boxMax = glm::vec3(gridSizeX, gridSizeY, gridSizeZ) * maxGridExtent / float(maxDim);
     //boxMin = -boxMax;
 
     gridMinDense = glm::vec3(0,0,0);
@@ -1034,7 +1034,12 @@ void CloudData::printSparseGridMetadata() {
     }
 }
 
-void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max){
+void CloudData::setGlobalWorldBoundingBox(const sgl::AABB3& boundingBox) {
+    globalWorldBoundingBox = boundingBox;
+    hasGlobalWorldBoundingBox = true;
+}
+
+void CloudData::setSeqBounds(glm::vec3 min, glm::vec3 max) {
     seqMin = min;
     seqMax = max;
     gotSeqBounds = true;
@@ -1053,44 +1058,60 @@ void CloudData::computeSparseGridMetadata() {
                 "with value type float.");
     }
 
+    // 1D example worldBBox = (-10, 10), indexBBox = (1, 2) will be used in the following comments.
+
     if (!dataSetFromDense) {
-        gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1);
+        gridSizeX = uint32_t(grid->indexBBox().max()[0] - grid->indexBBox().min()[0] + 1); // 2
         gridSizeY = uint32_t(grid->indexBBox().max()[1] - grid->indexBBox().min()[1] + 1);
         gridSizeZ = uint32_t(grid->indexBBox().max()[2] - grid->indexBBox().min()[2] + 1);
-        voxelSizeX = float(grid->voxelSize()[0]);
+        voxelSizeX = float(grid->voxelSize()[0]); // 10
         voxelSizeY = float(grid->voxelSize()[1]);
         voxelSizeZ = float(grid->voxelSize()[2]);
     }
 
     auto nanoVdbBoundingBox = grid->worldBBox();
     gridMinSparse = glm::vec3(
-            float(nanoVdbBoundingBox.min()[0]),
+            float(nanoVdbBoundingBox.min()[0]), // -10
             float(nanoVdbBoundingBox.min()[1]),
             float(nanoVdbBoundingBox.min()[2]));
     gridMaxSparse = glm::vec3(
-            float(nanoVdbBoundingBox.max()[0]),
+            float(nanoVdbBoundingBox.max()[0]), // 10
             float(nanoVdbBoundingBox.max()[1]),
             float(nanoVdbBoundingBox.max()[2]));
 
-    glm::vec3 boundMin = gridMinSparse;
-    glm::vec3 boundMax = gridMaxSparse;
+    glm::vec3 worldMin = gridMinSparse; // -10
+    glm::vec3 worldMax = gridMaxSparse; //  10
+    glm::vec3 globalWorldMin = gridMinSparse; // -10
+    glm::vec3 globalWorldMax = gridMaxSparse; //  10
 
     if (gotSeqBounds) {
-        boundMin = seqMin;
-        boundMax = seqMax;
+        globalWorldMin = seqMin; // overwrite world BB (-10, 10)
+        globalWorldMax = seqMax;
+    }
+    if (hasGlobalWorldBoundingBox) {
+        globalWorldMin = globalWorldBoundingBox.min; // overwrite world BB (-10, 10)
+        globalWorldMax = globalWorldBoundingBox.max;
     }
 
     if (!dataSetFromDense) {
         // Normalize bounding box.
-        float maxDim = std::max(boundMax.x - boundMin.x, std::max(boundMax.y - boundMin.y, boundMax.z - boundMin.z));
-        boxMinSparse = (gridMinSparse - boundMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f);
-        boxMaxSparse = boxMinSparse + (gridMaxSparse - gridMinSparse) / maxDim;
-        auto totalSize = boxMaxSparse - boxMinSparse;
-        boxMaxSparse = totalSize * 0.25f;
-        boxMinSparse = -boxMaxSparse;
+        /*float maxDim = std::max(globalWorldMax.x - globalWorldMin.x, std::max(globalWorldMax.y - globalWorldMin.y, globalWorldMax.z - globalWorldMin.z)); // 20
+        boxMinSparse = (worldMin - globalWorldMin) / maxDim - glm::vec3(0.5f, 0.5f, 0.5f); // (-10 - -10) / 20 - 0.5 = -0.5
+        boxMaxSparse = boxMinSparse + (worldMax - worldMin) / maxDim; // -0.5 + (10 - -10) / 20 = 0.5
+        auto totalSize = boxMaxSparse - boxMinSparse; // 1
+        boxMaxSparse = totalSize * maxGridExtent; // 0.25
+        boxMinSparse = -boxMaxSparse; // -0.25
+        */
+        const glm::vec3 globalDiff = globalWorldMax - globalWorldMin;
+        float maxDim = std::max(globalDiff.x, std::max(globalDiff.y, globalDiff.z));
+        const glm::vec3 L = globalDiff / maxDim;
+        const float A = 2.0f * maxGridExtent / maxDim;
+        const glm::vec3 B = maxGridExtent * L - globalWorldMax * A;
+        boxMinSparse = A * worldMin + B;
+        boxMaxSparse = A * worldMax + B;
     } else {
-        boxMinSparse = boundMin;
-        boxMaxSparse = boundMax;
+        boxMinSparse = globalWorldMin;
+        boxMaxSparse = globalWorldMax;
     }
 
     std::cout << boxMinSparse.x << ", " << boxMinSparse.y << ", " << boxMinSparse.z << std::endl;
@@ -1177,4 +1198,57 @@ void CloudData::getSparseDensityField(uint8_t*& data, uint64_t& size) {
     auto& buffer = sparseGridHandle.buffer();
     data = buffer.data();
     size = buffer.size();
+}
+
+std::vector<double> CloudData::getVDBWorldBoundingBox() {
+    if (!hasSparseData()) {
+        uint8_t* data = nullptr;
+        uint64_t size = 0;
+        getSparseDensityField(data, size);
+    }
+    const auto* grid = sparseGridHandle.grid<float>();
+    if (!grid) {
+        sgl::Logfile::get()->throwError(
+                "Fatal error in CloudData::getVDBWorldBoundingBox: The grid handle does not store a grid "
+                "with value type float.");
+    }
+    auto bb = grid->worldBBox();
+    return {
+            bb.min()[0], bb.max()[0], bb.min()[1], bb.max()[1], bb.min()[2], bb.max()[2],
+    };
+}
+
+std::vector<int64_t> CloudData::getVDBIndexBoundingBox() {
+    if (!hasSparseData()) {
+        uint8_t* data = nullptr;
+        uint64_t size = 0;
+        getSparseDensityField(data, size);
+    }
+    const auto* grid = sparseGridHandle.grid<float>();
+    if (!grid) {
+        sgl::Logfile::get()->throwError(
+                "Fatal error in CloudData::getVDBIndexBoundingBox: The grid handle does not store a grid "
+                "with value type float.");
+    }
+    auto bb = grid->indexBBox();
+    return {
+            int64_t(bb.min()[0]), int64_t(bb.max()[0]), int64_t(bb.min()[1]), int64_t(bb.max()[1]),
+            int64_t(bb.min()[2]), int64_t(bb.max()[2]),
+    };
+}
+
+std::vector<double> CloudData::getVDBVoxelSize() {
+    if (!hasSparseData()) {
+        uint8_t* data = nullptr;
+        uint64_t size = 0;
+        getSparseDensityField(data, size);
+    }
+    const auto* grid = sparseGridHandle.grid<float>();
+    if (!grid) {
+        sgl::Logfile::get()->throwError(
+                "Fatal error in CloudData::getVDBVoxelSize: The grid handle does not store a grid "
+                "with value type float.");
+    }
+    auto vs = grid->voxelSize();
+    return { vs[0], vs[1], vs[2] };
 }
