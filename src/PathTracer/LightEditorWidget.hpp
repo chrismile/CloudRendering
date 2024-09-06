@@ -40,6 +40,8 @@ typedef std::shared_ptr<Buffer> BufferPtr;
 }}
 namespace sgl {
 class PropertyEditor;
+class Camera;
+typedef std::shared_ptr<Camera> CameraPtr;
 }
 
 namespace IGFD {
@@ -77,6 +79,9 @@ public:
     // Point light & spotlight.
     glm::vec3 position{}; ///< POINT & SPOT; distance for DIRECTIONAL.
     uint32_t useDistance = true; ///< POINT & SPOT
+
+    glm::vec3 spotDirection = glm::vec3(0.0f, 0.0f, -1.0f); ///< SPOT
+    float padding{}; ///< SPOT
 };
 
 class LightEditorWidget {
@@ -96,6 +101,7 @@ public:
     inline void setStandardWindowSize(int width, int height) { standardWidth = width; standardHeight = height; }
     inline void setStandardWindowPosition(int x, int y) { standardPositionX = x; standardPositionY = y; }
     void setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance);
+    inline void setCamera(const sgl::CameraPtr& _camera) { camera = _camera; }
 
     /// Property interface.
     void setLightProperty(uint32_t lightIdx, const std::string& key, const std::string& value);
@@ -107,11 +113,16 @@ public:
 
 private:
     sgl::vk::Renderer* renderer;
+    sgl::CameraPtr camera;
 
     void recreateLightBuffer();
     void updateLightBuffer();
     std::vector<Light> lights;
     sgl::vk::BufferPtr lightsBuffer;
+
+    // Whether to transform positions and directions on changing light spaces.
+    bool shallTransformOnSpaceChange = false;
+    void transformLightSpace(Light& light, LightSpace lightSpaceOld);
 
     // Counts lights by their creation so that ImGui can keep track when lights are removed.
     ptrdiff_t currentLightIdx = 0;

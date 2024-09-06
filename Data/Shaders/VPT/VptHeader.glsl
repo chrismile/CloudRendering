@@ -254,6 +254,9 @@ struct Light {
     // Point light & spotlight.
     vec3 position; ///< POINT & SPOT; distance for DIRECTIONAL.
     uint useDistance; ///< POINT & SPOT
+
+    vec3 spotDirection;
+    float padding;
 };
 layout (binding = 31) uniform LightsBuffer {
     Light lights[NUM_LIGHTS];

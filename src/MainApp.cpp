@@ -126,6 +126,7 @@ MainApp::MainApp()
     checkpointWindow.setStandardWindowPosition(841, 53);
 
     lightEditorWidget = new LightEditorWidget(rendererVk);
+    lightEditorWidget->setCamera(camera);
     lightEditorWidget->setShowWindow(false);
 
     propertyEditor.setInitWidthValues(sgl::ImGuiWrapper::get()->getScaleDependentSize(280.0f));

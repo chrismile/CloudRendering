@@ -428,7 +428,11 @@ vec3 sampleHeadlight(vec3 pos, uint lightIdx) {
         const float falloffStart =
                 light.spotTotalWidth > light.spotFalloffStart ? cos(light.spotFalloffStart) : totalWidth;
         vec3 p = pos - lightPosition;
-        vec3 z = light.lightSpace == LIGHT_SPACE_VIEW ? parameters.camForward : normalize(-lightPosition);
+        //vec3 z = light.lightSpace == LIGHT_SPACE_VIEW ? parameters.camForward : normalize(-lightPosition);
+        vec3 z = normalize(light.spotDirection);
+        if (light.lightSpace == LIGHT_SPACE_VIEW || light.lightSpace == LIGHT_SPACE_VIEW_ORIENTATION) {
+            z = (parameters.inverseViewMatrix * vec4(z, 0.0)).xyz;
+        }
         float cosTheta = dot(z, p) / (length(z) * length(p));
         float coneFactor = smoothstep(totalWidth, falloffStart, cosTheta);
         lightFactor *= coneFactor;

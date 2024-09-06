@@ -34,6 +34,7 @@
 #include <Utils/AppSettings.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Utils/File/Logfile.hpp>
+#include <Graphics/Scene/Camera.hpp>
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Buffers/Buffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
@@ -231,6 +232,7 @@ bool LightEditorWidget::renderGui() {
             addLight(light);
             reRender = true;
         }
+        ImGui::SameLine();
         if (ImGui::Button("Save to File...")) {
             fileDialogModeSave = true;
             openSelectLightFileDialog();
@@ -240,6 +242,7 @@ bool LightEditorWidget::renderGui() {
             fileDialogModeSave = false;
             openSelectLightFileDialog();
         }
+        ImGui::Checkbox("Transform on Space Change", &shallTransformOnSpaceChange);
     }
     propertyEditor->end();
 
@@ -295,6 +298,8 @@ void LightEditorWidget::setLightProperty(uint32_t lightIdx, const std::string& k
         light.spotTotalWidth = sgl::fromString<float>(value);
     } else if (key == "spot_falloff_start") {
         light.spotFalloffStart = sgl::fromString<float>(value);
+    } else if (key == "spot_direction") {
+        light.spotDirection = stringToVec3(value);
     }
 }
 
@@ -386,6 +391,12 @@ bool LightEditorWidget::loadFromFile(const std::string& filePath) {
             light.spotFalloffStart = lightNode["spot_falloff_start"].asFloat();
         }
 
+        if (lightNode.isMember("spot_direction")) {
+            auto spotDirectionNode = lightNode["spot_direction"];
+            light.spotDirection = glm::vec3(
+                    spotDirectionNode["x"].asFloat(), spotDirectionNode["y"].asFloat(), spotDirectionNode["z"].asFloat());
+        }
+
         newLights.push_back(light);
         newLightCreationIndices.push_back(newCurrentLightIdx++);
     }
@@ -417,6 +428,11 @@ bool LightEditorWidget::saveToFile(const std::string& filePath) {
         positionNode["y"] = light.position.y;
         positionNode["z"] = light.position.z;
 
+        Json::Value spotDirectionNode;
+        spotDirectionNode["x"] = light.spotDirection.x;
+        spotDirectionNode["y"] = light.spotDirection.y;
+        spotDirectionNode["z"] = light.spotDirection.z;
+
         Json::Value lightNode;
         lightNode["type"] = LIGHT_TYPE_NAMES[int(light.lightType)];
         lightNode["color"] = colorNode;
@@ -426,6 +442,7 @@ bool LightEditorWidget::saveToFile(const std::string& filePath) {
         lightNode["space"] = LIGHT_SPACE_NAMES[int(light.lightSpace)];
         lightNode["spot_total_width"] = light.spotTotalWidth;
         lightNode["spot_falloff_start"] = light.spotFalloffStart;
+        lightNode["spot_direction"] = spotDirectionNode;
         lightsNode.append(lightNode);
     }
     root["lights"] = lightsNode;
@@ -473,9 +490,14 @@ bool LightEditorWidget::renderGuiLight(size_t lightIdx) {
             light.lightType == LightType::DIRECTIONAL ? "Direction" : "Position", &light.position.x, -2.0f, 2.0f)) {
         reRender = true;
     }
+
+    auto lightSpaceOld = light.lightSpace;
     if (propertyEditor->addCombo(
             "Light Space", reinterpret_cast<int*>(&light.lightSpace), LIGHT_SPACE_NAMES, IM_ARRAYSIZE(LIGHT_SPACE_NAMES))) {
         reRender = true;
+        if (shallTransformOnSpaceChange) {
+            transformLightSpace(light, lightSpaceOld);
+        }
     }
 
     if (light.lightType == LightType::SPOT) {
@@ -485,7 +507,40 @@ bool LightEditorWidget::renderGuiLight(size_t lightIdx) {
         if (propertyEditor->addSliderFloat("Falloff Start Angle", (float*)&light.spotFalloffStart, 0.0, sgl::HALF_PI)) {
             reRender = true;
         }
+        if (propertyEditor->addSliderFloat3("Spot Direction", &light.spotDirection.x, -1.0f, 1.0f)) {
+            reRender = true;
+        }
     }
 
     return reRender;
+}
+
+void LightEditorWidget::transformLightSpace(Light& light, LightSpace lightSpaceOld) {
+    LightSpace lightSpaceNew = light.lightSpace;
+    const auto& viewMatrix = camera->getViewMatrix();
+    auto inverseViewMatrix = glm::inverse(viewMatrix);
+
+    // Transform old position (or direction) from old to new world space.
+    glm::vec3 lightPosition = light.position;
+    if (lightSpaceOld == LightSpace::VIEW || lightSpaceOld == LightSpace::VIEW_ORIENTATION) {
+        const float homComp =
+                light.lightType == LightType::DIRECTIONAL || lightSpaceOld == LightSpace::VIEW_ORIENTATION ? 0.0f : 1.0f;
+        lightPosition = (inverseViewMatrix * glm::vec4(lightPosition, homComp));
+    }
+    if (lightSpaceNew == LightSpace::VIEW || lightSpaceNew == LightSpace::VIEW_ORIENTATION) {
+        const float homComp =
+                light.lightType == LightType::DIRECTIONAL || lightSpaceNew == LightSpace::VIEW_ORIENTATION ? 0.0f : 1.0f;
+        lightPosition = (viewMatrix * glm::vec4(lightPosition, homComp));
+    }
+    light.position = lightPosition;
+
+    // Transform old spot direction from old to new world space.
+    glm::vec3 spotDirection = light.spotDirection;
+    if (lightSpaceOld == LightSpace::VIEW || lightSpaceOld == LightSpace::VIEW_ORIENTATION) {
+        spotDirection = (inverseViewMatrix * glm::vec4(spotDirection, 0.0f));
+    }
+    if (lightSpaceNew == LightSpace::VIEW || lightSpaceNew == LightSpace::VIEW_ORIENTATION) {
+        spotDirection = (viewMatrix * glm::vec4(spotDirection, 0.0f));
+    }
+    light.spotDirection = spotDirection;
 }
