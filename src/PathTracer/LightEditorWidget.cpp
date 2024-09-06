@@ -180,9 +180,9 @@ bool LightEditorWidget::renderGui() {
             lightFileDirectory = sgl::FileUtils::get()->getPathToFile(filename);
             if (fileDialogModeSave) {
                 saveToFile(filename);
-                reRender = true;
             } else {
                 loadFromFile(filename);
+                reRender = true;
             }
         }
         IGFD_CloseDialog(fileDialogInstance);
