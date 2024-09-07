@@ -330,6 +330,7 @@ private:
     void createEnvironmentMapOctahedralTexture(uint32_t mip_levels);
     sgl::vk::TexturePtr environmentMapTexture;
     sgl::vk::TexturePtr environmentMapOctahedralTexture;
+    bool shallCompressEnvMap = false;
     bool useEnvironmentMapIntensityFactorRgb = false;
     float environmentMapIntensityFactor = 1;
     glm::vec3 environmentMapIntensityFactorRgb = glm::vec3(1.0f);

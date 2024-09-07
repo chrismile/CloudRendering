@@ -37,6 +37,7 @@
 #include <Utils/File/Logfile.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Graphics/Texture/Bitmap.hpp>
+#include <Graphics/Compression/Compression.hpp>
 #include <Graphics/Vulkan/Buffers/Framebuffer.hpp>
 #include <Graphics/Vulkan/Render/RayTracingPipeline.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
@@ -1428,8 +1429,25 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     imageSettings.width = width;
     imageSettings.height = height;
 
-    environmentMapTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
-    environmentMapTexture->getImage()->uploadData(width * height * bytesPerPixel, pixelData);
+    environmentMapTexture = {};
+#ifdef SUPPORT_OPENEXR
+    if (imageSettings.format == VK_FORMAT_R16G16B16A16_SFLOAT) {
+        bool compress = shallCompressEnvMap && renderer->getDevice()->getSupportsFormat(VK_FORMAT_BC6H_UFLOAT_BLOCK);
+        if (compress) {
+            auto envMapImageView = sgl::compressImageVulkanBC6H(imageInfo.pixelData, width, height, renderer);
+            if (!envMapImageView) {
+                sgl::Logfile::get()->throwError(
+                        "Error in VolumetricPathTracingPass::loadEnvironmentMapImage: BC6H compression failed.");
+            }
+            environmentMapTexture = std::make_shared<sgl::vk::Texture>(envMapImageView, samplerSettings);
+        }
+    }
+#endif
+
+    if (!environmentMapTexture) {
+        environmentMapTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+        environmentMapTexture->getImage()->uploadData(width * height * bytesPerPixel, pixelData);
+    }
     loadedEnvironmentMapFilename = filename;
     isEnvironmentMapLoaded = true;
     frameInfo.frameCount = 0;
@@ -2501,12 +2519,13 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
-            if (useEnvironmentMapImage){
+            if (useEnvironmentMapImage) {
                 propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
                 if (propertyEditor.addButton("", "Load")) {
                     loadEnvironmentMapImage(environmentMapFilenameGui);
                     setShaderDirty();
                     reRender = true;
+                    frameInfo.frameCount = 0;
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Open from Disk...")) {
@@ -2542,6 +2561,14 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     setShaderDirty();
                     reRender = true;
                     frameInfo.frameCount = 0;
+                }
+                if (renderer->getDevice()->getSupportsFormat(VK_FORMAT_BC6H_UFLOAT_BLOCK)) {
+                    if ( propertyEditor.addCheckbox(
+                            "Compress Image", &shallCompressEnvMap)) {
+                        loadEnvironmentMapImage(environmentMapFilenameGui);
+                        reRender = true;
+                        frameInfo.frameCount = 0;
+                    }
                 }
 
                 if (useEnvironmentMapImage) {
