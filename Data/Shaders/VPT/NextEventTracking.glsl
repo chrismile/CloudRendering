@@ -36,6 +36,9 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bo
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     vec3 absorptionAlbedo = vec3(1, 1, 1) - parameters.scatteringAlbedo;
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
@@ -225,6 +228,9 @@ vec3 nextEventTracking(vec3 x, vec3 w, inout ScatterEvent firstEvent, bool onlyF
     vec3 weights = vec3(1, 1, 1);
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
+#endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
 #endif
 
     vec3 color = vec3(0.);

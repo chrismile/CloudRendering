@@ -1012,6 +1012,15 @@ void VolumetricPathTracingPass::setClipPlaneDistance(float _clipPlaneDistance) {
     }
 }
 
+void VolumetricPathTracingPass::setCloseIsosurfaces(bool _closeIsosurfaces) {
+    if (closeIsosurfaces != _closeIsosurfaces) {
+        closeIsosurfaces = _closeIsosurfaces;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -1691,6 +1700,9 @@ void VolumetricPathTracingPass::loadShader() {
 
     if (useClipPlane) {
         customPreprocessorDefines.insert({ "USE_CLIP_PLANE", "" });
+    }
+    if (useClipPlane && useIsosurfaces && closeIsosurfaces) {
+        customPreprocessorDefines.insert({ "CLOSE_ISOSURFACES", "" });
     }
 
     shaderStages = sgl::vk::ShaderManager->getShaderStages({"Clouds.Compute"}, customPreprocessorDefines);
@@ -2770,6 +2782,10 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 reRender = true;
                 frameInfo.frameCount = 0;
             }
+            if (useIsosurfaces && propertyEditor.addCheckbox("Close Isosurfaces", &closeIsosurfaces)) {
+                setShaderDirty();
+                optionChanged = true;
+            }
             if (useIsosurfaces && propertyEditor.addCombo(
                     "Surface BRDF", (int*)&surfaceBrdf, SURFACE_BRDF_NAMES, IM_ARRAYSIZE(SURFACE_BRDF_NAMES))) {
                 setShaderDirty();
@@ -2879,18 +2895,18 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             propertyEditor.endNode();
         }
 
-        if (propertyEditor.addCheckbox(
-                "Use Clip Plane", &useClipPlane)) {
-            setShaderDirty();
-            optionChanged = true;
-        }
-
-        if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, 0.01f, 1.0f)) {
-            optionChanged = true;
-        }
-
-        if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -1.0f, 1.0f)) {
-            optionChanged = true;
+        if (propertyEditor.beginNode("Clip Plane")) {
+            if (propertyEditor.addCheckbox("Use Clip Plane", &useClipPlane)) {
+                setShaderDirty();
+                optionChanged = true;
+            }
+            if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, 0.01f, 1.0f)) {
+                optionChanged = true;
+            }
+            if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -1.0f, 1.0f)) {
+                optionChanged = true;
+            }
+            propertyEditor.endNode();
         }
 
         propertyEditor.endNode();

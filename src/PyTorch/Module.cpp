@@ -118,6 +118,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_use_clip_plane", setUseClipPlane);
     m.def("vpt::set_clip_plane_normal", setClipPlaneNormal);
     m.def("vpt::set_clip_plane_distance", setClipPlaneDistance);
+    m.def("vpt::set_close_isosurfaces", setCloseIsosurfaces);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -943,6 +944,11 @@ void setUseIsosurfaceTf(bool _useIsosurfaceTf) {
 void setNumIsosurfaceSubdivisions(int64_t _subdivs) {
     vptRenderer->getVptPass()->setNumIsosurfaceSubdivisions(_subdivs);
 }
+
+void setCloseIsosurfaces(bool _closeIsosurfaces) {
+    vptRenderer->getVptPass()->setCloseIsosurfaces(_closeIsosurfaces);
+}
+
 
 void setUseClipPlane(bool _useClipPlane) {
     vptRenderer->getVptPass()->setUseClipPlane(_useClipPlane);

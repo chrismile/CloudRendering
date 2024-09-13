@@ -13,6 +13,9 @@ vec2 computeDepthNearestOpaque(vec3 x, vec3 w) {
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     float depthNearest = 0.0, alphaAccum = 0.0;
     float tMin, tMax;

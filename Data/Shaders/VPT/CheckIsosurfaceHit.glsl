@@ -6,6 +6,14 @@
             float scalarValue = sampleCloudIso(x1);
 
             currentScalarSign = sign(scalarValue - parameters.isoValue);
+
+#ifdef CLOSE_ISOSURFACES
+            if (isFirstPointFromOutside) {
+                // TODO: Normals
+                isFirstPoint = false;
+                lastScalarSign = sign(-parameters.isoValue);
+            } else
+#endif
             if (isFirstPoint) {
                 isFirstPoint = false;
                 lastScalarSign = currentScalarSign;
@@ -14,11 +22,15 @@
             if (lastScalarSign != currentScalarSign) {
                 refineIsoSurfaceHit(x1, x0, currentScalarSign);
                 x = x1;
+                foundHit = getIsoSurfaceHit(
+                        x, w, weights
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
-                foundHit = getIsoSurfaceHit(x, w, weights, color);
-#else
-                foundHit = getIsoSurfaceHit(x, w, weights);
+                        , color
 #endif
+#ifdef CLOSE_ISOSURFACES
+                        , isFirstPointFromOutside
+#endif
+                );
                 x += w * 1e-4;
                 isFirstPoint = true;
                 if (foundHit) {
@@ -39,6 +51,10 @@
                 //foundHit = true;
                 break;
             }
+
+#ifdef CLOSE_ISOSURFACES
+            isFirstPointFromOutside = false;
+#endif
         }
         if (foundHit) {
             if (weights.r < 1e-3 && weights.g < 1e-3 && weights.b < 1e-3) {

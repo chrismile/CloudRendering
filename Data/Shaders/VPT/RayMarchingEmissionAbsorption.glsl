@@ -34,6 +34,9 @@ vec4 rayMarchingEmissionAbsorption(vec3 x, vec3 w, inout ScatterEvent firstEvent
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     float alphaAccum = 0.0;
     vec3 colorAccum = vec3(0.0);

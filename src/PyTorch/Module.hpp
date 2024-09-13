@@ -101,6 +101,7 @@ MODULE_OP_API void setSurfaceBrdf(const std::string& _surfaceBrdf);
 MODULE_OP_API void setBrdfParameter(const std::string& key, const std::string& value);
 MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
+MODULE_OP_API void setCloseIsosurfaces(bool _closeIsosurfaces);
 
 MODULE_OP_API void setUseClipPlane(bool _useClipPlane);
 MODULE_OP_API void setClipPlaneNormal(std::vector<double> _clipPlaneNormal);

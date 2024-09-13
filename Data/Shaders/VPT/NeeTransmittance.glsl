@@ -16,6 +16,9 @@ float calculateTransmittance(vec3 x, vec3 w) {
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     float tMin, tMax;
     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
@@ -128,6 +131,9 @@ float calculateTransmittance(vec3 x, vec3 w) {
 #ifdef USE_ISOSURFACES
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
+#endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
 #endif
 
     const vec3 EPSILON_VEC = vec3(1e-6);
@@ -268,6 +274,9 @@ float calculateTransmittanceDistance(vec3 x, vec3 w, float maxDist) {
 #ifdef USE_ISOSURFACES
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
+#endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
 #endif
 
     float tMin, tMax;

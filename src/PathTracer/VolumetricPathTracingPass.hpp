@@ -198,6 +198,7 @@ public:
     void setBrdfParameter(const std::string& key, const std::string& value);
     void setUseIsosurfaceTf(bool _useIsosurfaceTf);
     void setNumIsosurfaceSubdivisions(int _subdivs);
+    void setCloseIsosurfaces(bool _closeIsosurfaces);
     [[nodiscard]] float getIsoValue() const { return isoValue; }
     [[nodiscard]] glm::vec3 getIsosurfaceColor() const { return isosurfaceColor; }
     [[nodiscard]] IsosurfaceType getIsosurfaceType() const { return isosurfaceType; }
@@ -387,6 +388,7 @@ private:
     bool useIsosurfaceTf = false;
     float minGradientVal = 0.0f, maxGradientVal = 1.0f;
     int numIsosurfaceSubdivisions = 2;
+    bool closeIsosurfaces = false;
 
     // Occupancy grid.
     void setOccupancyGridConfig();

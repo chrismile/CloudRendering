@@ -754,8 +754,8 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
     D.x = abs(D).x <= 0.000001 ? 0.000001 : D.x;
     D.y = abs(D).y <= 0.000001 ? 0.000001 : D.y;
     D.z = abs(D).z <= 0.000001 ? 0.000001 : D.z;
-    vec3 C_Min = (bMin - P)/D;
-    vec3 C_Max = (bMax - P)/D;
+    vec3 C_Min = (bMin - P) / D;
+    vec3 C_Max = (bMax - P) / D;
     tMin = max(max(min(C_Min.x, C_Max.x), min(C_Min.y, C_Max.y)), min(C_Min.z, C_Max.z));
     tMin = max(0.0, tMin);
     tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
@@ -763,19 +763,19 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
         return false;
     }
 #ifdef USE_CLIP_PLANE
-    // Compute the intersection of the ray with the clip plane
+    // Compute the intersection of the ray with the clip plane.
     float denom = dot(parameters.clipPlaneNormal, D);
     float d = dot(parameters.clipPlaneNormal, P) - parameters.clipPlaneDistance;
 
     if (abs(denom) < 0.001) {
         // Ray is parallel to the clip plane, return whether we are on the positive side (visible)
-        return d > 0;
+        return d > 0.0;
     } else {
         float tClip = (parameters.clipPlaneDistance - dot(parameters.clipPlaneNormal, P)) / denom;
-        if (tClip <= 0) {
-            return d > 0;
+        if (tClip <= 0.0) {
+            return d > 0.0;
         }
-        if (d > 0) {
+        if (d > 0.0) {
             tMax = min(tClip, tMax);
         } else {
             tMin = max(tClip, tMin);
@@ -788,6 +788,60 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
 #endif
     return true;
 }
+
+#ifdef CLOSE_ISOSURFACES
+void rayBoxIntersectionNormal(vec3 bMin, vec3 bMax, vec3 P, vec3 D, inout vec3 surfaceNormal) {
+    D.x = abs(D).x <= 1e-6 ? 1e-6 : D.x;
+    D.y = abs(D).y <= 1e-6 ? 1e-6 : D.y;
+    D.z = abs(D).z <= 1e-6 ? 1e-6 : D.z;
+    vec3 C_Min = (bMin - P) / D;
+    vec3 C_Max = (bMax - P) / D;
+    float minX = min(C_Min.x, C_Max.x);
+    float minY = min(C_Min.y, C_Max.y);
+    float minZ = min(C_Min.z, C_Max.z);
+    float tMin = max(max(minX, minY), minZ);
+    float tMax = max(0.0, tMin);
+    tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
+    if (tMax <= tMin || tMax <= 0) {
+        return;
+    }
+    vec3 normalBox;
+    if (minX > minY && minX > minZ) {
+        normalBox = vec3(-sign(D.x), 0.0, 0.0);
+    } else if (minY > minZ) {
+        normalBox = vec3(0.0, -sign(D.y), 0.0);
+    } else {
+        normalBox = vec3(0.0, 0.0, -sign(D.z));
+    }
+#ifdef USE_CLIP_PLANE
+    // Compute the intersection of the ray with the clip plane.
+    float denom = dot(parameters.clipPlaneNormal, D);
+    float d = dot(parameters.clipPlaneNormal, P) - parameters.clipPlaneDistance;
+
+    if (abs(denom) < 1e-3) {
+        // Ray is parallel to the clip plane, check whether we are on the visible side.
+        if (d > 0.0) {
+            surfaceNormal = normalBox;
+        }
+        return;
+    } else {
+        float tClip = (parameters.clipPlaneDistance - dot(parameters.clipPlaneNormal, P)) / denom;
+        if (tClip <= 0.0) {
+            // Clip plane is behind camera position. Check whether we are on the visible side.
+            if (d > 0.0) {
+                surfaceNormal = normalBox;
+            }
+            return;
+        }
+        if (d <= 0.0) {
+            surfaceNormal = parameters.clipPlaneNormal;
+            return;
+        }
+    }
+#endif
+    surfaceNormal = normalBox;
+}
+#endif
 
 float maxComponent(vec3 v) {
     return max(v.x, max(v.y, v.z));
@@ -1084,6 +1138,9 @@ bool getIsoSurfaceHit(
 #if defined(USE_NEXT_EVENT_TRACKING_SPECTRAL) || defined(USE_NEXT_EVENT_TRACKING)
         , inout vec3 colorNee
 #endif
+#ifdef CLOSE_ISOSURFACES
+        , bool isFirstPointFromOutside
+#endif
 ) {
     // -------------- Abort Conditions ------------------
 
@@ -1102,7 +1159,12 @@ bool getIsoSurfaceHit(
 
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    vec3 surfaceNormal = computeGradient(texCoords);
+#ifdef CLOSE_ISOSURFACES
+    if (isFirstPointFromOutside) {
+        rayBoxIntersectionNormal(parameters.boxMin, parameters.boxMax, cameraPosition, w, surfaceNormal);
+    } else
+#endif
+    surfaceNormal = vec3(0.0, 0.0, 1.0);
 
     if (dot(w, surfaceNormal) > 0.0) {
         surfaceNormal = -surfaceNormal;

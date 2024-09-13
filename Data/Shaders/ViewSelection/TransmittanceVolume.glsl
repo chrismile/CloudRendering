@@ -10,6 +10,9 @@ void computeTransmittanceVolume(vec3 x, vec3 w) {
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
 #endif
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     float alphaAccum = 0.0;
     float tMin, tMax;
