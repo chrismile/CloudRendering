@@ -833,8 +833,8 @@ void rayBoxIntersectionNormal(vec3 bMin, vec3 bMax, vec3 P, vec3 D, inout vec3 s
             }
             return;
         }
-        if (d <= 0.0) {
-            surfaceNormal = parameters.clipPlaneNormal;
+        if (d <= 0.0 && tClip >= tMin) {
+            surfaceNormal = -parameters.clipPlaneNormal;
             return;
         }
     }
@@ -1159,12 +1159,12 @@ bool getIsoSurfaceHit(
 
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+    vec3 surfaceNormal = computeGradient(texCoords);
 #ifdef CLOSE_ISOSURFACES
     if (isFirstPointFromOutside) {
         rayBoxIntersectionNormal(parameters.boxMin, parameters.boxMax, cameraPosition, w, surfaceNormal);
     } else
 #endif
-    surfaceNormal = vec3(0.0, 0.0, 1.0);
 
     if (dot(w, surfaceNormal) > 0.0) {
         surfaceNormal = -surfaceNormal;
