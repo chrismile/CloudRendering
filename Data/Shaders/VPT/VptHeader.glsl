@@ -57,7 +57,7 @@ layout (binding = 3) uniform Parameters {
     vec3 gridMax; float maxGradientVal;
     vec3 emissionBoxMin;
     vec3 emissionBoxMax;
-    vec3 extinction;
+    vec3 extinction; float tfScatteringAlbedoStrength;
     vec3 scatteringAlbedo;
 
     float phaseG;
@@ -81,15 +81,9 @@ layout (binding = 3) uniform Parameters {
     ivec3 superVoxelGridSize;
 
     ivec3 gridResolution;
+    uint isEnvMapBlack; //< Info for sampling environment map vs. single light sources.
     vec3 voxelTexelSize;
     float farDistance;
-
-    // Headlight.
-    vec3 headlightColor;
-    float headlightIntensity;
-    float headlightSpotTotalWidth;
-    float headlightSpotFalloffStart;
-    uint isEnvMapBlack;
 
     // Isosurfaces.
     vec3 isoSurfaceColor;

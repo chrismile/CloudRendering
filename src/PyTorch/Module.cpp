@@ -1064,6 +1064,9 @@ void setEmissionStrength(double emissionStrength){
 void setUseEmission(bool useEmission){
     vptRenderer->setUseEmission(useEmission);
 }
+void setTfScatteringAlbedoStrength(float strength) {
+    vptRenderer->getVptPass()->setTfScatteringAlbedoStrength(strength);
+}
 void flipYZ(bool flip){
     vptRenderer->flipYZ(flip);
 }

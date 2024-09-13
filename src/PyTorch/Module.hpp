@@ -114,6 +114,7 @@ MODULE_OP_API void setViewProjectionMatrixAsPrevious();
 MODULE_OP_API void setEmissionCap(double emissionCap);
 MODULE_OP_API void setEmissionStrength(double emissionStrength);
 MODULE_OP_API void setUseEmission(bool useEmission);
+MODULE_OP_API void setTfScatteringAlbedoStrength(float strength);
 MODULE_OP_API void flipYZ(bool flip);
 
 MODULE_OP_API std::vector<int64_t> getVolumeVoxelSize();

@@ -40,10 +40,12 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bo
     bool isFirstPointFromOutside = true;
 #endif
 
+#if !defined(USE_TRANSFER_FUNCTION) || !defined(USE_TRANSFER_FUNCTION_SCATTERING_ALBEDO)
     vec3 absorptionAlbedo = vec3(1, 1, 1) - parameters.scatteringAlbedo;
     vec3 scatteringAlbedo = parameters.scatteringAlbedo;
     float PA = maxComponent(absorptionAlbedo * parameters.extinction);
     float PS = maxComponent(scatteringAlbedo * parameters.extinction);
+#endif
 
     vec3 color = vec3(0);
     float bw_phase = 1.;
@@ -72,10 +74,12 @@ vec3 nextEventTrackingSpectral(vec3 x, vec3 w, inout ScatterEvent firstEvent, bo
 #ifdef USE_TRANSFER_FUNCTION
             vec4 densityEmission = sampleCloudDensityEmission(x);
             float density = densityEmission.a;
-            //scatteringAlbedo = densityEmission.rgb;
-            //absorptionAlbedo = vec3(1) - scatteringAlbedo;
-            //float PA = maxComponent(absorptionAlbedo * parameters.extinction);
-            //float PS = maxComponent(scatteringAlbedo * parameters.extinction);
+#ifdef USE_TRANSFER_FUNCTION_SCATTERING_ALBEDO
+            vec3 scatteringAlbedo = mix(parameters.scatteringAlbedo, densityEmission.rgb, parameters.tfScatteringAlbedoStrength);
+            vec3 absorptionAlbedo = vec3(1) - scatteringAlbedo;
+            float PA = maxComponent(absorptionAlbedo * parameters.extinction);
+            float PS = maxComponent(scatteringAlbedo * parameters.extinction);
+#endif
 #else
             float density = sampleCloud(xNew);
 #endif

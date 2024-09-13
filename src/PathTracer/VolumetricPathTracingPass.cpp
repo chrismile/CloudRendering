@@ -47,6 +47,7 @@
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_stdlib.h>
+#include <ImGui/imgui_custom.h>
 
 #include "Denoiser/EAWDenoiser.hpp"
 #ifdef SUPPORT_OPTIX
@@ -871,9 +872,21 @@ void VolumetricPathTracingPass::setEmissionStrength(float emissionStrength){
     frameInfo.frameCount = 0;
 }
 
-void VolumetricPathTracingPass::setEmissionCap(float emissionCap){
+void VolumetricPathTracingPass::setEmissionCap(float emissionCap) {
     this->emissionCap = emissionCap;
     frameInfo.frameCount = 0;
+}
+
+void VolumetricPathTracingPass::setTfScatteringAlbedoStrength(float strength) {
+    if (tfScatteringAlbedoStrength != strength) {
+        tfScatteringAlbedoStrength = strength;
+        frameInfo.frameCount = 0;
+        bool useTfScatteringAlbedoStrengthNew = tfScatteringAlbedoStrength > 0.0f;
+        if (useTfScatteringAlbedoStrength != useTfScatteringAlbedoStrengthNew) {
+            useTfScatteringAlbedoStrength = useTfScatteringAlbedoStrengthNew;
+            setShaderDirty();
+        }
+    }
 }
 
 void VolumetricPathTracingPass::flipYZ(bool flip) {
@@ -1226,59 +1239,6 @@ void VolumetricPathTracingPass::setEnvMapRotQuaternion(const glm::quat& _quatern
     frameInfo.frameCount = 0;
 }
 
-void VolumetricPathTracingPass::setUseHeadlight(bool _useHeadlight) {
-    if (useHeadlight != _useHeadlight) {
-        this->useHeadlight = _useHeadlight;
-        frameInfo.frameCount = 0;
-        setShaderDirty();
-    }
-}
-
-void VolumetricPathTracingPass::setHeadlightType(HeadlightType _headlightType) {
-    if (headlightType != _headlightType) {
-        this->headlightType = _headlightType;
-        frameInfo.frameCount = 0;
-        setShaderDirty();
-    }
-}
-void VolumetricPathTracingPass::setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth) {
-    if (headlightSpotTotalWidth != _headlightSpotTotalWidth) {
-        this->headlightSpotTotalWidth = _headlightSpotTotalWidth;
-        frameInfo.frameCount = 0;
-        setShaderDirty();
-    }
-}
-
-void VolumetricPathTracingPass::setHeadlightSpotFalloffStart(float _headlightSpotFalloffStart) {
-    if (headlightSpotFalloffStart != _headlightSpotFalloffStart) {
-        this->headlightSpotFalloffStart = _headlightSpotFalloffStart;
-        frameInfo.frameCount = 0;
-        setShaderDirty();
-    }
-}
-
-void VolumetricPathTracingPass::setUseHeadlightDistance(bool _useHeadlightDistance) {
-    if (useHeadlightDistance != _useHeadlightDistance) {
-        this->useHeadlightDistance = _useHeadlightDistance;
-        frameInfo.frameCount = 0;
-        setShaderDirty();
-    }
-}
-
-void VolumetricPathTracingPass::setHeadlightColor(const glm::vec3& _headlightColor) {
-    if (headlightColor != _headlightColor) {
-        this->headlightColor = _headlightColor;
-        frameInfo.frameCount = 0;
-    }
-}
-
-void VolumetricPathTracingPass::setHeadlightIntensity(float _headlightIntensity) {
-    if (headlightIntensity != _headlightIntensity) {
-        this->headlightIntensity = _headlightIntensity;
-        frameInfo.frameCount = 0;
-    }
-}
-
 void VolumetricPathTracingPass::setScatteringAlbedo(glm::vec3 albedo) {
     this->cloudScatteringAlbedo = albedo;
 }
@@ -1628,19 +1588,8 @@ void VolumetricPathTracingPass::loadShader() {
         customPreprocessorDefines.insert({ "USE_ENV_MAP_ROTATION", "" });
     }
 
-    if (useHeadlight) {
-        customPreprocessorDefines.insert({ "USE_HEADLIGHT", "" });
-
-        if (headlightType == HeadlightType::POINT) {
-            customPreprocessorDefines.insert({ "HEADLIGHT_TYPE_POINT", "" });
-        }
-        else if (headlightType == HeadlightType::SPOT) {
-            customPreprocessorDefines.insert({ "HEADLIGHT_TYPE_SPOT", "" });
-        }
-    }
-
-    if (useHeadlightDistance) {
-        customPreprocessorDefines.insert({ "USE_HEADLIGHT_DISTANCE", "" });
+    if (useTfScatteringAlbedoStrength) {
+        customPreprocessorDefines.insert({ "USE_TRANSFER_FUNCTION_SCATTERING_ALBEDO", "" });
     }
 
     if (flipYZCoordinates) {
@@ -1978,6 +1927,7 @@ void VolumetricPathTracingPass::_render() {
         uniformData.emissionCap = emissionCap;
         uniformData.emissionStrength = emissionStrength;
         uniformData.extinction = cloudExtinctionBase * cloudExtinctionScale;
+        uniformData.tfScatteringAlbedoStrength = tfScatteringAlbedoStrength;
         uniformData.scatteringAlbedo = cloudScatteringAlbedo;
         uniformData.camForward = (*camera)->getCameraFront();
         uniformData.sunDirection = sunlightDirection;
@@ -2051,11 +2001,6 @@ void VolumetricPathTracingPass::_render() {
         } else {
             uniformData.isEnvMapBlack = builtinEnvMap == BuiltinEnvMap::BLACK;
         }
-
-        uniformData.headlightColor = headlightColor;
-        uniformData.headlightIntensity = headlightIntensity;
-        uniformData.headlightSpotTotalWidth = headlightSpotTotalWidth;
-        uniformData.headlightSpotFalloffStart = headlightSpotFalloffStart;
 
         uniformData.isosurfaceColor = isosurfaceColor;
         uniformData.isoValue = isoValue;
@@ -2506,6 +2451,22 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             if (propertyEditor.addColorEdit3("Scattering Albedo", &cloudScatteringAlbedo.x, ImGuiColorEditFlags_Float)) {
                 optionChanged = true;
             }
+            bool isSpectralMode =
+                    vptMode == VptMode::SPECTRAL_DELTA_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL;
+            if (useTransferFunctionCached && isSpectralMode) {
+                auto editVal = propertyEditor.addSliderFloatEdit(
+                        "TF Scattering Albedo", &tfScatteringAlbedoStrength, 0.0f, 1.0f);
+                if (editVal == ImGui::EditMode::INPUT_FINISHED) {
+                    bool useTfScatteringAlbedoStrengthNew = tfScatteringAlbedoStrength > 0.0f;
+                    if (useTfScatteringAlbedoStrength != useTfScatteringAlbedoStrengthNew) {
+                        useTfScatteringAlbedoStrength = useTfScatteringAlbedoStrengthNew;
+                        setShaderDirty();
+                    }
+                }
+                if (editVal != ImGui::EditMode::NO_CHANGE) {
+                    optionChanged = true;
+                }
+            }
             if (propertyEditor.addSliderFloat("G", &uniformData.G, -1.0f, 1.0f)) {
                 optionChanged = true;
             }
@@ -2664,50 +2625,6 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
 
             propertyEditor.endNode();
-        }
-
-        if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
-            if (propertyEditor.beginNode("Headlight")) {
-                if (propertyEditor.addCheckbox("Use Headlight", &useHeadlight)) {
-                    optionChanged = true;
-                    setShaderDirty();
-                }
-                if (useHeadlight) {
-                    if (propertyEditor.addCombo("Headlight Type", (int*)&headlightType, HEADLIGHT_TYPES, IM_ARRAYSIZE(HEADLIGHT_TYPES))) {
-                        optionChanged = true;
-                        setShaderDirty();
-                        reRender = true;
-                        frameInfo.frameCount = 0;
-                    }
-
-                    if (headlightType == HeadlightType::SPOT) {
-                        if (propertyEditor.addSliderFloat("Total Cone Width Angle", (float*)&headlightSpotTotalWidth, 0.0, M_PI/2)) {
-                            setShaderDirty();
-                            reRender = true;
-                            frameInfo.frameCount = 0;
-                        }
-
-                        if (propertyEditor.addSliderFloat("Falloff Start Angle", (float*)&headlightSpotFalloffStart, 0.0, M_PI/2)) {
-                            setShaderDirty();
-                            reRender = true;
-                            frameInfo.frameCount = 0;
-                        }
-                    }
-
-                    if (propertyEditor.addCheckbox("Use Headlight Distance", &useHeadlightDistance)) {
-                        optionChanged = true;
-                        setShaderDirty();
-                    }
-                    if (propertyEditor.addColorEdit3("Headlight Color", &headlightColor.x)) {
-                        optionChanged = true;
-                    }
-                    if (propertyEditor.addSliderFloat("Headlight Intensity", &headlightIntensity, 0.0f, 10.0f)) {
-                        optionChanged = true;
-                    }
-                }
-
-                propertyEditor.endNode();
-            }
         }
 
         if (propertyEditor.beginNode("Isosurfaces")) {

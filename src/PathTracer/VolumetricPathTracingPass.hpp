@@ -168,14 +168,6 @@ public:
     void setEnvMapRotAngleAxis(const glm::vec3& _axis, float _angle);
     void setEnvMapRotQuaternion(const glm::quat& _quaternion);
 
-    void setUseHeadlight(bool _useHeadlight);
-    void setHeadlightType(HeadlightType _headlightType);
-    void setHeadlightSpotTotalWidth(float _headlightSpotTotalWidth);
-    void setHeadlightSpotFalloffStart(float _headlightSpotFalloffStart);
-    void setUseHeadlightDistance(bool _useHeadlightDistance);
-    void setHeadlightColor(const glm::vec3& _headlightColor);
-    void setHeadlightIntensity(float _headlightIntensity);
-
     void setScatteringAlbedo(glm::vec3 albedo);
     void setExtinctionScale(double extinctionScale);
     void setPhaseG(double phaseG);
@@ -187,6 +179,7 @@ public:
     void setUseEmission(bool emission);
     void setEmissionStrength(float emissionStrength);
     void setEmissionCap(float emissionCap);
+    void setTfScatteringAlbedoStrength(float strength);
     void flipYZ(bool flip);
 
     // Isosurfaces.
@@ -315,6 +308,8 @@ private:
     float cloudExtinctionScale = 1024.0f;
     glm::vec3 cloudExtinctionBase = glm::vec3(1.0, 1.0, 1.0);
     glm::vec3 cloudScatteringAlbedo = glm::vec3(0.9, 0.9, 0.9);
+    bool useTfScatteringAlbedoStrength = false;
+    float tfScatteringAlbedoStrength = 0.0f;
 
     bool useEmission = false; ///< Use an emission texture
     float emissionCap = 1;
@@ -342,11 +337,7 @@ private:
     bool useTransferFunctionCached = false;
     ImGuiFileDialog* fileDialogInstance = nullptr;
 
-    // Headlight data.
-    bool useHeadlight = false;
-    bool useHeadlightDistance = true; ///< Whether to modulate headlight intensity by distance.
-    glm::vec3 headlightColor = glm::vec3(1.0f, 0.961538462f, 0.884615385f);
-    float headlightIntensity = 0.5f;
+    // Light data.
     size_t numLightsCached = 0; ///< Use lights specified in light editor widget.
 
     std::shared_ptr<NormalizeNormalsPass> normalizeNormalsPass;
@@ -414,12 +405,6 @@ private:
     float clearcoat = 0.0;
     float clearcoatGloss = 1.0;
 
-    float headlightSpotTotalWidth = 0.0981747704;
-    float headlightSpotFalloffStart = 0.0245436926;
-
-    // Headlight
-    HeadlightType headlightType = HeadlightType::POINT;
-
     // Uniform buffer object storing the scene and camera settings.
     struct UniformData {
         glm::mat4 inverseViewProjMatrix;
@@ -435,7 +420,7 @@ private:
         glm::vec3 gridMax; float maxGradientVal;
         glm::vec3 emissionBoxMin; float pad4;
         glm::vec3 emissionBoxMax; float pad5;
-        glm::vec3 extinction; float pad6;
+        glm::vec3 extinction; float tfScatteringAlbedoStrength;
         glm::vec3 scatteringAlbedo;
 
         float G = 0.5f; // 0.875f
@@ -456,17 +441,10 @@ private:
         glm::ivec3 superVoxelSize; int pad10;
         glm::ivec3 superVoxelGridSize; int pad11;
 
-        glm::ivec3 gridResolution; int pad12;
+        glm::ivec3 gridResolution;
+        uint32_t isEnvMapBlack = 0; //< Info for sampling environment map vs. single light sources.
         glm::vec3 voxelTexelSize;
         float farDistance;
-
-        // Headlight.
-        glm::vec3 headlightColor;
-        float headlightIntensity = 1.0f;
-        float headlightSpotTotalWidth = 0.0981747704;
-        float headlightSpotFalloffStart = 0.0245436926;
-        uint32_t isEnvMapBlack = 0;
-        float pad14;
 
         // Isosurfaces.
         glm::vec3 isosurfaceColor;
