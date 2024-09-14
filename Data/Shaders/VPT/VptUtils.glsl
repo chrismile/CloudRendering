@@ -800,8 +800,8 @@ void rayBoxIntersectionNormal(vec3 bMin, vec3 bMax, vec3 P, vec3 D, inout vec3 s
     float minY = min(C_Min.y, C_Max.y);
     float minZ = min(C_Min.z, C_Max.z);
     float tMin = max(max(minX, minY), minZ);
-    float tMax = max(0.0, tMin);
-    tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
+    tMin = max(0.0, tMin);
+    float tMax = min(min(max(C_Min.x, C_Max.x), max(C_Min.y, C_Max.y)), max(C_Min.z, C_Max.z));
     if (tMax <= tMin || tMax <= 0) {
         return;
     }
