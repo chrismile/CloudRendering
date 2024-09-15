@@ -88,7 +88,12 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     // Get ray direction and volume entry point
     vec3 x, w;
     createCameraRay(screenCoord, x, w);
-    firstEvent = ScatterEvent(false, x, 0.0, w, 0.0, 0.0, 0.0);
+    firstEvent = ScatterEvent(
+            false, x, 0.0, w, 0.0, 0.0, 0.0
+#ifdef CLOSE_ISOSURFACES
+            , vec3(0.0), false
+#endif
+    );
 
 #if defined(USE_ISOSURFACES) || defined(USE_HEADLIGHT)
     cameraPosition = x;
@@ -242,8 +247,15 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
         //imageStore(firstX, imageCoord, vec4(firstEvent.x, firstEvent.pdf_x));
 
 #ifdef WRITE_NORMAL_MAP
-#ifdef USE_ISOSURFACES
-        vec3 diff = -computeGradient((firstEvent.x - parameters.boxMin)/(parameters.boxMax -parameters.boxMin));
+#if defined(CLOSE_ISOSURFACES)
+        vec3 diff;
+        if (firstEvent.isIsosurface) {
+            diff = firstEvent.normal;
+        } else {
+            diff = -computeGradient((firstEvent.x - parameters.boxMin) / (parameters.boxMax -parameters.boxMin));
+        }
+#elif defined(USE_ISOSURFACES)
+        vec3 diff = -computeGradient((firstEvent.x - parameters.boxMin) / (parameters.boxMax -parameters.boxMin));
 #else // !defined(USE_ISOSURFACES)
         vec3 diff = getCloudFiniteDifference(firstEvent.x);
 #endif // USE_ISOSURFACES

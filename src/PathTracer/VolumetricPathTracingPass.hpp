@@ -454,7 +454,7 @@ private:
         int numAoSamples = 4;
 
         // Clip Plane
-        int useClipPlane;
+        int32_t useClipPlane;
         glm::vec3 clipPlaneNormal;
         float clipPlaneDistance;
 

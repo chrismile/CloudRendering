@@ -9,7 +9,6 @@
 
 #ifdef CLOSE_ISOSURFACES
             if (isFirstPointFromOutside) {
-                // TODO: Normals
                 isFirstPoint = false;
                 lastScalarSign = sign(-parameters.isoValue);
             } else
@@ -42,6 +41,10 @@
                         firstEvent.hasValue = true;
                         firstEvent.density = parameters.extinction.x;
                         firstEvent.depth = tMax - d + distance(x1, x);
+#ifdef CLOSE_ISOSURFACES
+                        firstEvent.normal = surfaceNormalGlobal;
+                        firstEvent.isIsosurface = true;
+#endif
                     }
                     if (rayBoxIntersect(parameters.boxMin, parameters.boxMax, x, w, tMin, tMax)) {
                         x += w * tMin;
@@ -49,6 +52,9 @@
                     }
                 }
                 //foundHit = true;
+#ifdef CLOSE_ISOSURFACES
+                isFirstPointFromOutside = false;
+#endif
                 break;
             }
 

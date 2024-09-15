@@ -36,6 +36,10 @@ struct ScatterEvent {
     vec3 w; float pdf_w;
     float depth;
     float density;
+#ifdef CLOSE_ISOSURFACES
+    vec3 normal;
+    bool isIsosurface;
+#endif
 };
 
 
@@ -791,6 +795,7 @@ bool rayBoxIntersect(vec3 bMin, vec3 bMax, vec3 P, vec3 D, out float tMin, out f
 
 #ifdef CLOSE_ISOSURFACES
 void rayBoxIntersectionNormal(vec3 bMin, vec3 bMax, vec3 P, vec3 D, inout vec3 surfaceNormal) {
+    float tMinTest, tMaxTest;
     D.x = abs(D).x <= 1e-6 ? 1e-6 : D.x;
     D.y = abs(D).y <= 1e-6 ? 1e-6 : D.y;
     D.z = abs(D).z <= 1e-6 ? 1e-6 : D.z;
@@ -1132,6 +1137,9 @@ float isoSurfaceOpacity = isoSurfaceColorAll.a;
 #define UNIFORM_SAMPLING
 //#define USE_MIS // only for specular BRDF sampling
 
+#ifdef CLOSE_ISOSURFACES
+vec3 surfaceNormalGlobal;
+#endif
 
 bool getIsoSurfaceHit(
         vec3 currentPoint, inout vec3 w, inout vec3 throughput
@@ -1169,6 +1177,10 @@ bool getIsoSurfaceHit(
     if (dot(w, surfaceNormal) > 0.0) {
         surfaceNormal = -surfaceNormal;
     }
+
+#ifdef CLOSE_ISOSURFACES
+    surfaceNormalGlobal = surfaceNormal;
+#endif
 
     vec3 surfaceTangent;
     vec3 surfaceBitangent;
@@ -1316,10 +1328,20 @@ bool getIsoSurfaceHit(
 #include "Lighting.glsl"
 
 // Direct illumination
-vec3 getIsoSurfaceHitDirect(vec3 currentPoint, vec3 w, inout vec3 surfaceNormal) {
+vec3 getIsoSurfaceHitDirect(
+        vec3 currentPoint, vec3 w, inout vec3 surfaceNormal
+#ifdef CLOSE_ISOSURFACES
+        , bool isFirstPointFromOutside
+#endif
+) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
     surfaceNormal = computeGradient(texCoords); // computeGradientLegacy(texCoords);
+#ifdef CLOSE_ISOSURFACES
+    if (isFirstPointFromOutside) {
+        rayBoxIntersectionNormal(parameters.boxMin, parameters.boxMax, cameraPosition, w, surfaceNormal);
+    } else
+#endif
     if (dot(cameraPosition - currentPoint, surfaceNormal) < 0.0) {
         surfaceNormal = -surfaceNormal;
     }

@@ -3,6 +3,9 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
     vec3 weights = vec3(1, 1, 1);
     float lastScalarSign, currentScalarSign;
     bool isFirstPoint = true;
+#ifdef CLOSE_ISOSURFACES
+    bool isFirstPointFromOutside = true;
+#endif
 
     ivec3 voxelGridSize = textureSize(gridImage, 0);
     vec3 boxDelta = parameters.boxMax - parameters.boxMin;
@@ -20,10 +23,17 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
             float scalarValue = sampleCloudIso(xNew);
 
             currentScalarSign = sign(scalarValue - parameters.isoValue);
+#ifdef CLOSE_ISOSURFACES
+            if (isFirstPoint) {
+                isFirstPoint = false;
+                lastScalarSign = sign(-parameters.isoValue);
+            }
+#else
             if (isFirstPoint) {
                 isFirstPoint = false;
                 lastScalarSign = currentScalarSign;
             }
+#endif
 
             if (lastScalarSign != currentScalarSign) {
                 if (!firstEvent.hasValue) {
@@ -41,6 +51,7 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
                 break;
             }
 
+            isFirstPointFromOutside = false;
             x = xNew;
             d -= t;
         }
@@ -48,7 +59,12 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
 
     if (foundHit) {
         vec3 surfaceNormal;
-        vec3 color = getIsoSurfaceHitDirect(x, w, surfaceNormal);
+        vec3 color = getIsoSurfaceHitDirect(
+                x, w, surfaceNormal
+#ifdef CLOSE_ISOSURFACES
+                , isFirstPointFromOutside
+#endif
+        );
         weights *= color;
         x += surfaceNormal * 1e-3;
 

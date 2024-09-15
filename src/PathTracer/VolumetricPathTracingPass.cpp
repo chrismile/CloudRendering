@@ -2008,6 +2008,10 @@ void VolumetricPathTracingPass::_render() {
         uniformData.maxAoDist = maxAoDist;
         uniformData.numAoSamples = numAoSamples;
 
+        uniformData.useClipPlane = int32_t(useClipPlane);
+        uniformData.clipPlaneNormal = glm::normalize(clipPlaneNormal);
+        uniformData.clipPlaneDistance = clipPlaneDistance;
+
         // Update BRDF parameters
         uniformData.subsurface = subsurface;
         uniformData.metallic = metallic;
@@ -2022,9 +2026,6 @@ void VolumetricPathTracingPass::_render() {
 
         uniformBuffer->updateData(
                 sizeof(UniformData), &uniformData, renderer->getVkCommandBuffer());
-
-        uniformData.clipPlaneNormal = clipPlaneNormal;
-        uniformData.clipPlaneDistance = clipPlaneDistance;
 
         if (useGlobalFrameNumber) {
             frameInfo.globalFrameNumber = globalFrameNumber;
@@ -2817,10 +2818,10 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                 setShaderDirty();
                 optionChanged = true;
             }
-            if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, 0.01f, 1.0f)) {
+            if (useClipPlane && propertyEditor.addSliderFloat3("Clip Plane Normal", &clipPlaneNormal.x, -1.0f, 1.0f)) {
                 optionChanged = true;
             }
-            if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -1.0f, 1.0f)) {
+            if (useClipPlane && propertyEditor.addSliderFloat("Clip Plane Distance", &clipPlaneDistance, -0.5f, 0.5f)) {
                 optionChanged = true;
             }
             propertyEditor.endNode();
