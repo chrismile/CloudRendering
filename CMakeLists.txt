@@ -410,6 +410,10 @@ if(MSVC)
     target_compile_options(CloudRendering PRIVATE /external:I ${CMAKE_CURRENT_SOURCE_DIR}/src/nanovdb)
 endif()
 
+if((MSYS OR MINGW) AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/src/CloudDataOpenVDB.cpp PROPERTIES COMPILE_FLAGS -Wa,-mbig-obj)
+endif()
+
 add_subdirectory(submodules/IsosurfaceCpp)
 if("TRACY_ENABLE" IN_LIST SGL_INTERFACE_COMPILE_DEFINITIONS)
     target_compile_definitions(IsosurfaceCpp PUBLIC TRACY_ENABLE)
