@@ -5,7 +5,7 @@ This repository contains a volumetric path tracing renderer written in C++ using
 ![Teaser image of a cloud rendered using volumetric path tracing.](https://chrismile.net/github/cloud-rendering/vpt-cloud.png)
 
 
-## Building and running the programm
+## Building and running the program
 
 ### Linux
 
@@ -28,9 +28,9 @@ Arch Linux and its derivative Manjaro are fully supported using both build modes
 
 The Vulkan SDK will be automatically installed using the package manager `pacman` when using the scripts.
 
-#### Ubuntu 18.04, 20.04 & 22.04
+#### Ubuntu
 
-Ubuntu 20.04 and 22.04 are fully supported.
+Ubuntu >= 20.04 is fully supported.
 
 The Vulkan SDK will be automatically installed using the official PPA.
 
