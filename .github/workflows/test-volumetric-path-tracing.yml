@@ -18,7 +18,7 @@ jobs:
       sgl_REPO_DIR: ${{ github.workspace }}/sgl-repo
       sgl_DIR: ${{ github.workspace }}/sgl
       swiftshader_DIR: ${{ github.workspace }}/swiftshader
-      swiftshader_COMMIT_ID: de870ac7518fe2b6bb651ecc22fc36647cf7b986
+      swiftshader_COMMIT_ID: 23b93c7cfe27e205e178a135a6ea24d1dcba1068
 
     steps:
     - uses: actions/checkout@v2
