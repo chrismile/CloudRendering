@@ -203,6 +203,9 @@ if %build_with_openvdb_support% == true (
             rmdir /s /q ".\openvdb-src"
         )
         git clone --recursive https://github.com/AcademySoftwareFoundation/openvdb.git openvdb-src
+        pushd "openvdb-src"
+        git checkout a4705352e0e3ecb1f82eff2eca0c1b061ab7656b
+        popd
         echo {> %third_party_dir%/openvdb-src/vcpkg.json
         echo "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",>> %third_party_dir%/openvdb-src/vcpkg.json
         echo "name": "openvdb",>> %third_party_dir%/openvdb-src/vcpkg.json

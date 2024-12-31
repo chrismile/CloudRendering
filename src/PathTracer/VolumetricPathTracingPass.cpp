@@ -1034,6 +1034,15 @@ void VolumetricPathTracingPass::setCloseIsosurfaces(bool _closeIsosurfaces) {
     }
 }
 
+void VolumetricPathTracingPass::setUseLegacyNormals(bool _useLegacyNormals) {
+    if (useLegacyNormals != _useLegacyNormals) {
+        useLegacyNormals = _useLegacyNormals;
+        setShaderDirty();
+        reRender = true;
+        frameInfo.frameCount = 0;
+    }
+}
+
 void VolumetricPathTracingPass::setFileDialogInstance(ImGuiFileDialog* _fileDialogInstance) {
     this->fileDialogInstance = _fileDialogInstance;
 }
@@ -1576,6 +1585,8 @@ void VolumetricPathTracingPass::loadShader() {
             customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_DEFAULT", "" });
         } else if (builtinEnvMap == BuiltinEnvMap::BLACK) {
             customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_BLACK", "" });
+        } else if (builtinEnvMap == BuiltinEnvMap::SINGLE_COLOR) {
+            customPreprocessorDefines.insert({ "USE_ENVIRONMENT_MAP_SINGLE_COLOR", "" });
         }
     }
     if (uniformData.useLinearRGB) {
@@ -1639,6 +1650,9 @@ void VolumetricPathTracingPass::loadShader() {
         }
         if (vptMode == VptMode::NEXT_EVENT_TRACKING || vptMode == VptMode::NEXT_EVENT_TRACKING_SPECTRAL) {
             customPreprocessorDefines.insert({ "USE_ISOSURFACE_NEE", "" });
+        }
+        if (useLegacyNormals) {
+            customPreprocessorDefines.insert({ "USE_LEGACY_NORMALS", "" });
         }
     }
 
@@ -2577,8 +2591,10 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     if (propertyEditor.addSliderFloat("Sunlight Intensity", &sunlightIntensity, 0.0f, 10.0f)) {
                         optionChanged = true;
                     }
-                    if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
-                        optionChanged = true;
+                    if (builtinEnvMap == BuiltinEnvMap::DEFAULT) {
+                        if (propertyEditor.addSliderFloat3("Sunlight Direction", &sunlightDirection.x, 0.0f, 1.0f)) {
+                            optionChanged = true;
+                        }
                     }
                 }
             }
@@ -2715,6 +2731,12 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
         }
 
         if (propertyEditor.beginNode("Advanced")) {
+            if (propertyEditor.addCheckbox("Use Legacy Normals", &useLegacyNormals)) {
+                setShaderDirty();
+                reRender = true;
+                frameInfo.frameCount = 0;
+            }
+
             if (propertyEditor.addCheckbox("Flip YZ", &flipYZCoordinates)) {
                 optionChanged = true;
                 setGridData();

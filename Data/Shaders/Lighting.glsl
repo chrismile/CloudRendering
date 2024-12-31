@@ -16,6 +16,10 @@ vec3 blinnPhongShadingSurface(
     const float kA = 1.0;
     const float kD = 0.0;
     const float kS = 0.0;
+#elif defined(SURFACE_BRDF_LAMBERTIAN)
+    const float kA = 0.4;
+    const float kD = 0.6;
+    const float kS = 0.0;
 #else
     const float kA = 0.4;
     const float kD = 0.6;

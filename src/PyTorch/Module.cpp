@@ -87,6 +87,8 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::load_transfer_function_file_gradient", loadTransferFunctionFileGradient);
     m.def("vpt::set_transfer_function_range", setTransferFunctionRange);
     m.def("vpt::set_transfer_function_range_gradient", setTransferFunctionRangeGradient);
+    m.def("vpt::set_transfer_function_empty", setTransferFunctionEmpty);
+    m.def("vpt::set_transfer_function_empty_gradient", setTransferFunctionEmptyGradient);
     m.def("vpt::get_camera_position", getCameraPosition);
     m.def("vpt::get_camera_view_matrix", getCameraViewMatrix);
     m.def("vpt::get_camera_fovy", getCameraFOVy);
@@ -119,6 +121,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def("vpt::set_clip_plane_normal", setClipPlaneNormal);
     m.def("vpt::set_clip_plane_distance", setClipPlaneDistance);
     m.def("vpt::set_close_isosurfaces", setCloseIsosurfaces);
+    m.def("vpt::set_use_legacy_normals", setUseLegacyNormals);
     m.def("vpt::set_seed_offset", setSeedOffset);
     m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
     m.def("vpt::get_feature_map", getFeatureMap);
@@ -949,6 +952,10 @@ void setCloseIsosurfaces(bool _closeIsosurfaces) {
     vptRenderer->getVptPass()->setCloseIsosurfaces(_closeIsosurfaces);
 }
 
+void setUseLegacyNormals(bool _useLegacyNormals) {
+    vptRenderer->getVptPass()->setUseLegacyNormals(_useLegacyNormals);
+}
+
 
 void setUseClipPlane(bool _useClipPlane) {
     vptRenderer->getVptPass()->setUseClipPlane(_useClipPlane);
@@ -991,6 +998,26 @@ void setTransferFunctionRangeGradient(double _minVal, double _maxVal) {
     auto* tfWindow = vptRenderer->getTransferFunctionWindow();
     tfWindow->setSelectedRange(1, glm::vec2(float(_minVal), float(_maxVal)));
     tfWindow->setIsSelectedRangeFixed(1, true);
+}
+
+static const char* emptyTfStringModule =
+        "<TransferFunction>\n"
+        "<OpacityPoints>\n"
+        "<OpacityPoint position=\"0\" opacity=\"0\"/><OpacityPoint position=\"1\" opacity=\"0\"/>\n"
+        "</OpacityPoints>\n"
+        "<ColorPoints color_data=\"ushort\">\n"
+        "<ColorPoint position=\"0\" r=\"0\" g=\"0\" b=\"0\"/><ColorPoint position=\"1\" r=\"0\" g=\"0\" b=\"0\"/>\n"
+        "</ColorPoints>\n"
+        "</TransferFunction>";
+
+void setTransferFunctionEmpty() {
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->loadFunctionFromXmlString(0, emptyTfStringModule);
+}
+
+void setTransferFunctionEmptyGradient() {
+    auto* tfWindow = vptRenderer->getTransferFunctionWindow();
+    tfWindow->loadFunctionFromXmlString(1, emptyTfStringModule);
 }
 
 

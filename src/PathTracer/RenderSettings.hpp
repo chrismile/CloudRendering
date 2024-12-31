@@ -118,10 +118,10 @@ struct CameraPose {
 
 /// Built-in procedural environment maps (no importance sampling supported).
 enum class BuiltinEnvMap {
-    DEFAULT, BLACK
+    DEFAULT, BLACK, SINGLE_COLOR
 };
 const char* const BUILTIN_ENV_MAP_NAMES[] = {
-        "Default", "Black"
+        "Default", "Black", "Single Color"
 };
 
 #endif //CLOUDRENDERING_RENDERSETTINGS_HPP

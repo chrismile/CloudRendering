@@ -372,9 +372,16 @@ vec3 sampleLight(in vec3 dir) {
     float phongNorm = (N + 1) / (2 * 3.14159);
     return parameters.sunIntensity * pow(max(0, dot(dir, parameters.sunDirection)), N) * phongNorm;
 }
-#else // defined(USE_ENVIRONMENT_MAP_BLACK)
+#elif defined(USE_ENVIRONMENT_MAP_BLACK)
 vec3 sampleSkybox(in vec3 dir) {
     return vec3(0.0);
+}
+vec3 sampleLight(in vec3 dir) {
+    return vec3(0.0);
+}
+#else // defined(USE_ENVIRONMENT_MAP_SINGLE_COLOR)
+vec3 sampleSkybox(in vec3 dir) {
+    return parameters.sunIntensity;
 }
 vec3 sampleLight(in vec3 dir) {
     return vec3(0.0);
@@ -1167,7 +1174,11 @@ bool getIsoSurfaceHit(
 
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
+#ifdef USE_LEGACY_NORMALS
+    vec3 surfaceNormal = computeGradientLegacy(texCoords);
+#else
     vec3 surfaceNormal = computeGradient(texCoords);
+#endif
 #ifdef CLOSE_ISOSURFACES
     if (isFirstPointFromOutside) {
         rayBoxIntersectionNormal(parameters.boxMin, parameters.boxMax, cameraPosition, w, surfaceNormal);
@@ -1336,7 +1347,11 @@ vec3 getIsoSurfaceHitDirect(
 ) {
     vec3 texCoords = (currentPoint - parameters.boxMin) / (parameters.boxMax - parameters.boxMin);
     texCoords = texCoords * (parameters.gridMax - parameters.gridMin) + parameters.gridMin;
-    surfaceNormal = computeGradient(texCoords); // computeGradientLegacy(texCoords);
+#ifdef USE_LEGACY_NORMALS
+    surfaceNormal = computeGradientLegacy(texCoords);
+#else
+    surfaceNormal = computeGradient(texCoords);
+#endif
 #ifdef CLOSE_ISOSURFACES
     if (isFirstPointFromOutside) {
         rayBoxIntersectionNormal(parameters.boxMin, parameters.boxMax, cameraPosition, w, surfaceNormal);

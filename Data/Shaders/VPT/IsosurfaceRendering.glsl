@@ -51,7 +51,9 @@ vec3 isosurfaceRendering(vec3 x, vec3 w, inout ScatterEvent firstEvent) {
                 break;
             }
 
+#ifdef CLOSE_ISOSURFACES
             isFirstPointFromOutside = false;
+#endif
             x = xNew;
             d -= t;
         }

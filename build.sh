@@ -934,6 +934,9 @@ if $build_with_openvdb_support; then
             rm -rf "./openvdb-src"
         fi
         git clone --recursive https://github.com/AcademySoftwareFoundation/openvdb.git openvdb-src
+        pushd openvdb-src >/dev/null
+        git checkout a4705352e0e3ecb1f82eff2eca0c1b061ab7656b
+        popd >/dev/null
         mkdir -p openvdb-src/build
         pushd openvdb-src/build >/dev/null
         cmake .. ${params_gen[@]+"${params_gen[@]}"} -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/openvdb"

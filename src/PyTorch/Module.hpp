@@ -60,6 +60,8 @@ MODULE_OP_API void loadTransferFunctionFile(const std::string& tfFilePath);
 MODULE_OP_API void loadTransferFunctionFileGradient(const std::string& tfFilePath);
 MODULE_OP_API void setTransferFunctionRange(double _minVal, double _maxVal);
 MODULE_OP_API void setTransferFunctionRangeGradient(double _minVal, double _maxVal);
+MODULE_OP_API void setTransferFunctionEmpty();
+MODULE_OP_API void setTransferFunctionEmptyGradient();
 
 MODULE_OP_API std::vector<double> getCameraPosition();
 MODULE_OP_API std::vector<double> getCameraViewMatrix();
@@ -102,6 +104,7 @@ MODULE_OP_API void setBrdfParameter(const std::string& key, const std::string& v
 MODULE_OP_API void setUseIsosurfaceTf(bool _useIsosurfaceTf);
 MODULE_OP_API void setNumIsosurfaceSubdivisions(int64_t _subdivs);
 MODULE_OP_API void setCloseIsosurfaces(bool _closeIsosurfaces);
+MODULE_OP_API void setUseLegacyNormals(bool _useLegacyNormals);
 
 MODULE_OP_API void setUseClipPlane(bool _useClipPlane);
 MODULE_OP_API void setClipPlaneNormal(std::vector<double> _clipPlaneNormal);
