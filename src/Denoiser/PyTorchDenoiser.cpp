@@ -46,9 +46,13 @@
 #include <Graphics/Vulkan/Utils/InteropCuda.hpp>
 #endif
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 
 #include "PyTorchDenoiser.hpp"
 
@@ -828,6 +832,7 @@ void PyTorchDenoiser::setOutputForegroundMap(bool _shallOutputForegroundMap) {
     addBackground = !_shallOutputForegroundMap;
 }
 
+#ifndef DISABLE_IMGUI
 bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
@@ -906,6 +911,7 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
 
     return reRender;
 }
+#endif
 
 
 

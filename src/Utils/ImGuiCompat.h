@@ -1,7 +1,7 @@
 /*
  * BSD 2-Clause License
  *
- * Copyright (c) 2024, Christoph Neuhauser
+ * Copyright (c) 2025, Christoph Neuhauser
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,45 +26,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CLOUDRENDERING_ROTATIONWIDGET_HPP
-#define CLOUDRENDERING_ROTATIONWIDGET_HPP
+#ifndef CLOUDRENDERING_IMGUICOMPAT_H
+#define CLOUDRENDERING_IMGUICOMPAT_H
 
-#include <glm/mat3x3.hpp>
-#include <glm/gtc/quaternion.hpp>
-
-namespace sgl {
-class PropertyEditor;
-}
-
-enum class OrientationMode {
-    EULER_ANGLES, YAW_PITCH_ROLL, ANGLE_AXIS, QUATERNION
-};
-const char* const ORIENTATION_MODE_NAMES[] = {
-    "Euler Angles (YXZ)", "Yaw-Pitch-Roll", "Angle-Axis", "Quaternion"
-};
-
-class RotationWidget {
-public:
-#ifndef DISABLE_IMGUI
-    bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#ifndef IM_ARRAYSIZE
+#define IM_ARRAYSIZE(_ARR) ((int)(sizeof(_ARR) / sizeof(*(_ARR))))
 #endif
-    glm::mat3 getMat3();
-    void setEulerAngles(const glm::vec3& _eulerAngles);
-    void setYawPitchRoll(const glm::vec3& _yawPitchRoll);
-    void setAngleAxis(const glm::vec3& _axis, float _angle);
-    void setQuaternion(const glm::quat& _quaternion);
 
-private:
-    OrientationMode orientationMode = OrientationMode::EULER_ANGLES;
-    // OrientationMode::EULER_ANGLES
-    glm::vec3 eulerAngles = glm::vec3(0.0f);
-    // OrientationMode::YAW_PITCH_ROLL
-    glm::vec3 yawPitchRoll = glm::vec3(0.0f);
-    // OrientationMode::ANGLE_AXIS
-    glm::vec3 axis = glm::vec3(0.0f);
-    float angle = 0.0f;
-    // OrientationMode::QUATERNION
-    glm::quat quaternion = glm::identity<glm::quat>();
-};
-
-#endif //CLOUDRENDERING_ROTATIONWIDGET_HPP
+#endif //CLOUDRENDERING_IMGUICOMPAT_H

@@ -31,10 +31,13 @@
 #include <glm/gtx/quaternion.hpp>
 
 #include <Math/Math.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#endif
 
 #include "RotationWidget.hpp"
 
+#ifndef DISABLE_IMGUI
 bool RotationWidget::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool changed = false;
     changed = propertyEditor.addCombo(
@@ -54,6 +57,7 @@ bool RotationWidget::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyE
     }
     return changed;
 }
+#endif
 
 glm::mat3 RotationWidget::getMat3() {
     if (orientationMode == OrientationMode::EULER_ANGLES) {

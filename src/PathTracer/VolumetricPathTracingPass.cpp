@@ -42,12 +42,16 @@
 #include <Graphics/Vulkan/Render/RayTracingPipeline.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/Passes/BlitComputePass.hpp>
+#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
-#include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
 #include <ImGui/imgui_stdlib.h>
 #include <ImGui/imgui_custom.h>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 
 #include "Denoiser/EAWDenoiser.hpp"
 #ifdef SUPPORT_OPTIX
@@ -2342,6 +2346,7 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
 }
 
 
+#ifndef DISABLE_IMGUI
 bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool optionChanged = false;
 
@@ -2892,6 +2897,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
 
     return optionChanged;
 }
+#endif
 
 
 void buildCameraPrimitives(
@@ -2973,6 +2979,7 @@ void BlitMomentTexturePass::recreateMomentTexture() {
     }
 }
 
+#ifndef DISABLE_IMGUI
 bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
         sgl::PropertyEditor& propertyEditor, bool& shallRecreateMomentTexture, bool& momentTypeChanged) {
     bool reRender = false;
@@ -3018,6 +3025,7 @@ bool BlitMomentTexturePass::renderGuiPropertyEditorNodes(
 
     return reRender;
 }
+#endif
 
 void BlitMomentTexturePass::createRasterData(sgl::vk::Renderer* renderer, sgl::vk::GraphicsPipelinePtr& graphicsPipeline) {
     BlitRenderPass::createRasterData(renderer, graphicsPipeline);

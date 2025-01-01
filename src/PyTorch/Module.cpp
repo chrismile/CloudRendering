@@ -33,6 +33,7 @@
 #include <Graphics/Vulkan/Image/Image.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <ImGui/Widgets/MultiVarTransferFunctionWindow.hpp>
+#include "Utils/ImGuiCompat.h"
 
 #ifdef USE_OPENVDB
 #include <openvdb/openvdb.h>
@@ -56,99 +57,221 @@
 #include "VolumetricPathTracingModuleRenderer.hpp"
 #include "Module.hpp"
 
-TORCH_LIBRARY(vpt, m) {
-    m.def("vpt::initialize", initialize);
-    m.def("vpt::cleanup", cleanup);
-    m.def("vpt::render_frame", renderFrame);
-    m.def("vpt::load_cloud_file", loadCloudFile);
-    m.def("vpt::load_volume_file", loadCloudFile);
-    m.def("vpt::load_emission_file", loadEmissionFile);
-    m.def("vpt::load_environment_map", loadEnvironmentMap);
-    m.def("vpt::set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
-    m.def("vpt::set_environment_map_intensity", setEnvironmentMapIntensityFactor);
-    m.def("vpt::set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
-    m.def("vpt::disable_env_map_rot", disableEnvMapRot);
-    m.def("vpt::set_env_map_rot_camera", setEnvMapRotCamera);
-    m.def("vpt::set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
-    m.def("vpt::set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
-    m.def("vpt::set_env_map_rot_angle_axis", setEnvMapRotAngleAxis);
-    m.def("vpt::set_env_map_rot_quaternion", setEnvMapRotQuaternion);
-    m.def("vpt::set_scattering_albedo", setScatteringAlbedo);
-    m.def("vpt::set_extinction_base", setExtinctionBase);
-    m.def("vpt::set_extinction_scale", setExtinctionScale);
-    m.def("vpt::set_vpt_mode", setVPTMode);
-    m.def("vpt::set_vpt_mode_from_name", setVPTModeFromName);
-    m.def("vpt::set_denoiser", setDenoiser);
-    m.def("vpt::set_denoiser_property", setDenoiserProperty);
-    m.def("vpt::set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
-    m.def("vpt::set_output_foreground_map", setOutputForegroundMap);
-    m.def("vpt::set_use_transfer_function", setUseTransferFunction);
-    m.def("vpt::load_transfer_function_file", loadTransferFunctionFile);
-    m.def("vpt::load_transfer_function_file_gradient", loadTransferFunctionFileGradient);
-    m.def("vpt::set_transfer_function_range", setTransferFunctionRange);
-    m.def("vpt::set_transfer_function_range_gradient", setTransferFunctionRangeGradient);
-    m.def("vpt::set_transfer_function_empty", setTransferFunctionEmpty);
-    m.def("vpt::set_transfer_function_empty_gradient", setTransferFunctionEmptyGradient);
-    m.def("vpt::get_camera_position", getCameraPosition);
-    m.def("vpt::get_camera_view_matrix", getCameraViewMatrix);
-    m.def("vpt::get_camera_fovy", getCameraFOVy);
-    m.def("vpt::set_camera_position", setCameraPosition);
-    m.def("vpt::set_camera_target", setCameraTarget);
-    m.def("vpt::overwrite_camera_view_matrix", overwriteCameraViewMatrix);
-    m.def("vpt::set_camera_FOVy", setCameraFOVy);
-    m.def("vpt::set_feature_map_type", setFeatureMapType);
-    m.def("vpt::set_use_empty_space_skipping", setUseEmptySpaceSkipping);
-    m.def("vpt::set_use_lights", setUseLights);
-    m.def("vpt::clear_lights", clearLights);
-    m.def("vpt::add_light", addLight);
-    m.def("vpt::remove_light", removeLight);
-    m.def("vpt::set_light_property", setLightProperty);
-    m.def("vpt::load_lights_from_file", loadLightsFromFile);
-    m.def("vpt::save_lights_to_file", saveLightsToFile);
-    m.def("vpt::set_use_headlight", setUseHeadlight);
-    m.def("vpt::set_use_headlight_distance", setUseHeadlightDistance);
-    m.def("vpt::set_headlight_color", setHeadlightColor);
-    m.def("vpt::set_headlight_intensity", setHeadlightIntensity);
-    m.def("vpt::set_use_isosurfaces", setUseIsosurfaces);
-    m.def("vpt::set_iso_value", setIsoValue);
-    m.def("vpt::set_iso_surface_color", setIsoSurfaceColor);
-    m.def("vpt::set_isosurface_type", setIsosurfaceType);
-    m.def("vpt::set_surface_brdf", setSurfaceBrdf);
-    m.def("vpt::set_brdf_parameter", setBrdfParameter);
-    m.def("vpt::set_use_isosurface_tf", setUseIsosurfaceTf);
-    m.def("vpt::set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
-    m.def("vpt::set_use_clip_plane", setUseClipPlane);
-    m.def("vpt::set_clip_plane_normal", setClipPlaneNormal);
-    m.def("vpt::set_clip_plane_distance", setClipPlaneDistance);
-    m.def("vpt::set_close_isosurfaces", setCloseIsosurfaces);
-    m.def("vpt::set_use_legacy_normals", setUseLegacyNormals);
-    m.def("vpt::set_seed_offset", setSeedOffset);
-    m.def("vpt::set_use_feature_maps", setUseFeatureMaps);
-    m.def("vpt::get_feature_map", getFeatureMap);
-    m.def("vpt::get_feature_map_from_string", getFeatureMapFromString);
-    m.def("vpt::get_transmittance_volume", getTransmittanceVolume);
-    m.def("vpt::set_secondary_volume_downscaling_factor", setSecondaryVolumeDownscalingFactor);
-    m.def("vpt::compute_occupation_volume", computeOccupationVolume);
-    m.def("vpt::update_observation_frequency_fields", updateObservationFrequencyFields);
-    m.def("vpt::compute_energy", computeEnergy);
-    m.def("vpt::set_phase_g", setPhaseG);
-    m.def("vpt::set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
-    m.def("vpt::set_use_emission", setUseEmission);
-    m.def("vpt::set_emission_strength", setEmissionStrength);
-    m.def("vpt::set_emission_cap", setEmissionCap);
-    m.def("vpt::get_volume_voxel_size", getVolumeVoxelSize);
-    m.def("vpt::get_render_bounding_box", getRenderBoundingBox);
-    m.def("vpt::remember_next_bounds", rememberNextBounds);
-    m.def("vpt::forget_current_bounds", forgetCurrentBounds);
-    m.def("vpt::set_max_grid_extent", setMaxGridExtent);
-    m.def("vpt::set_global_world_bounding_box", setGlobalWorldBoundingBox);
-    m.def("vpt::get_vdb_world_bounding_box", getVDBWorldBoundingBox);
-    m.def("vpt::get_vdb_index_bounding_box", getVDBIndexBoundingBox);
-    m.def("vpt::get_vdb_voxel_size", getVDBVoxelSize);
-    m.def("vpt::flip_yz_coordinates", flipYZ);
-    m.def("vpt::triangulate_isosurfaces", triangulateIsosurfaces);
-    m.def("vpt::export_vdb_volume", exportVdbVolume);
+#ifdef BUILD_PYTHON_MODULE_NEW
+#include <pybind11/functional.h>
+#include <pybind11/numpy.h>
+#include <torch/extension.h>
+
+#ifdef __linux__
+#include <dlfcn.h>
+#endif
+
+#ifdef _WIN32
+#define _WIN32_IE 0x0400
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <shlobj.h>
+#include <shlwapi.h>
+#include <windef.h>
+#include <windows.h>
+#endif
+
+PYBIND11_MODULE(vpt, m) {
+    m.def("initialize", initialize);
+    m.def("cleanup", cleanup);
+    m.def("load_cloud_file", loadCloudFile, py::arg("filename"));
+    m.def("load_volume_file", loadCloudFile, py::arg("filename"));
+    m.def("load_emission_file", loadEmissionFile, py::arg("filename"));
+    m.def("load_environment_map", loadEnvironmentMap, py::arg("filename"));
+    m.def("set_use_builtin_environment_map", setUseBuiltinEnvironmentMap, py::arg("env_map_name"));
+    m.def("set_environment_map_intensity", setEnvironmentMapIntensityFactor, py::arg("intensity_factor"));
+    m.def("set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb, py::arg("intensity_factor"));
+    m.def("disable_env_map_rot", disableEnvMapRot);
+    m.def("set_env_map_rot_camera", setEnvMapRotCamera);
+    m.def("set_env_map_rot_euler_angles", setEnvMapRotEulerAngles, py::arg("euler_angles_vec"));
+    m.def("set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll, py::arg("yaw_pitch_roll_vec"));
+    m.def("set_env_map_rot_angle_axis", setEnvMapRotAngleAxis, py::arg("_axis_vec"), py::arg("_angle"));
+    m.def("set_env_map_rot_quaternion", setEnvMapRotQuaternion, py::arg("_quaternion_vec"));
+    m.def("set_scattering_albedo", setScatteringAlbedo, py::arg("albedo"));
+    m.def("set_extinction_scale", setExtinctionScale, py::arg("extinction_scale"));
+    m.def("set_extinction_base", setExtinctionBase, py::arg("extinction_base"));
+    m.def("set_phase_g", setPhaseG, py::arg("phase_g"));
+    m.def("set_use_transfer_function", setUseTransferFunction, py::arg("_use_tf"));
+    m.def("load_transfer_function_file", loadTransferFunctionFile, py::arg("tf_file_path"));
+    m.def("load_transfer_function_file_gradient", loadTransferFunctionFileGradient, py::arg("tf_file_path"));
+    m.def("set_transfer_function_range", setTransferFunctionRange, py::arg("_min_val"), py::arg("_max_val"));
+    m.def("set_transfer_function_range_gradient", setTransferFunctionRangeGradient, py::arg("_min_val"), py::arg("_max_val"));
+    m.def("set_transfer_function_empty", setTransferFunctionEmpty);
+    m.def("set_transfer_function_empty_gradient", setTransferFunctionEmptyGradient);
+    m.def("get_camera_position", getCameraPosition);
+    m.def("get_camera_view_matrix", getCameraViewMatrix);
+    m.def("get_camera_fovy", getCameraFOVy);
+    m.def("set_camera_position", setCameraPosition, py::arg("camera_position"));
+    m.def("set_camera_target", setCameraTarget, py::arg("camera_target"));
+    m.def("overwrite_camera_view_matrix", overwriteCameraViewMatrix, py::arg("view_matrix_data"));
+    m.def("set_camera_fovy", setCameraFOVy, py::arg("fovy"));
+    m.def("set_vpt_mode", setVPTMode, py::arg("mode"));
+    m.def("set_vpt_mode_from_name", setVPTModeFromName, py::arg("mode_name"));
+    m.def("set_denoiser", setDenoiser, py::arg("denoiser_name"));
+    m.def("set_denoiser_property", setDenoiserProperty, py::arg("key"), py::arg("value"));
+    m.def("set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile, py::arg("denoiser_model_file_path"));
+    m.def("set_output_foreground_map", setOutputForegroundMap, py::arg("_shall_output_foreground_map"));
+    m.def("set_feature_map_type", setFeatureMapType, py::arg("type"));
+    m.def("set_use_empty_space_skipping", setUseEmptySpaceSkipping, py::arg("_use_empty_space_skipping"));
+    m.def("set_use_lights", setUseLights, py::arg("_use_lights"));
+    m.def("clear_lights", clearLights);
+    m.def("add_light", addLight);
+    m.def("remove_light", removeLight, py::arg("light_idx"));
+    m.def("set_light_property", setLightProperty, py::arg("light_idx"), py::arg("key"), py::arg("value"));
+    m.def("load_lights_from_file", loadLightsFromFile, py::arg("file_path"));
+    m.def("save_lights_to_file", saveLightsToFile, py::arg("file_path"));
+    m.def("set_use_headlight", setUseHeadlight, py::arg("_use_headlight"));
+    m.def("set_use_headlight_distance", setUseHeadlightDistance, py::arg("_use_headlight_distance"));
+    m.def("set_headlight_color", setHeadlightColor, py::arg("_headlight_color"));
+    m.def("set_headlight_intensity", setHeadlightIntensity, py::arg("_headlight_intensity"));
+    m.def("set_use_isosurfaces", setUseIsosurfaces, py::arg("_use_isosurfaces"));
+    m.def("set_iso_value", setIsoValue, py::arg("_iso_value"));
+    m.def("set_iso_surface_color", setIsoSurfaceColor, py::arg("_iso_surface_color"));
+    m.def("set_isosurface_type", setIsosurfaceType, py::arg("_isosurface_type"));
+    m.def("set_surface_brdf", setSurfaceBrdf, py::arg("_surface_brdf"));
+    m.def("set_brdf_parameter", setBrdfParameter, py::arg("key"), py::arg("value"));
+    m.def("set_use_isosurface_tf", setUseIsosurfaceTf, py::arg("_use_isosurface_tf"));
+    m.def("set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions, py::arg("_subdivs"));
+    m.def("set_close_isosurfaces", setCloseIsosurfaces, py::arg("_close_isosurfaces"));
+    m.def("set_use_legacy_normals", setUseLegacyNormals, py::arg("_use_legacy_normals"));
+    m.def("set_use_clip_plane", setUseClipPlane, py::arg("_use_clip_plane"));
+    m.def("set_clip_plane_normal", setClipPlaneNormal, py::arg("_clip_plane_normal"));
+    m.def("set_clip_plane_distance", setClipPlaneDistance, py::arg("_clip_plane_distance"));
+    m.def("set_seed_offset", setSeedOffset, py::arg("offset"));
+    m.def("set_view_projection_matrix_as_previous", setViewProjectionMatrixAsPrevious);
+    m.def("set_emission_cap", setEmissionCap, py::arg("emission_cap"));
+    m.def("set_emission_strength", setEmissionStrength, py::arg("emission_strength"));
+    m.def("set_use_emission", setUseEmission, py::arg("use_emission"));
+    m.def("set_tf_scattering_albedo_strength", setTfScatteringAlbedoStrength, py::arg("strength"));
+    m.def("flip_yz_coordinates", flipYZ, py::arg("flip"));
+    m.def("get_volume_voxel_size", getVolumeVoxelSize);
+    m.def("get_render_bounding_box", getRenderBoundingBox);
+    m.def("remember_next_bounds", rememberNextBounds);
+    m.def("forget_current_bounds", forgetCurrentBounds);
+    m.def("set_max_grid_extent", setMaxGridExtent,
+        py::arg("max_grid_extent"),
+        "Due to legacy reasons, the grid has size (-0.25, 0.25) in the largest dimension.\n@param maxDimSize The new extent value such that the size is (-maxGridExtent, maxGridExtent).\nNote: Must be called before any call to @see loadCloudFile!");
+    m.def("set_global_world_bounding_box", setGlobalWorldBoundingBox,
+        py::arg("global_bb_vec"),
+        "This function can be used to normalize the grid wrt. a global bounding box.");
+    m.def("get_vdb_world_bounding_box", getVDBWorldBoundingBox);
+    m.def("get_vdb_index_bounding_box", getVDBIndexBoundingBox);
+    m.def("get_vdb_voxel_size", getVDBVoxelSize);
+    m.def("render_frame", renderFrame, py::arg("input_tensor"), py::arg("frame_count"));
+    m.def("set_use_feature_maps", setUseFeatureMaps, py::arg("feature_map_names"));
+    m.def("get_feature_map_from_string", getFeatureMapFromString, py::arg("input_tensor"), py::arg("feature_map"));
+    m.def("get_feature_map", getFeatureMap, py::arg("input_tensor"), py::arg("feature_map"));
+    m.def("get_transmittance_volume", getTransmittanceVolume, py::arg("input_tensor"));
+    m.def("set_secondary_volume_downscaling_factor", setSecondaryVolumeDownscalingFactor, py::arg("ds_factor"));
+    m.def("compute_occupation_volume", computeOccupationVolume, py::arg("input_tensor"), py::arg("ds_factor"), py::arg("max_kernel_radius"));
+    m.def("update_observation_frequency_fields", updateObservationFrequencyFields, py::arg("num_bins_x"), py::arg("num_bins_y"), py::arg("transmittance_field"), py::arg("obs_freq_field"), py::arg("angular_obs_freq_field"));
+    m.def("compute_energy", computeEnergy, py::arg("num_cams"), py::arg("num_bins_x"), py::arg("num_bins_y"), py::arg("gamma"), py::arg("obs_freq_field"), py::arg("angular_obs_freq_field"), py::arg("occupancy_field"), py::arg("energy_term_field"));
+    m.def("triangulate_isosurfaces", triangulateIsosurfaces);
+    m.def("export_vdb_volume", exportVdbVolume, py::arg("filename"));
 }
+#else
+#define MODULE_PREFIX "vpt::"
+TORCH_LIBRARY(vpt, m) {
+    m.def(MODULE_PREFIX "initialize", initialize);
+    m.def(MODULE_PREFIX "cleanup", cleanup);
+    m.def(MODULE_PREFIX "render_frame", renderFrame);
+    m.def(MODULE_PREFIX "load_cloud_file", loadCloudFile);
+    m.def(MODULE_PREFIX "load_volume_file", loadCloudFile);
+    m.def(MODULE_PREFIX "load_emission_file", loadEmissionFile);
+    m.def(MODULE_PREFIX "load_environment_map", loadEnvironmentMap);
+    m.def(MODULE_PREFIX "set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
+    m.def(MODULE_PREFIX "set_environment_map_intensity", setEnvironmentMapIntensityFactor);
+    m.def(MODULE_PREFIX "set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
+    m.def(MODULE_PREFIX "disable_env_map_rot", disableEnvMapRot);
+    m.def(MODULE_PREFIX "set_env_map_rot_camera", setEnvMapRotCamera);
+    m.def(MODULE_PREFIX "set_env_map_rot_euler_angles", setEnvMapRotEulerAngles);
+    m.def(MODULE_PREFIX "set_env_map_rot_yaw_pitch_roll", setEnvMapRotYawPitchRoll);
+    m.def(MODULE_PREFIX "set_env_map_rot_angle_axis", setEnvMapRotAngleAxis);
+    m.def(MODULE_PREFIX "set_env_map_rot_quaternion", setEnvMapRotQuaternion);
+    m.def(MODULE_PREFIX "set_scattering_albedo", setScatteringAlbedo);
+    m.def(MODULE_PREFIX "set_extinction_base", setExtinctionBase);
+    m.def(MODULE_PREFIX "set_extinction_scale", setExtinctionScale);
+    m.def(MODULE_PREFIX "set_vpt_mode", setVPTMode);
+    m.def(MODULE_PREFIX "set_vpt_mode_from_name", setVPTModeFromName);
+    m.def(MODULE_PREFIX "set_denoiser", setDenoiser);
+    m.def(MODULE_PREFIX "set_denoiser_property", setDenoiserProperty);
+    m.def(MODULE_PREFIX "set_pytorch_denoiser_model_file", setPyTorchDenoiserModelFile);
+    m.def(MODULE_PREFIX "set_output_foreground_map", setOutputForegroundMap);
+    m.def(MODULE_PREFIX "set_use_transfer_function", setUseTransferFunction);
+    m.def(MODULE_PREFIX "load_transfer_function_file", loadTransferFunctionFile);
+    m.def(MODULE_PREFIX "load_transfer_function_file_gradient", loadTransferFunctionFileGradient);
+    m.def(MODULE_PREFIX "set_transfer_function_range", setTransferFunctionRange);
+    m.def(MODULE_PREFIX "set_transfer_function_range_gradient", setTransferFunctionRangeGradient);
+    m.def(MODULE_PREFIX "set_transfer_function_empty", setTransferFunctionEmpty);
+    m.def(MODULE_PREFIX "set_transfer_function_empty_gradient", setTransferFunctionEmptyGradient);
+    m.def(MODULE_PREFIX "get_camera_position", getCameraPosition);
+    m.def(MODULE_PREFIX "get_camera_view_matrix", getCameraViewMatrix);
+    m.def(MODULE_PREFIX "get_camera_fovy", getCameraFOVy);
+    m.def(MODULE_PREFIX "set_camera_position", setCameraPosition);
+    m.def(MODULE_PREFIX "set_camera_target", setCameraTarget);
+    m.def(MODULE_PREFIX "overwrite_camera_view_matrix", overwriteCameraViewMatrix);
+    m.def(MODULE_PREFIX "set_camera_FOVy", setCameraFOVy);
+    m.def(MODULE_PREFIX "set_feature_map_type", setFeatureMapType);
+    m.def(MODULE_PREFIX "set_use_empty_space_skipping", setUseEmptySpaceSkipping);
+    m.def(MODULE_PREFIX "set_use_lights", setUseLights);
+    m.def(MODULE_PREFIX "clear_lights", clearLights);
+    m.def(MODULE_PREFIX "add_light", addLight);
+    m.def(MODULE_PREFIX "remove_light", removeLight);
+    m.def(MODULE_PREFIX "set_light_property", setLightProperty);
+    m.def(MODULE_PREFIX "load_lights_from_file", loadLightsFromFile);
+    m.def(MODULE_PREFIX "save_lights_to_file", saveLightsToFile);
+    m.def(MODULE_PREFIX "set_use_headlight", setUseHeadlight);
+    m.def(MODULE_PREFIX "set_use_headlight_distance", setUseHeadlightDistance);
+    m.def(MODULE_PREFIX "set_headlight_color", setHeadlightColor);
+    m.def(MODULE_PREFIX "set_headlight_intensity", setHeadlightIntensity);
+    m.def(MODULE_PREFIX "set_use_isosurfaces", setUseIsosurfaces);
+    m.def(MODULE_PREFIX "set_iso_value", setIsoValue);
+    m.def(MODULE_PREFIX "set_iso_surface_color", setIsoSurfaceColor);
+    m.def(MODULE_PREFIX "set_isosurface_type", setIsosurfaceType);
+    m.def(MODULE_PREFIX "set_surface_brdf", setSurfaceBrdf);
+    m.def(MODULE_PREFIX "set_brdf_parameter", setBrdfParameter);
+    m.def(MODULE_PREFIX "set_use_isosurface_tf", setUseIsosurfaceTf);
+    m.def(MODULE_PREFIX "set_num_isosurface_subdivisions", setNumIsosurfaceSubdivisions);
+    m.def(MODULE_PREFIX "set_use_clip_plane", setUseClipPlane);
+    m.def(MODULE_PREFIX "set_clip_plane_normal", setClipPlaneNormal);
+    m.def(MODULE_PREFIX "set_clip_plane_distance", setClipPlaneDistance);
+    m.def(MODULE_PREFIX "set_close_isosurfaces", setCloseIsosurfaces);
+    m.def(MODULE_PREFIX "set_use_legacy_normals", setUseLegacyNormals);
+    m.def(MODULE_PREFIX "set_seed_offset", setSeedOffset);
+    m.def(MODULE_PREFIX "set_use_feature_maps", setUseFeatureMaps);
+    m.def(MODULE_PREFIX "get_feature_map", getFeatureMap);
+    m.def(MODULE_PREFIX "get_feature_map_from_string", getFeatureMapFromString);
+    m.def(MODULE_PREFIX "get_transmittance_volume", getTransmittanceVolume);
+    m.def(MODULE_PREFIX "set_secondary_volume_downscaling_factor", setSecondaryVolumeDownscalingFactor);
+    m.def(MODULE_PREFIX "compute_occupation_volume", computeOccupationVolume);
+    m.def(MODULE_PREFIX "update_observation_frequency_fields", updateObservationFrequencyFields);
+    m.def(MODULE_PREFIX "compute_energy", computeEnergy);
+    m.def(MODULE_PREFIX "set_phase_g", setPhaseG);
+    m.def(MODULE_PREFIX "set_view_projection_matrix_as_previous",setViewProjectionMatrixAsPrevious);
+    m.def(MODULE_PREFIX "set_use_emission", setUseEmission);
+    m.def(MODULE_PREFIX "set_tf_scattering_albedo_strength", setTfScatteringAlbedoStrength);
+    m.def(MODULE_PREFIX "set_emission_strength", setEmissionStrength);
+    m.def(MODULE_PREFIX "set_emission_cap", setEmissionCap);
+    m.def(MODULE_PREFIX "get_volume_voxel_size", getVolumeVoxelSize);
+    m.def(MODULE_PREFIX "get_render_bounding_box", getRenderBoundingBox);
+    m.def(MODULE_PREFIX "remember_next_bounds", rememberNextBounds);
+    m.def(MODULE_PREFIX "forget_current_bounds", forgetCurrentBounds);
+    m.def(MODULE_PREFIX "set_max_grid_extent", setMaxGridExtent);
+    m.def(MODULE_PREFIX "set_global_world_bounding_box", setGlobalWorldBoundingBox);
+    m.def(MODULE_PREFIX "get_vdb_world_bounding_box", getVDBWorldBoundingBox);
+    m.def(MODULE_PREFIX "get_vdb_index_bounding_box", getVDBIndexBoundingBox);
+    m.def(MODULE_PREFIX "get_vdb_voxel_size", getVDBVoxelSize);
+    m.def(MODULE_PREFIX "flip_yz_coordinates", flipYZ);
+    m.def(MODULE_PREFIX "triangulate_isosurfaces", triangulateIsosurfaces);
+    m.def(MODULE_PREFIX "export_vdb_volume", exportVdbVolume);
+}
+#endif
 
 static sgl::vk::Renderer* renderer = nullptr;
 VolumetricPathTracingModuleRenderer* vptRenderer = nullptr;
@@ -570,6 +693,35 @@ void vulkanErrorCallback() {
 const char* argv[] = { "." }; //< Just pass something as argv.
 int libraryReferenceCount = 0;
 
+#ifdef BUILD_PYTHON_MODULE_NEW
+std::string getLibraryPath() {
+#if defined(_WIN32)
+    // See: https://stackoverflow.com/questions/6924195/get-dll-path-at-runtime
+    WCHAR modulePath[MAX_PATH];
+    HMODULE hmodule{};
+    if (GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPWSTR>(&getLibraryPath), &hmodule)) {
+        GetModuleFileNameW(hmodule, modulePath, MAX_PATH);
+        PathRemoveFileSpecW(modulePath); //< Needs linking with shlwapi.lib.
+        return sgl::wideStringArrayToStdString(modulePath);
+    } else {
+        sgl::Logfile::get()->writeError(
+                std::string() + "Error when calling GetModuleHandle: " + std::to_string(GetLastError()));
+    }
+    return "";
+#elif defined(__linux__)
+    // See: https://stackoverflow.com/questions/33151264/get-dynamic-library-directory-in-c-linux
+    Dl_info dlInfo{};
+    dladdr((void*)getLibraryPath, &dlInfo);
+    std::string moduleDir = sgl::FileUtils::get()->getPathToFile(dlInfo.dli_fname);
+    return moduleDir;
+#else
+    return ".";
+#endif
+}
+#endif
+
 void initialize() {
     if (libraryReferenceCount == 0) {
         // Initialize the filesystem utilities.
@@ -581,7 +733,15 @@ void initialize() {
         sgl::AppSettings::get()->getSettings().addKeyValue("window-debugContext", true);
         //sgl::AppSettings::get()->setVulkanDebugPrintfEnabled();
 
-#ifdef DATA_PATH
+#if defined(BUILD_PYTHON_MODULE_NEW)
+        std::string dataDirectory = getLibraryPath();
+        if (!sgl::endsWith(dataDirectory, "/") && !sgl::endsWith(dataDirectory, "\\")) {
+            dataDirectory += "/";
+        }
+        dataDirectory += "Data";
+        sgl::AppSettings::get()->setDataDirectory(dataDirectory);
+        sgl::AppSettings::get()->initializeDataDirectory();
+#elif defined(DATA_PATH)
         if (!sgl::FileUtils::get()->directoryExists("Data") && !sgl::FileUtils::get()->directoryExists("../Data")) {
             sgl::AppSettings::get()->setDataDirectory(DATA_PATH);
         }
@@ -1091,7 +1251,7 @@ void setEmissionStrength(double emissionStrength){
 void setUseEmission(bool useEmission){
     vptRenderer->setUseEmission(useEmission);
 }
-void setTfScatteringAlbedoStrength(float strength) {
+void setTfScatteringAlbedoStrength(double strength) {
     vptRenderer->getVptPass()->setTfScatteringAlbedoStrength(strength);
 }
 void flipYZ(bool flip){

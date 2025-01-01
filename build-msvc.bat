@@ -222,7 +222,7 @@ if %build_with_openvdb_support% == true (
 )
 set cmake_args=%cmake_args% -DCMAKE_MODULE_PATH="third_party/openvdb/lib/cmake/OpenVDB"
 
-set oidn_version=2.3.0
+set oidn_version=2.3.1
 if not exist ".\oidn-%oidn_version%.x64.windows" (
     echo ------------------------
     echo downloading OpenImageDenoise

@@ -94,8 +94,10 @@ public:
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
+#endif
     void setSettings(const std::unordered_map<std::string, std::string>& settings) override;
 
 private:

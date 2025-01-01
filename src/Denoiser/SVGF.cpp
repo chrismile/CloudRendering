@@ -33,9 +33,13 @@
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/Data.hpp>
 #include <Graphics/Vulkan/Render/ComputePipeline.hpp>
+#include <Graphics/Vulkan/Utils/Device.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
-#include <Graphics/Vulkan/Utils/Device.hpp>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
@@ -289,11 +293,13 @@ void SVGFDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
 
 }
 
+#ifndef DISABLE_IMGUI
 bool SVGFDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     return
         svgf_reproj_pass->renderGuiPropertyEditorNodes(propertyEditor) ||
         svgf_atrous_pass->renderGuiPropertyEditorNodes(propertyEditor);
 }
+#endif
 
 void SVGFDenoiser::resetFrameNumber() {}
 
@@ -439,6 +445,7 @@ void SVGF_ATrous_Pass::_render() {
     }
 }
 
+#ifndef DISABLE_IMGUI
 bool SVGF_ATrous_Pass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     if (propertyEditor.addSliderInt("#Iterations", &maxNumIterations, 0, 5)) {
         setDataDirty();
@@ -448,6 +455,7 @@ bool SVGF_ATrous_Pass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
 
     return false;
 }
+#endif
 
 
 // ------------------------------
@@ -528,6 +536,7 @@ void SVGF_Reproj_Pass::loadShader() {
 }
 
 
+#ifndef DISABLE_IMGUI
 bool SVGF_Reproj_Pass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     //if (propertyEditor.addSliderFloat("allowed_normal_dist", &pc.allowed_normal_dist, 0, 2) |
     //    propertyEditor.addSliderFloat("allowed_z_dist", &pc.allowed_z_dist, 0, 5) |
@@ -541,6 +550,7 @@ bool SVGF_Reproj_Pass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
 
     return false;
 }
+#endif
 
 
 
@@ -603,6 +613,8 @@ void SVGF_Filter_Moments_Pass::loadShader() {
 }
 
 
+#ifndef DISABLE_IMGUI
 bool SVGF_Filter_Moments_Pass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     return false;
 }
+#endif

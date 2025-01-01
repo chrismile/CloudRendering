@@ -65,8 +65,10 @@ public:
     void setWeightScalePosition(float scale);
     void setWeightScaleNormal(float scale);
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
+#endif
 
 private:
     std::shared_ptr<EAWBlitPass> eawBlitPass;
@@ -85,8 +87,10 @@ public:
     inline void setNormalTexture(const sgl::vk::TexturePtr& texture) { normalTexture = texture; setDataDirty(); }
     [[nodiscard]] inline int getMaxNumIterations() const { return maxNumIterations; }
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#endif
 
 protected:
     void loadShader() override;

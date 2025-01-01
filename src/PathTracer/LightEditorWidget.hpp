@@ -108,8 +108,10 @@ public:
     bool loadFromFile(const std::string& filePath);
     bool saveToFile(const std::string& filePath);
 
+#ifndef DISABLE_IMGUI
     /// @return true if re-rendering the scene is necessary.
     bool renderGui();
+#endif
 
 private:
     sgl::vk::Renderer* renderer;
@@ -128,9 +130,11 @@ private:
     ptrdiff_t currentLightIdx = 0;
     std::vector<ptrdiff_t> lightCreationIndices;
 
+#ifndef DISABLE_IMGUI
     bool renderGuiLight(size_t lightIdx);
-    bool showWindow = true;
     sgl::PropertyEditor* propertyEditor;
+#endif
+    bool showWindow = true;
     int standardWidth = 800;
     int standardHeight = 400;
     int standardPositionX = 1289;

@@ -137,7 +137,9 @@ public:
     virtual void setOutputForegroundMap(bool _shallOutputForegroundMap) {}
 
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
+#ifndef DISABLE_IMGUI
     virtual bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) { return false; }
+#endif
     virtual void setSettings(const std::unordered_map<std::string, std::string>& settings) {}
 };
 

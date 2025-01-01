@@ -211,8 +211,10 @@ public:
     void onHasMoved();
     /// Returns if the data needs to be re-rendered, but the visualization mapping is valid.
     bool needsReRender() { bool tmp = reRender; reRender = false; return tmp; }
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. The "reRender" flag might be set depending on the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#endif
 
     sgl::vk::TexturePtr getFeatureMapTexture(FeatureMapTypeVpt type);
 
@@ -509,9 +511,11 @@ public:
     [[nodiscard]] inline int getNumMoments() const { return numMoments; }
     inline sgl::vk::TexturePtr getMomentTexture() { return momentTexture; }
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(
             sgl::PropertyEditor& propertyEditor, bool& shallRecreateMomentTexture, bool& momentTypeChanged);
+#endif
 
 private:
     void createRasterData(sgl::vk::Renderer* renderer, sgl::vk::GraphicsPipelinePtr& graphicsPipeline) override;

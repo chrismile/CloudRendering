@@ -38,14 +38,22 @@
 #include <Graphics/Vulkan/Utils/Device.hpp>
 #include <Graphics/Vulkan/Buffers/Buffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
 #include <ImGui/ImGuiFileDialog/ImGuiFileDialog.h>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 
 #include "LightEditorWidget.hpp"
 
 LightEditorWidget::LightEditorWidget(sgl::vk::Renderer* renderer)
-        : renderer(renderer), propertyEditor(new sgl::PropertyEditor("Light Editor", showWindow)) {
+        : renderer(renderer)
+#ifndef DISABLE_IMGUI
+        , propertyEditor(new sgl::PropertyEditor("Light Editor", showWindow))
+#endif
+{
     Light light0;
     light0.color = glm::vec3(1.0f, 1.0f, 1.0f);
     light0.intensity = 1.0f;
@@ -67,11 +75,15 @@ LightEditorWidget::LightEditorWidget(sgl::vk::Renderer* renderer)
     light2.lightSpace = LightSpace::VIEW_ORIENTATION;
     addLight(light2);
 
+#ifndef DISABLE_IMGUI
     propertyEditor->setInitWidthValues(sgl::ImGuiWrapper::get()->getScaleDependentSize(280.0f));
+#endif
 }
 
 LightEditorWidget::~LightEditorWidget() {
+#ifndef DISABLE_IMGUI
     delete propertyEditor;
+#endif
 }
 
 void LightEditorWidget::addLight(const Light& light) {
@@ -130,11 +142,14 @@ void LightEditorWidget::openSelectLightFileDialog() {
             sgl::FileUtils::get()->ensureDirectoryExists(lightFileDirectory);
         }
     }
+#ifndef DISABLE_IMGUI
     IGFD_OpenModal(
             fileDialogInstance, "ChooseLightFile", "Choose a File", ".json", lightFileDirectory.c_str(), "", 1, nullptr,
             fileDialogModeSave ? ImGuiFileDialogFlags_ConfirmOverwrite : ImGuiFileDialogFlags_None);
+#endif
 }
 
+#ifndef DISABLE_IMGUI
 bool LightEditorWidget::renderGui() {
     if (!showWindow) {
         return false;
@@ -257,6 +272,7 @@ bool LightEditorWidget::renderGui() {
 
     return reRender;
 }
+#endif
 
 static glm::vec3 stringToVec3(const std::string& s) {
     std::vector<float> vecList;
@@ -462,6 +478,7 @@ bool LightEditorWidget::saveToFile(const std::string& filePath) {
     return true;
 }
 
+#ifndef DISABLE_IMGUI
 bool LightEditorWidget::renderGuiLight(size_t lightIdx) {
     bool reRender = false;
     auto& light = lights.at(lightIdx);
@@ -514,6 +531,7 @@ bool LightEditorWidget::renderGuiLight(size_t lightIdx) {
 
     return reRender;
 }
+#endif
 
 void LightEditorWidget::transformLightSpace(Light& light, LightSpace lightSpaceOld) {
     LightSpace lightSpaceNew = light.lightSpace;

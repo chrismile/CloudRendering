@@ -32,8 +32,10 @@
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/Data.hpp>
 #include <Graphics/Vulkan/Render/ComputePipeline.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#endif
 #include "EAWDenoiser.hpp"
 
 EAWDenoiser::EAWDenoiser(sgl::vk::Renderer* renderer) {
@@ -118,9 +120,11 @@ void EAWDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
     eawBlitPass->recreateSwapchain(width, height);
 }
 
+#ifndef DISABLE_IMGUI
 bool EAWDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     return eawBlitPass->renderGuiPropertyEditorNodes(propertyEditor);
 }
+#endif
 
 
 
@@ -386,6 +390,7 @@ void EAWBlitPass::_renderCompute() {
     }
 }
 
+#ifndef DISABLE_IMGUI
 bool EAWBlitPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
@@ -417,3 +422,4 @@ bool EAWBlitPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEdit
 
     return reRender;
 }
+#endif

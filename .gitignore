@@ -106,3 +106,13 @@ out/*
 
 # macOS
 .DS_Store
+
+# Python
+**/__pycache__/*
+
+# setuptools
+build*/
+*egg-info*
+dist/*
+tmp/*
+vpt/*

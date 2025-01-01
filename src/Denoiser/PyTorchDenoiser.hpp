@@ -114,8 +114,10 @@ public:
     void setPyTorchDevice(PyTorchDevice pyTorchDeviceNew);
     void setOutputForegroundMap(bool _shallOutputForegroundMap) override;
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
+#endif
 
 private:
     void computeNumChannels();

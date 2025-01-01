@@ -94,9 +94,10 @@ public:
     void denoise() override;
     void recreateSwapchain(uint32_t width, uint32_t height) override;
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) override;
-
+#endif
 };
 
 class SVGF_Reproj_Pass : public sgl::vk::ComputePass {
@@ -118,8 +119,10 @@ class SVGF_Reproj_Pass : public sgl::vk::ComputePass {
 public:
     explicit SVGF_Reproj_Pass(sgl::vk::Renderer* renderer, SVGF_Texture_Pack* textures);
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#endif
 
 protected:
     void loadShader() override;
@@ -139,8 +142,10 @@ class SVGF_Filter_Moments_Pass : public sgl::vk::ComputePass {
 public:
     explicit SVGF_Filter_Moments_Pass(sgl::vk::Renderer* renderer, SVGF_Texture_Pack* textures);
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#endif
 
 protected:
     void loadShader() override;
@@ -171,8 +176,10 @@ private:
 public:
     explicit SVGF_ATrous_Pass(sgl::vk::Renderer* renderer, SVGF_Texture_Pack* textures);
 
+#ifndef DISABLE_IMGUI
     /// Renders the GUI. Returns whether re-rendering has become necessary due to the user's actions.
     bool renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor);
+#endif
 
 protected:
     void loadShader() override;

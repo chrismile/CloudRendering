@@ -35,7 +35,11 @@
 #include <Graphics/Vulkan/Buffers/Buffer.hpp>
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <Graphics/Vulkan/Render/Passes/BlitRenderPass.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 
 #include "OpenImageDenoiseDenoiser.hpp"
 
@@ -660,6 +664,7 @@ void OpenImageDenoiseDenoiser::recreateSwapchain(uint32_t width, uint32_t height
 }
 
 
+#ifndef DISABLE_IMGUI
 bool OpenImageDenoiseDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
@@ -717,6 +722,7 @@ bool OpenImageDenoiseDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor&
 
     return reRender;
 }
+#endif
 
 void OpenImageDenoiseDenoiser::setSettings(const std::unordered_map<std::string, std::string>& settings) {
     auto itFilterQuality = settings.find("filter_quality");

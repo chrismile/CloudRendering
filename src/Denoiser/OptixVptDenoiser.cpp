@@ -33,8 +33,12 @@
 #include <Graphics/Vulkan/Render/CommandBuffer.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 #include <Graphics/Vulkan/Render/ComputePipeline.hpp>
+#ifndef DISABLE_IMGUI
 #include <ImGui/ImGuiWrapper.hpp>
 #include <ImGui/Widgets/PropertyEditor.hpp>
+#else
+#include "Utils/ImGuiCompat.h"
+#endif
 #include "OptixVptDenoiser.hpp"
 
 #include <optix.h>
@@ -559,6 +563,7 @@ void OptixVptDenoiser::runOptixDenoiser() {
 #endif
 }
 
+#ifndef DISABLE_IMGUI
 bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propertyEditor) {
     bool reRender = false;
 
@@ -592,6 +597,7 @@ bool OptixVptDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& propert
 
     return reRender;
 }
+#endif
 
 void OptixVptDenoiser::setSettings(const std::unordered_map<std::string, std::string>& settings) {
     auto itModelType = settings.find("model_type");
