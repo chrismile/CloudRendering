@@ -64,7 +64,9 @@ extra_compile_args_nvcc = []
 extra_compile_args = []
 extra_link_args = []
 if IS_WINDOWS:
-    extra_compile_args.append('/std:c++17')
+    extra_compile_args_cxx.append('/std:c++17')
+    extra_compile_args_cxx.append('/Zc:__cplusplus')
+    extra_compile_args_nvcc.append('-std=c++17')
     extra_compile_args_cxx.append('/openmp')
 else:
     extra_compile_args.append('-std=c++17')
@@ -179,7 +181,7 @@ if not os.path.isdir(f'third_party/{oidn_folder_name}'):
     urllib.request.urlretrieve(oidn_url, f'third_party/{oidn_archive_name}')
     if IS_WINDOWS:
         with zipfile.ZipFile(f'third_party/{oidn_archive_name}', 'r') as zip_ref:
-            zip_ref.extractall(f'third_party/{oidn_folder_name}')
+            zip_ref.extractall(f'third_party')
     else:
         with tarfile.open(f'third_party/{oidn_archive_name}', 'r') as zip_ref:
             zip_ref.extractall(f'third_party')
@@ -198,10 +200,12 @@ include_dirs = [
     'third_party/tinyxml2-src',
     'third_party/jsoncpp-src/include',
     'third_party/custom',
+    'third_party/custom/libpng',
     'third_party/custom/openvdb',
     'third_party/custom/OpenEXR',
     'third_party/custom/Imath',
     'third_party/glslang-src',
+    'third_party/Imath-src/src',
     'third_party/Imath-src/src/Imath',
     'third_party/openexr-src/src/lib',
     'third_party/openexr-src/src/lib/Iex',
@@ -215,19 +219,47 @@ include_dirs = [
     'third_party/libpng-src',
     'third_party/tbb-src/include',
     'third_party/blosc-src/blosc',
-    f'third_party/{oidn_folder_name}/include',
+    'third_party/blosc-src/internal-complibs/lz4-1.10.0',
+    'third_party/blosc-src/internal-complibs/zlib-1.3.1',
+    'third_party/blosc-src/internal-complibs/zstd-1.5.6',
     'submodules/IsosurfaceCpp/src',
     'submodules',
     'third_party/boost-src/libs/algorithm/include',
+    'third_party/boost-src/libs/assert/include',  # dependency by intrusive
     'third_party/boost-src/libs/config/include',
+    'third_party/boost-src/libs/concept_check/include',  # dependency by range
+    'third_party/boost-src/libs/container/include',  # dependency by interprocess (Windows only maybe)
     'third_party/boost-src/libs/core/include',
+    'third_party/boost-src/libs/detail/include',  # dependency by interprocess (Windows only maybe)
     'third_party/boost-src/libs/exception/include',
     'third_party/boost-src/libs/integer/include',
     'third_party/boost-src/libs/interprocess/include',
+    'third_party/boost-src/libs/intrusive/include',  # dependency by container
     'third_party/boost-src/libs/iostreams/include',
+    'third_party/boost-src/libs/iterator/include',  # dependency by range
+    'third_party/boost-src/libs/move/include',  # dependency by container
+    'third_party/boost-src/libs/mpl/include',  # dependency by numeric
     'third_party/boost-src/libs/numeric/conversion/include',
+    'third_party/boost-src/libs/predef/include',  # dependency by winapi
+    'third_party/boost-src/libs/preprocessor/include',  # dependency by numeric
+    'third_party/boost-src/libs/range/include',  # dependency by iostreams
+    'third_party/boost-src/libs/smart_ptr/include',  # dependency by iostreams
+    'third_party/boost-src/libs/static_assert/include',  # dependency by iostreams
     'third_party/boost-src/libs/throw_exception/include',
+    'third_party/boost-src/libs/type_traits/include',  # dependency by numeric
+    'third_party/boost-src/libs/utility/include',  # dependency by range
 ]
+if IS_WINDOWS:
+    # Dependency by interprocess
+    include_dirs.append('third_party/boost-src/libs/winapi/include')
+local_oidn_include_path = f'third_party/{oidn_folder_name}/include'
+if IS_WINDOWS:
+    # nvcc has issues with the dots in the path...
+    #extra_compile_args_cxx.append(f'/I "{os.path.abspath(local_oidn_include_path)}"')
+    extra_compile_args_cxx.append('/I')
+    extra_compile_args_cxx.append(f'{os.path.abspath(local_oidn_include_path)}')
+else:
+    include_dirs.append(local_oidn_include_path)
 source_files = []
 src_blacklist = {'Main.cpp', 'MainApp.cpp', 'MainAppState.cpp', 'DataView.cpp'}
 source_files += find_all_sources_in_dir('src', src_blacklist)
@@ -471,11 +503,13 @@ update_data_files_recursive(data_files_all, 'Data/TransferFunctions')
 for define in defines:
     if IS_WINDOWS:
         if len(define) == 1:
-            extra_compile_args.append('/D')
-            extra_compile_args.append(f'{define[0]}')
+            extra_compile_args_cxx.append('/D')
+            extra_compile_args_cxx.append(f'{define[0]}')
+            extra_compile_args_nvcc.append(f'-D{define[0]}')
         else:
-            extra_compile_args.append('/D')
-            extra_compile_args.append(f'{define[0]}={define[1]}')
+            extra_compile_args_cxx.append('/D')
+            extra_compile_args_cxx.append(f'{define[0]}={define[1]}')
+            extra_compile_args_nvcc.append(f'-D{define[0]}={define[1]}')
     else:
         if len(define) == 1:
             extra_compile_args.append(f'-D{define[0]}')
