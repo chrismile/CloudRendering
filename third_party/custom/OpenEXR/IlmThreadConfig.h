@@ -16,7 +16,11 @@
 // clang-format off
 
 #define ILMTHREAD_THREADING_ENABLED 1
+#ifdef _MSC_VER
+#define ILMTHREAD_HAVE_POSIX_SEMAPHORES 0
+#else
 #define ILMTHREAD_HAVE_POSIX_SEMAPHORES 1
+#endif
 
 //
 // Current internal library namespace name

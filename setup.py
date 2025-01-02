@@ -42,12 +42,12 @@ from setuptools.command.egg_info import egg_info
 from setuptools.dist import Distribution
 from setuptools.command import bdist_egg
 
+
 if os.name != 'nt':
     # torch.utils.cpp_extension.BuildExtension unfortunately has no support for C sources.
     # We use our own compiler wrapper and check whether the pattern "-c <source>.c" appears.
     # On Windows, we could use "/Tc" and "/Tp" to force the use of C or C++, respectively
     # (https://stackoverflow.com/questions/32505294/c-vs-c-using-cl-compiler-in-vs2015).
-    Path('third_party/tmp').mkdir(parents=True, exist_ok=True)
     cxx_compiler = os.environ.get('CXX', None)
     cc_compiler = os.environ.get('CC', None)
     if cxx_compiler is not None:
@@ -136,6 +136,8 @@ if not os.path.exists('third_party/jsoncpp-src'):
 if not os.path.exists('third_party/glslang-src'):
     subprocess.run(['git', 'clone', 'https://github.com/KhronosGroup/glslang.git', 'third_party/glslang-src'])
     subprocess.run(['git', '-C', 'third_party/glslang-src', 'checkout', 'f754c852a87988eb097a39480c65f704ceb46274'])
+    Path('third_party/glslang').mkdir(parents=True, exist_ok=True)
+    shutil.copytree('third_party/glslang-src/SPIRV', 'third_party/glslang/SPIRV')
 if not os.path.exists('third_party/tinyxml2-src'):
     subprocess.run(['git', 'clone', 'https://github.com/leethomason/tinyxml2.git', 'third_party/tinyxml2-src'])
 if not os.path.exists('third_party/Imath-src'):
@@ -343,10 +345,6 @@ if IS_WINDOWS:
     source_files += find_all_sources_in_dir('third_party/glslang-src/glslang/OSDependent/Windows')
 else:
     source_files += find_all_sources_in_dir('third_party/glslang-src/glslang/OSDependent/Unix')
-imath_blacklist = ['toFloat.cpp']
-source_files += find_all_sources_in_dir('third_party/Imath-src/src/Imath', imath_blacklist)
-openexr_blacklist = ['b44ExpLogTable.cpp', 'dwaLookups.cpp']
-source_files += find_all_sources_in_dir('third_party/openexr-src/src/lib', openexr_blacklist)
 source_files += find_all_sources_in_dir('third_party/libdeflate-src/lib', no_recurse=True)
 if platform.machine() == 'x86_64' or platform.machine() == 'AMD64':
     source_files += find_all_sources_in_dir('third_party/libdeflate-src/lib/x86')
@@ -359,10 +357,10 @@ source_files += find_all_sources_in_dir('third_party/tbb-src/src/tbb')
 # Currently, only lz4, zlib and zstd are provided via hird_party/blosc-src/internal-complibs.
 boost_iostreams_blacklist = ['bzip2.cpp', 'gzip.cpp', 'lzma.cpp']
 source_files += find_all_sources_in_dir('third_party/boost-src/libs/iostreams/src', boost_iostreams_blacklist)
-blosc_blacklist = []
-if not IS_WINDOWS:
-    blosc_blacklist = ['pthread.c']
-source_files += find_all_sources_in_dir('third_party/blosc-src/blosc', blosc_blacklist)
+#blosc_blacklist = []
+#if not IS_WINDOWS:
+#    blosc_blacklist = ['pthread.c']
+source_files += find_all_sources_in_dir('third_party/blosc-src/blosc', no_recurse=True)
 source_files += find_all_sources_in_dir('third_party/blosc-src/internal-complibs/lz4-1.10.0')
 source_files += find_all_sources_in_dir('third_party/blosc-src/internal-complibs/zlib-1.3.1', no_recurse=True)
 source_files += find_all_sources_in_dir('third_party/blosc-src/internal-complibs/zstd-1.5.6/common')
@@ -406,6 +404,8 @@ defines = [
     ('OPENVDB_USE_DELAYED_LOADING',),
     ('OPENVDB_USE_BLOSC',),
     # ('OPENVDB_STATICLIB',),
+    # For TBB.
+    ('__TBB_SOURCE_DIRECTLY_INCLUDED',),
 ]
 # Change symbol visibility?
 if IS_WINDOWS:
@@ -440,6 +440,41 @@ if platform.machine() == 'x86_64' or platform.machine() == 'AMD64':
 else:
     source_files += find_all_sources_in_dir('third_party/libpng-src/arm')
     defines.append(('PNG_ARM_NEON_OPT', '2'))
+
+
+imath_blacklist = ['toFloat.cpp']
+source_files_openexr = find_all_sources_in_dir('third_party/Imath-src/src/Imath', imath_blacklist)
+openexr_blacklist = ['b44ExpLogTable.cpp', 'dwaLookups.cpp']
+source_files_openexr += find_all_sources_in_dir('third_party/openexr-src/src/lib', openexr_blacklist)
+if not IS_WINDOWS:
+    source_files += source_files_openexr
+elif not os.path.isfile('third_party/tmp/openexr.lib'):
+    # On Windows, we cannot compile all source files to one shared library due to command length limitations.
+    # This is also discussed in:
+    # - https://github.com/pypa/setuptools/issues/4177
+    # - https://github.com/pypa/distutils/issues/226
+    # "pip install ." will terminate with the message "error: command 'C:\\<path>\\link.exe' failed: None".
+    # If we run link.exe manually, one receives the error message "The filename or extension is too long".
+    # This is because internally Windows has the following limit for command lengths and the file paths are too long.
+    # https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa#parameters
+    # "The maximum length of this string is 32,767 characters, including the Unicode terminating null character."
+    # As a solution, we compile OpenEXR and its dependency Imath separately to a static library using distutils.
+    # This way, we can get to less than 30,000 characters on a test system.
+    # distutils has been deprecated in Python 3.12. We will try to use the protected member "setuptools._distutils"
+    # as a fallback if distutils is not available (even though this is not a nice looking hack).
+    try:
+        import distutils.ccompiler as ccompiler
+    except ImportError:
+        import setuptools._distutils.ccompiler as ccompiler
+    Path('third_party/tmp').mkdir(parents=True, exist_ok=True)
+    # TODO: https://gist.github.com/udnaan/d549950a33fd82d13f9e6ba4aae82964 would imply we can wrap this in an object.
+    compiler = ccompiler.new_compiler()
+    objects = compiler.compile(
+        source_files_openexr, include_dirs=include_dirs, macros=defines, extra_preargs=extra_compile_args_cxx)
+    compiler.create_static_lib(objects, 'openexr', 'third_party/tmp')
+
+if os.path.isfile('third_party/tmp/openexr.lib'):
+    extra_objects.append('third_party/tmp/openexr.lib')
 
 
 # Download OpenImageDenoise.

@@ -18,7 +18,9 @@
 // automated formatting does not handle the cmake tags well
 // clang-format off
 
+#ifdef __linux__
 #define OPENEXR_IMF_HAVE_LINUX_PROCFS 1
+#endif
 
 //
 // Define and set to 1 if the target system is a Darwin-based system
@@ -39,13 +41,17 @@
 // Define if we can use sysconf(_SC_NPROCESSORS_ONLN) to get CPU count
 //
 
+#ifdef __linux__
 #define OPENEXR_IMF_HAVE_SYSCONF_NPROCESSORS_ONLN 1
+#endif
 
 //
 // Define if we can support GCC style inline asm with AVX instructions
 //
 
+#ifdef __GNUC__
 #define OPENEXR_IMF_HAVE_GCC_INLINE_ASM_AVX 1
+#endif
 
 //
 // Define if we need to shim in our own implementation of vld1q_f32_x2 for
