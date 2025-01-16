@@ -269,6 +269,7 @@ echo ------------------------
 echo    copying new files
 echo ------------------------
 robocopy third_party\oidn-%oidn_version%.x64.windows\bin %destination_dir% *.dll >NUL
+robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %destination_dir% *.dll >NUL
 if %debug% == true (
     if not exist %destination_dir%\*.pdb (
         del %destination_dir%\*.dll
@@ -301,6 +302,8 @@ if %devel% == true (
     if %build_with_openvdb_support% == true (
         robocopy third_party\openvdb\bin %build_dir%\Debug\ *.dll /XC /XN /XO >NUL
         robocopy third_party\openvdb\bin %build_dir%\Release\ *.dll /XC /XN /XO >NUL
+        robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %build_dir%\Debug\ *.dll /XC /XN /XO >NUL
+        robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %build_dir%\Release\ *.dll /XC /XN /XO >NUL
     )
 )
 

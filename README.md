@@ -56,12 +56,13 @@ In the project folder, a script called `build-msvc.bat` can be found automating 
 Visual Studio. It is recommended to run the script using the `Developer PowerShell for VS 2022` (or VS 2019 depending on
 your Visual Studio version). The build script will also launch the program after successfully building it.
 Building the program is regularly tested on Windows 10 and 11 with Microsoft Visual Studio 2019 and 2022.
+The flag `--devel` can be used to generate a working Visual Studio `.sln` project in the `.build` folder.
 
 Please note that the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows) needs to be installed before starting the
 build process.
 
-A script `build-windows-msys2.bat` is also available to build the program using MSYS2/MinGW alternatively to using
-Microsoft Visual Studio.
+The script `build.sh` in the project root directory can also be used to alternatively build the program using
+MSYS2/MinGW on Windows. For this, it should be run from a MSYS2 shell.
 
 If you wish to build the program manually using Visual Studio and vcpkg, or using MSYS2, instructions can be found in
 the directory `docs/compilation`.
