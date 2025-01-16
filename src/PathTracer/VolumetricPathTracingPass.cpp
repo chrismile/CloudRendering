@@ -1257,14 +1257,14 @@ void VolumetricPathTracingPass::setScatteringAlbedo(glm::vec3 albedo) {
 }
 
 void VolumetricPathTracingPass::setExtinctionScale(double extinctionScale){
-    this->cloudExtinctionScale = extinctionScale;
+    this->cloudExtinctionScale = float(extinctionScale);
 }
 void VolumetricPathTracingPass::setExtinctionBase(glm::vec3 extinctionBase){
     this->cloudExtinctionBase = extinctionBase;
 }
 
 void VolumetricPathTracingPass::setPhaseG(double phaseG){
-    this->uniformData.G = phaseG;
+    this->uniformData.G = float(phaseG);
 }
 
 void VolumetricPathTracingPass::setFeatureMapType(FeatureMapTypeVpt type) {

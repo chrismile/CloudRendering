@@ -262,7 +262,7 @@ bool LightEditorWidget::renderGui() {
     propertyEditor->end();
 
     if (shallDeleteElement) {
-        removeLight(deleteElementId);
+        removeLight(uint32_t(deleteElementId));
         reRender = true;
     }
 
