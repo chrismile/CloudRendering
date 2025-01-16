@@ -41,7 +41,8 @@
         "glm",
         "tbb",
         "jsoncpp",
-        "openexr"
+        "openexr",
+        "blosc"
     ],
     "features": {
         "tbb": {
