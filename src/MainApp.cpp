@@ -391,7 +391,7 @@ void MainApp::renderGui() {
     }
 
     if (useDockSpaceMode) {
-        ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+        ImGuiID dockSpaceId = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
         ImGuiDockNode* centralNode = ImGui::DockBuilderGetNode(dockSpaceId);
         static bool isProgramStartup = true;
         if (isProgramStartup && centralNode->IsEmpty()) {

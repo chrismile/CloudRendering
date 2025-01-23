@@ -52,12 +52,12 @@
 #endif
 #endif
 
-#ifdef SUPPORT_HIP_INTEROP
-#if __has_include(<c10/hip/HIPStream.h>)
-#define PYTORCH_HIP_AVAILABLE
-#include <c10/hip/HIPStream.h>
-#endif
-#endif
+//#ifdef SUPPORT_HIP_INTEROP
+//#if __has_include(<c10/hip/HIPStream.h>)
+//#define PYTORCH_HIP_AVAILABLE
+//#include <c10/hip/HIPStream.h>
+//#endif
+//#endif
 
 #ifdef SUPPORT_OPTIX
 #include "Denoiser/OptixVptDenoiser.hpp"
