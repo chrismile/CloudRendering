@@ -310,6 +310,19 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
     imageStore(flowImage, imageCoord, vec4(flowVector, 0.0, 0.0));
 #endif
 
+#ifdef WRITE_FLOW_REVERSE_MAP
+    // Motion vectors as expected by NVIDIA libraries.
+    //vec2 screenCoord = 2.0 * (gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
+    vec2 flowReverseVector = vec2(0.0);
+    if (firstEvent.hasValue) {
+        vec4 lastFramePositionNdc = parameters.previousViewProjMatrix * vec4(firstEvent.x, 1.0);
+        lastFramePositionNdc.xyz /= lastFramePositionNdc.w;
+        vec2 pixelPositionLastFrame = (0.5 * lastFramePositionNdc.xy + vec2(0.5)) * vec2(dim) - vec2(0.5);
+        flowReverseVector = pixelPositionLastFrame - vec2(imageCoord);
+    }
+    imageStore(flowReverseImage, imageCoord, vec4(flowReverseVector, 0.0, 0.0));
+#endif
+
 #ifdef WRITE_DEPTH_NABLA_MAP
 #ifndef DISABLE_ACCUMULATION
     if (frame != 0) {

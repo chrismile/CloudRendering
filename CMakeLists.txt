@@ -55,6 +55,7 @@ option(SUPPORT_PYTORCH_DENOISER "Build the PyTorch module." OFF)
 option(BUILD_PYTORCH_MODULE "Build the PyTorch module." OFF)
 option(BUILD_KPN_MODULE "Build the KPN (kernel prediction network) module." OFF)
 option(USE_PRE_CXX11_ABI "Use the -D_GLIBCXX_USE_CXX11_ABI=0 flag when compiling with GCC." OFF)
+option(USE_DLSS "Build with DLSS Ray Reconstruction support." OFF)
 
 set(DATA_PATH "${CMAKE_SOURCE_DIR}/Data" CACHE PATH "Location of folder 'Data'")
 add_definitions(-DDATA_PATH=\"${DATA_PATH}\")
@@ -78,6 +79,7 @@ set(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OptixVptDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/PyTorchDenoiser.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/DLSSDenoiser.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/CameraPoseLinePass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/NormalizeNormalsPass.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/Normalization.cpp
@@ -198,6 +200,13 @@ else()
     list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.hpp)
     list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/OpenImageDenoiseDenoiser.cpp)
+endif()
+
+if (NOT USE_DLSS)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/DLSSDenoiser.hpp)
+    list(REMOVE_ITEM VPT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/DLSSDenoiser.cpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/DLSSDenoiser.hpp)
+    list(REMOVE_ITEM SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/Denoiser/DLSSDenoiser.cpp)
 endif()
 
 find_package(Imath CONFIG QUIET)
@@ -384,6 +393,10 @@ if (${SUPPORT_PYTORCH_DENOISER} AND Torch_FOUND)
     endif()
 endif()
 
+if (${PYTORCH_MODULE_ENABLED})
+    target_compile_definitions(vpt PUBLIC BUILD_PYTHON_MODULE)
+endif()
+
 
 # Hide console window in release build on Windows/MSVC.
 # See: https://gitlab.kitware.com/cmake/community/-/wikis/doc/cmake/recipe/VSConfigSpecificSettings
@@ -510,6 +523,76 @@ if (OpenImageDenoise_FOUND)
     if (${PYTORCH_MODULE_ENABLED})
         target_link_libraries(vpt PRIVATE OpenImageDenoise)
         target_compile_definitions(vpt PRIVATE SUPPORT_OPEN_IMAGE_DENOISE)
+    endif()
+endif()
+
+if (USE_DLSS)
+    if (NOT DEFINED DLSS_SDK_ROOT AND EXISTS "${CMAKE_SOURCE_DIR}/third_party/DLSS")
+        set(DLSS_SDK_ROOT "${CMAKE_SOURCE_DIR}/third_party/DLSS" CACHE PATH "Path to DLSS SDK root.")
+    endif()
+    if (NOT DEFINED DLSS_SDK_ROOT)
+        MESSAGE(FATAL_ERROR "USE_DLSS set to ON, but DLSS SDK not found and DLSS_SDK_ROOT not set.")
+    endif()
+    MESSAGE(STATUS "DLSS SDK found. Enabling DLSS Ray Reconstruction support.")
+
+    if (UNIX AND NOT APPLE)
+        file(GLOB DLSS_LIBRARY_DEBUG ${DLSS_SDK_ROOT}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.*)
+        file(GLOB DLSS_LIBRARY_RELEASE ${DLSS_SDK_ROOT}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.*)
+        file(GLOB DLSSD_LIBRARY_DEBUG ${DLSS_SDK_ROOT}/lib/Linux_x86_64/dev/libnvidia-ngx-dlssd.*)
+        file(GLOB DLSSD_LIBRARY_RELEASE ${DLSS_SDK_ROOT}/lib/Linux_x86_64/rel/libnvidia-ngx-dlssd.*)
+    elseif(WIN32)
+        file(GLOB DLSS_LIBRARY_DEBUG ${DLSS_SDK_ROOT}/lib/Windows_x86_64/dev/nvngx_dlss.dll)
+        file(GLOB DLSS_LIBRARY_RELEASE ${DLSS_SDK_ROOT}/lib/Windows_x86_64/rel/nvngx_dlss.dll)
+        file(GLOB DLSSD_LIBRARY_DEBUG ${DLSS_SDK_ROOT}/lib/Windows_x86_64/dev/nvngx_dlssd.dll)
+        file(GLOB DLSSD_LIBRARY_RELEASE ${DLSS_SDK_ROOT}/lib/Windows_x86_64/rel/nvngx_dlssd.dll)
+    endif()
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(DLSS_LIBRARY ${DLSS_LIBRARY_DEBUG})
+        set(DLSSD_LIBRARY ${DLSSD_LIBRARY_DEBUG})
+    else()
+        set(DLSS_LIBRARY ${DLSS_LIBRARY_RELEASE})
+        set(DLSSD_LIBRARY ${DLSSD_LIBRARY_RELEASE})
+    endif()
+    add_library(DLSS STATIC IMPORTED GLOBAL)
+    if (UNIX AND NOT APPLE)
+        set_target_properties(DLSS PROPERTIES
+                IMPORTED_LOCATION "${DLSS_SDK_ROOT}/lib/Linux_x86_64/libnvsdk_ngx.a"
+                INTERFACE_INCLUDE_DIRECTORIES "${DLSS_SDK_ROOT}/include"
+        )
+    elseif(WIN32)
+        # /MT (static) or /MD (dynamic); see: https://stackoverflow.com/questions/14172856/compile-with-mt-instead-of-md-using-cmake
+        set(MSVC_RUNTIME_LIBRARY_STATIC 1)
+        if(${MSVC_RUNTIME_LIBRARY_STATIC})
+            set(DLSS_STATIC_LIBRARY_DEBUG "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_s_dbg.lib")
+            set(DLSS_STATIC_LIBRARY_RELEASE "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_s.lib")
+        else()
+            set(DLSS_STATIC_LIBRARY_DEBUG "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib")
+            set(DLSS_STATIC_LIBRARY_RELEASE "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d.lib")
+        endif()
+        set_target_properties(DLSS PROPERTIES
+                IMPORTED_LOCATION "${DLSS_STATIC_LIBRARY_DEBUG}"
+                IMPORTED_LOCATION_DEBUG "${DLSS_STATIC_LIBRARY_DEBUG}"
+                IMPORTED_LOCATION_RELEASE "${DLSS_STATIC_LIBRARY_RELEASE}"
+                INTERFACE_INCLUDE_DIRECTORIES "${DLSS_SDK_ROOT}/include"
+        )
+    endif()
+
+    install(FILES ${DLSS_LIBRARY} DESTINATION modules)
+    install(FILES ${DLSSD_LIBRARY} DESTINATION modules)
+
+    target_link_libraries(CloudRendering PRIVATE DLSS)
+    target_compile_definitions(CloudRendering PRIVATE SUPPORT_DLSS)
+    add_custom_command(TARGET CloudRendering
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSS_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
+    add_custom_command(TARGET CloudRendering
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSSD_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
+    if (${USE_GTEST})
+        target_link_libraries(CloudRendering_test PRIVATE DLSS)
+        target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_DLSS)
+    endif()
+    if (${PYTORCH_MODULE_ENABLED})
+        target_link_libraries(vpt PRIVATE DLSS)
+        target_compile_definitions(vpt PRIVATE SUPPORT_DLSS)
     endif()
 endif()
 

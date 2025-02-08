@@ -65,14 +65,16 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, FLOW, DEPTH_NABLA,
-    DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, ALBEDO,
+    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, FLOW, FLOW_REVERSE,
+    DEPTH_NABLA, DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
+    DEPTH_NEAREST_OPAQUE, ALBEDO,
     TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Flow", "Depth (nabla)",
-        "Depth (fwidth)", "Density", "Background", "Reprojected UV", "Depth Blended", "Depth Nearest Opaque", "Albedo",
+        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Flow", "Flow Reverse",
+        "Depth (nabla)", "Depth (fwidth)", "Density", "Background", "Reprojected UV", "Depth Blended",
+        "Depth Nearest Opaque", "Albedo",
         "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
@@ -109,6 +111,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::COLOR, FeatureMapTypeVpt::RESULT},
         {FeatureMapType::ALBEDO, FeatureMapTypeVpt::ALBEDO},
         {FeatureMapType::FLOW, FeatureMapTypeVpt::FLOW},
+        {FeatureMapType::FLOW_REVERSE, FeatureMapTypeVpt::FLOW_REVERSE},
         {FeatureMapType::POSITION, FeatureMapTypeVpt::FIRST_X},
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
         {FeatureMapType::CLOUDONLY, FeatureMapTypeVpt::CLOUD_ONLY},
@@ -287,6 +290,7 @@ private:
     sgl::vk::TexturePtr depthBlendedTexture;
     sgl::vk::TexturePtr depthNearestOpaqueTexture;
     sgl::vk::TexturePtr flowTexture;
+    sgl::vk::TexturePtr flowReverseTexture;
     sgl::vk::TexturePtr depthNablaTexture;
     sgl::vk::TexturePtr depthFwidthTexture;
     sgl::vk::TexturePtr albedoTexture;

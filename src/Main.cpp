@@ -38,6 +38,10 @@
 #include <openvdb/openvdb.h>
 #endif
 
+#ifdef SUPPORT_DLSS
+#include "Denoiser/DLSSDenoiser.hpp"
+#endif
+
 #include "MainApp.hpp"
 
 int main(int argc, char *argv[]) {
@@ -109,6 +113,10 @@ int main(int argc, char *argv[]) {
 
     sgl::vk::Instance* instance = sgl::AppSettings::get()->getVulkanInstance();
     sgl::vk::Device* device = new sgl::vk::Device;
+#ifdef SUPPORT_DLSS
+    auto physicalDeviceCheckCallback = getDlssPhysicalDeviceCheckCallback(instance);
+    device->setPhysicalDeviceCheckCallback(physicalDeviceCheckCallback);
+#endif
     device->createDeviceSwapchain(
             instance, window,
             {

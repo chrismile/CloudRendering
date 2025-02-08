@@ -48,6 +48,10 @@
 #include "EnergyTerm.cuh"
 #endif
 
+#ifdef SUPPORT_DLSS
+#include "Denoiser/DLSSDenoiser.hpp"
+#endif
+
 #include "nanovdb/NanoVDB.h"
 #include "nanovdb/util/Primitives.h"
 #include "CloudData.hpp"
@@ -758,6 +762,10 @@ void initialize() {
         sgl::vk::Instance* instance = sgl::AppSettings::get()->getVulkanInstance();
         instance->setDebugCallback(&vulkanErrorCallback);
         sgl::vk::Device* device = new sgl::vk::Device;
+#ifdef SUPPORT_DLSS
+        auto physicalDeviceCheckCallback = getDlssPhysicalDeviceCheckCallback(instance);
+        device->setPhysicalDeviceCheckCallback(physicalDeviceCheckCallback);
+#endif
         device->createDeviceHeadless(
                 instance, {
                         VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME,

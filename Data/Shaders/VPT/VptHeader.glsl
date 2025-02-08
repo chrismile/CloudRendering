@@ -182,37 +182,26 @@ layout (binding = 21, rg32f) uniform image2D depthNearestOpaqueImage;
 layout(binding = 22, rg32f) uniform image2D flowImage;
 #endif
 
+#ifdef WRITE_FLOW_REVERSE_MAP
+layout(binding = 23, rg32f) uniform image2D flowReverseImage;
+#endif
+
 #ifdef WRITE_DEPTH_NABLA_MAP
-layout (binding = 23, rg32f) uniform image2D depthNablaImage;
+layout (binding = 24, rg32f) uniform image2D depthNablaImage;
 #endif
 
 #ifdef WRITE_DEPTH_FWIDTH_MAP
-layout (binding = 24, r32f) uniform image2D depthFwidthImage;
+layout (binding = 25, r32f) uniform image2D depthFwidthImage;
 #endif
 
 #ifdef WRITE_ALBEDO_MAP
-layout (binding = 25, rgba32f) uniform image2D albedoImage;
+layout (binding = 26, rgba32f) uniform image2D albedoImage;
 #endif
 
 #ifdef WRITE_TRANSMITTANCE_VOLUME
-layout (binding = 26, r32ui) uniform uimage3D transmittanceVolumeImage;
+layout (binding = 27, r32ui) uniform uimage3D transmittanceVolumeImage;
 #endif
 
-
-/**
- * This code is part of an GLSL port of the HLSL code accompanying the paper "Moment-Based Order-Independent
- * Transparency" by Münstermann, Krumpen, Klein, and Peters (http://momentsingraphics.de/?page_id=210).
- * The original code was released in accordance to CC0 (https://creativecommons.org/publicdomain/zero/1.0/).
- *
- * This port is released under the terms of the MIT License.
- */
-/*! This function implements complex multiplication.*/
-layout(std140, binding = 27) uniform MomentUniformData {
-    vec4 wrapping_zone_parameters;
-    //float overestimation;
-    //float moment_bias;
-};
-const float ABSORBANCE_MAX_VALUE = 10.0;
 
 #ifdef USE_TRANSFER_FUNCTION
 layout(binding = 28) uniform sampler1DArray transferFunctionTexture;
@@ -257,6 +246,22 @@ layout (binding = 31) uniform LightsBuffer {
 };
 #endif
 
+/**
+ * This code is part of an GLSL port of the HLSL code accompanying the paper "Moment-Based Order-Independent
+ * Transparency" by Münstermann, Krumpen, Klein, and Peters (http://momentsingraphics.de/?page_id=210).
+ * The original code was released in accordance to CC0 (https://creativecommons.org/publicdomain/zero/1.0/).
+ *
+ * This port is released under the terms of the MIT License.
+ */
+/*! This function implements complex multiplication.*/
+layout(std140, binding = 32) uniform MomentUniformData {
+    vec4 wrapping_zone_parameters;
+//float overestimation;
+//float moment_bias;
+};
+const float ABSORBANCE_MAX_VALUE = 10.0;
+
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }
+

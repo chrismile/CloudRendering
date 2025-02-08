@@ -58,6 +58,7 @@ link_dynamic=false
 use_custom_vcpkg_triplet=false
 custom_glslang=false
 build_with_openvdb_support=false
+use_dlss=false
 use_pytorch=false
 use_pre_cxx11_abi=false
 install_module=false
@@ -103,6 +104,8 @@ do
         custom_glslang=true
     elif [ ${!i} = "--use-openvdb" ]; then
       build_with_openvdb_support=true
+    elif [ ${!i} = "--use-dlss" ]; then
+      use_dlss=true
     elif [ ${!i} = "--use-pytorch" ]; then
       use_pytorch=true
       pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
@@ -948,6 +951,21 @@ if $build_with_openvdb_support; then
     params+=(-DCMAKE_MODULE_PATH="${projectpath}/third_party/openvdb/lib/cmake/OpenVDB")
 fi
 
+if $use_dlss; then
+    if [ ! -d "./DLSS" ]; then
+        echo "------------------------"
+        echo "  downloading DLSS SDK  "
+        echo "------------------------"
+        git clone https://github.com/NVIDIA/DLSS.git
+    fi
+    if [ $debug = true ] ; then
+        dlss_cfg="dev"
+    else
+        dlss_cfg="rel"
+    fi
+    params+=(-DUSE_DLSS=ON -DDLSS_SDK_ROOT="${projectpath}/third_party/DLSS")
+fi
+
 if $use_custom_jsoncpp; then
     if [ ! -d "./jsoncpp" ]; then
         echo "------------------------"
@@ -1128,6 +1146,9 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
             done
         fi
     fi
+    if $use_dlss; then
+        cp ./third_party/DLSS/lib/Linux_x86_64/${dlss_cfg}/libnvidia-ngx-dlss* "$install_dir/modules"
+    fi
     patchelf --set-rpath '$ORIGIN' "$install_dir/modules/libvpt.so"
 fi
 
@@ -1224,6 +1245,11 @@ if $use_msys; then
             if [[ ${oidn_lib_file_basename} != "OpenImageDenoise"* ]]; then
                 ldd_output="$ldd_output ${oidn_lib_file}"
             fi
+        done
+    fi
+    if $use_dlss; then
+        for dlss_lib_file in "${projectpath}/third_party/DLSS/lib/Windows_x86_64/${dlss_cfg}/"*.dll; do
+            ldd_output="$ldd_output ${dlss_lib_file}"
         done
     fi
     for library_abs in $ldd_output
@@ -1356,6 +1382,11 @@ else
             if [[ ${oidn_lib_file_basename} != "libOpenImageDenoise"* ]]; then
                 ldd_output="$ldd_output ${oidn_lib_file}"
             fi
+        done
+    fi
+    if $use_dlss; then
+        for dlss_lib_file in "${projectpath}/third_party/DLSS/lib/Linux_x86_64/${dlss_cfg}/libnvidia-ngx-dlss"*; do
+            ldd_output="$ldd_output ${dlss_lib_file}"
         done
     fi
     library_blacklist=(

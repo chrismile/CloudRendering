@@ -39,6 +39,7 @@ set vcpkg_triplet="x64-windows"
 :: Leave empty to let cmake try to find the correct paths
 set optix_install_dir=""
 set build_with_openvdb_support=false
+set use_dlss=false
 
 :loop
 IF NOT "%1"=="" (
@@ -60,6 +61,9 @@ IF NOT "%1"=="" (
     )
     IF "%1"=="--use-openvdb" (
         SET build_with_openvdb_support=true
+    )
+    IF "%1"=="--use-dlss" (
+        SET use_dlss=true
     )
     SHIFT
     GOTO :loop
@@ -239,6 +243,16 @@ if %build_with_openvdb_support% == true (
 )
 set cmake_args=%cmake_args% -DCMAKE_MODULE_PATH="third_party/openvdb/lib/cmake/OpenVDB"
 
+if %use_dlss% == true (
+    if not exist ".\DLSS" (
+        echo ------------------------
+        echo   downloading DLSS SDK
+        echo ------------------------
+        git clone https://github.com/NVIDIA/DLSS.git
+    )
+    set cmake_args=%cmake_args% -DUSE_DLSS=ON -DDLSS_SDK_ROOT="third_party/DLSS"
+)
+
 set oidn_version=2.3.1
 if not exist ".\oidn-%oidn_version%.x64.windows" (
     echo ------------------------
@@ -286,7 +300,12 @@ echo ------------------------
 echo    copying new files
 echo ------------------------
 robocopy third_party\oidn-%oidn_version%.x64.windows\bin %destination_dir% *.dll >NUL
-robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %destination_dir% *.dll >NUL
+if %build_with_openvdb_support% == true (
+    robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %destination_dir% *.dll >NUL
+)
+if %use_dlss% == true (
+    robocopy third_party\DLSS\lib\Windows_x86_64\rel %destination_dir% *.dll >NUL
+)
 if %debug% == true (
     if not exist %destination_dir%\*.pdb (
         del %destination_dir%\*.dll
@@ -321,6 +340,10 @@ if %devel% == true (
         robocopy third_party\openvdb\bin %build_dir%\Release\ *.dll /XC /XN /XO >NUL
         robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %build_dir%\Debug\ *.dll /XC /XN /XO >NUL
         robocopy third_party\openvdb-src\build\openvdb\openvdb\Release %build_dir%\Release\ *.dll /XC /XN /XO >NUL
+    )
+    if %use_dlss% == true (
+        robocopy third_party\DLSS\lib\Windows_x86_64\dev %build_dir%\Debug\ *.dll >NUL
+        robocopy third_party\DLSS\lib\Windows_x86_64\rel %build_dir%\Release\ *.dll >NUL
     )
 )
 

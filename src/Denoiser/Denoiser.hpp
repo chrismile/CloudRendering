@@ -55,6 +55,9 @@ enum class DenoiserType {
 #ifdef SUPPORT_OPEN_IMAGE_DENOISE
     OPEN_IMAGE_DENOISE,
 #endif
+#ifdef SUPPORT_DLSS
+    DLSS_DENOISER,
+#endif
     SVGF
 };
 const char* const DENOISER_NAMES[] = {
@@ -69,6 +72,9 @@ const char* const DENOISER_NAMES[] = {
 #ifdef SUPPORT_OPEN_IMAGE_DENOISE
         "OpenImageDenoise",
 #endif
+#ifdef SUPPORT_DLSS
+        "DLSS Ray Reconstruction",
+#endif
         "SVGF"
 };
 
@@ -78,6 +84,7 @@ const char* const DENOISER_NAMES[] = {
     FEATURE_MAP(COLOR,                "Color",                4, 4) \
     FEATURE_MAP(ALBEDO,               "Albedo",               4, 4) \
     FEATURE_MAP(FLOW,                 "Flow",                 2, 2) \
+    FEATURE_MAP(FLOW_REVERSE,         "Flow Reverse",         2, 2) \
     FEATURE_MAP(POSITION,             "Position",             3, 4) \
     FEATURE_MAP(NORMAL,               "Normal",               3, 4) \
     FEATURE_MAP(NORMAL_LEN_1,         "Normal (Length 1)",    3, 4) \
