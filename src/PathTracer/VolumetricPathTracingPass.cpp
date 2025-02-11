@@ -2544,7 +2544,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
             }
             if (useEnvironmentMapImage) {
                 propertyEditor.addInputAction("Environment Map", &environmentMapFilenameGui);
-                if (propertyEditor.addButton("", "Load")) {
+                if (propertyEditor.addButton("##env-map-load-label", "Load")) {
                     loadEnvironmentMapImage(environmentMapFilenameGui);
                     setShaderDirty();
                     reRender = true;

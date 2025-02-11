@@ -870,7 +870,7 @@ bool PyTorchDenoiser::renderGuiPropertyEditorNodes(sgl::PropertyEditor& property
     }
 
     propertyEditor.addInputAction("Model Path", &modelFilePath);
-    if (propertyEditor.addButton("", "Load")) {
+    if (propertyEditor.addButton("##load-model-label", "Load")) {
         loadModelFromFile(modelFilePath);
         reRender = true;
     }
