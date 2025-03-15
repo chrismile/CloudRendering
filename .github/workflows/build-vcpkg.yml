@@ -58,7 +58,7 @@ jobs:
 
     - uses: lukka/get-cmake@latest
       with:
-        cmakeVersion: 3.29.0
+        cmakeVersion: 3.31.6
 
     - name: Install Vulkan SDK
       shell: bash
