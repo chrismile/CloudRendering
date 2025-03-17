@@ -39,6 +39,7 @@
             "features": [ "bzip2", "lz4", "lzma", "zstd" ]
         },
         "shaderc",
+        "glew",
         "glm",
         "tbb",
         "jsoncpp",
