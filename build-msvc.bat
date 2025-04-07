@@ -253,7 +253,7 @@ if %use_dlss% == true (
     set cmake_args=%cmake_args% -DUSE_DLSS=ON -DDLSS_SDK_ROOT="third_party/DLSS"
 )
 
-set oidn_version=2.3.2
+set oidn_version=2.3.3
 if not exist ".\oidn-%oidn_version%.x64.windows" (
     echo ------------------------
     echo downloading OpenImageDenoise
