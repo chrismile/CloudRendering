@@ -98,6 +98,9 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #if defined(USE_ISOSURFACES) || defined(USE_HEADLIGHT)
     cameraPosition = x;
 #endif
+#ifdef WRITE_FLOW_REVERSE_MAP
+    vec3 camDirInit = w;
+#endif
 
 #ifdef USE_NANOVDB
     accessor = createAccessor();
@@ -200,14 +203,28 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 
 #ifdef WRITE_DEPTH_MAP
 #ifndef DISABLE_ACCUMULATION
-    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0);
+    // Info: Returning "0.0" instead of "parameters.farDistance" for pixels on the far plane is a left-over from
+    // old code that unfortunately cannot be changed anymore due to PyTorch denoisers trained on this behavior.
+    // Use WRITE_DEPTH_FAR_MAP for the fixed behavior.
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(0.0, 0.0);
     vec2 depthOld = frame == 0 ? vec2(0) : imageLoad(depthImage, imageCoord).xy;
     depthOld.y = depthOld.y * depthOld.y + depthOld.x * depthOld.x;
     depth = mix(depthOld, depth, 1.0 / float(frame + 1));
 #else
-    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(parameters.farDistance,0);
+    vec2 depth = firstEvent.hasValue ? vec2(firstEvent.depth, firstEvent.depth * firstEvent.depth) : vec2(parameters.farDistance, 0.0);
 #endif
     imageStore(depthImage, imageCoord, vec4(depth.x, sqrt(max(0.,depth.y - depth.x * depth.x)),0,0));
+#endif
+
+#ifdef WRITE_DEPTH_FAR_MAP
+#ifndef DISABLE_ACCUMULATION
+    float depthFar = firstEvent.hasValue ? firstEvent.depth : parameters.farDistance;
+    float depthFarOld = frame == 0 ? 0.0 : imageLoad(depthFarImage, imageCoord).x;
+    depthFar = mix(depthFarOld, depthFar, 1.0 / float(frame + 1));
+#else
+    float depthFar = firstEvent.hasValue ? firstEvent.depth : parameters.farDistance;
+#endif
+    imageStore(depthFarImage, imageCoord, vec4(depthFar, 0.0, 0.0, 0.0));
 #endif
 
 #ifdef WRITE_DENSITY_MAP
@@ -313,13 +330,16 @@ void pathTraceSample(int i, bool onlyFirstEvent, out ScatterEvent firstEvent){
 #ifdef WRITE_FLOW_REVERSE_MAP
     // Motion vectors as expected by NVIDIA libraries.
     //vec2 screenCoord = 2.0 * (gl_GlobalInvocationID.xy + vec2(random(), random())) / dim - 1;
-    vec2 flowReverseVector = vec2(0.0);
+    vec4 worldPos;
     if (firstEvent.hasValue) {
-        vec4 lastFramePositionNdc = parameters.previousViewProjMatrix * vec4(firstEvent.x, 1.0);
-        lastFramePositionNdc.xyz /= lastFramePositionNdc.w;
-        vec2 pixelPositionLastFrame = (0.5 * lastFramePositionNdc.xy + vec2(0.5)) * vec2(dim) - vec2(0.5);
-        flowReverseVector = pixelPositionLastFrame - vec2(imageCoord);
+        worldPos = vec4(firstEvent.x, 1.0);
+    } else {
+        worldPos = vec4(camDirInit, 0.0);
     }
+    vec4 lastFramePositionNdc = parameters.previousViewProjMatrix * worldPos;
+    lastFramePositionNdc.xyz /= lastFramePositionNdc.w;
+    vec2 pixelPositionLastFrame = (0.5 * lastFramePositionNdc.xy + vec2(0.5)) * vec2(dim) - vec2(0.5);
+    vec2 flowReverseVector = pixelPositionLastFrame - vec2(imageCoord);
     imageStore(flowReverseImage, imageCoord, vec4(flowReverseVector, 0.0, 0.0));
 #endif
 

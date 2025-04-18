@@ -274,7 +274,7 @@ void DLSSDenoiser::setOutputImage(sgl::vk::ImageViewPtr& outputImage) {
 void DLSSDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::TexturePtr& featureTexture) {
     if (featureMapType == FeatureMapType::COLOR) {
         inputImageVulkan = featureTexture->getImageView();
-    } else if (featureMapType == FeatureMapType::DEPTH) {
+    } else if (featureMapType == FeatureMapType::DEPTH_FAR) {
         depthImageVulkan = featureTexture->getImageView();
     } else if (featureMapType == FeatureMapType::NORMAL_LEN_1) {
         normalImageVulkan = featureTexture->getImageView();
@@ -290,7 +290,7 @@ void DLSSDenoiser::setFeatureMap(FeatureMapType featureMapType, const sgl::vk::T
 }
 
 bool DLSSDenoiser::getUseFeatureMap(FeatureMapType featureMapType) const {
-    if (featureMapType == FeatureMapType::COLOR || featureMapType == FeatureMapType::DEPTH
+    if (featureMapType == FeatureMapType::COLOR || featureMapType == FeatureMapType::DEPTH_FAR
             || featureMapType == FeatureMapType::NORMAL_LEN_1 || featureMapType == FeatureMapType::ALBEDO
             || featureMapType == FeatureMapType::FLOW_REVERSE) {
         return true;

@@ -51,6 +51,7 @@ enum class DlssRenderPreset {
     B, // Deprected
     C, // Deprected
     D, // Transformer model (since SDK version 310.1.0)
+    E, // Depth-of-field (DoF) and subsurface scattering (since SDK version 310.2.1)
 };
 const char* const DLSS_MODEL_TYPE_NAMES[] = {
     "CNN", "Transformer"

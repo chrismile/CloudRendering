@@ -65,16 +65,16 @@ class FileDialog;
 typedef IGFD::FileDialog ImGuiFileDialog;
 
 enum class FeatureMapTypeVpt {
-    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, FLOW, FLOW_REVERSE,
-    DEPTH_NABLA, DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV, DEPTH_BLENDED,
-    DEPTH_NEAREST_OPAQUE, ALBEDO,
+    RESULT, FIRST_X, FIRST_W, NORMAL, NORMAL_LEN_1, CLOUD_ONLY, DEPTH, DEPTH_FAR,
+    FLOW, FLOW_REVERSE, DEPTH_NABLA, DEPTH_FWIDTH, DENSITY, BACKGROUND, REPROJ_UV,
+    DEPTH_BLENDED, DEPTH_NEAREST_OPAQUE, ALBEDO,
     TRANSMITTANCE_VOLUME,
     PRIMARY_RAY_ABSORPTION_MOMENTS, SCATTER_RAY_ABSORPTION_MOMENTS
 };
 const char* const VPT_FEATURE_MAP_NAMES[] = {
-        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Flow", "Flow Reverse",
-        "Depth (nabla)", "Depth (fwidth)", "Density", "Background", "Reprojected UV", "Depth Blended",
-        "Depth Nearest Opaque", "Albedo",
+        "Result", "First X", "First W", "Normal", "Normal (Length 1)", "Cloud Only", "Depth", "Depth Far",
+        "Flow", "Flow Reverse", "Depth (nabla)", "Depth (fwidth)", "Density", "Background", "Reprojected UV",
+        "Depth Blended", "Depth Nearest Opaque", "Albedo",
         "Transmittance Volume",
         "Primary Ray Absorption Moments", "Scatter Ray Absorption Moments"
 };
@@ -116,6 +116,7 @@ const FeatureMapCorrespondence featureMapCorrespondence({
         {FeatureMapType::NORMAL, FeatureMapTypeVpt::NORMAL},
         {FeatureMapType::CLOUDONLY, FeatureMapTypeVpt::CLOUD_ONLY},
         {FeatureMapType::DEPTH, FeatureMapTypeVpt::DEPTH},
+        {FeatureMapType::DEPTH_FAR, FeatureMapTypeVpt::DEPTH_FAR},
         {FeatureMapType::DENSITY, FeatureMapTypeVpt::DENSITY},
         {FeatureMapType::BACKGROUND, FeatureMapTypeVpt::BACKGROUND},
         {FeatureMapType::REPROJ_UV, FeatureMapTypeVpt::REPROJ_UV},
@@ -286,6 +287,7 @@ private:
     sgl::vk::TexturePtr normalLen1Texture;
     sgl::vk::TexturePtr cloudOnlyTexture;
     sgl::vk::TexturePtr depthTexture;
+    sgl::vk::TexturePtr depthFarTexture;
     sgl::vk::TexturePtr densityTexture;
     sgl::vk::TexturePtr backgroundTexture;
     sgl::vk::TexturePtr reprojUVTexture;

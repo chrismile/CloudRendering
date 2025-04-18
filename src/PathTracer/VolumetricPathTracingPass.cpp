@@ -245,6 +245,9 @@ void VolumetricPathTracingPass::setDenoiserFeatureMaps() {
         if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH)) {
             denoiser->setFeatureMap(FeatureMapType::DEPTH, depthTexture);
         }
+        if (denoiser->getUseFeatureMap(FeatureMapType::DEPTH_FAR)) {
+            denoiser->setFeatureMap(FeatureMapType::DEPTH_FAR, depthFarTexture);
+        }
         if (denoiser->getUseFeatureMap(FeatureMapType::DENSITY)) {
             denoiser->setFeatureMap(FeatureMapType::DENSITY, densityTexture);
         }
@@ -357,6 +360,14 @@ void VolumetricPathTracingPass::recreateFeatureMaps() {
         depthTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
     }
 
+    depthFarTexture = {};
+    if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FAR)))
+            || featureMapType == FeatureMapTypeVpt::DEPTH_FAR || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FAR) != featureMapSet.end()) {
+        imageSettings.format = VK_FORMAT_R32_SFLOAT;
+        imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        depthFarTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+    }
+
     densityTexture = {};
     if ((denoiser && denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DENSITY)))
             || featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end()) {
@@ -457,6 +468,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
     bool useCloudOnlyRenderer = cloudOnlyTexture.get() != nullptr;
     bool useBackgroundRenderer = backgroundTexture.get() != nullptr;
     bool useDepthRenderer = depthTexture.get() != nullptr;
+    bool useDepthFarRenderer = depthFarTexture.get() != nullptr;
     bool useDensityRenderer = densityTexture.get() != nullptr;
     bool useReprojUVRenderer = reprojUVTexture.get() != nullptr;
     bool useDepthBlendedRenderer = depthBlendedTexture.get() != nullptr;
@@ -486,6 +498,8 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                     || featureMapType == FeatureMapTypeVpt::BACKGROUND || featureMapSet.find(FeatureMapTypeVpt::BACKGROUND) != featureMapSet.end())
                 || useDepthRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH))
                     || featureMapType == FeatureMapTypeVpt::DEPTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH) != featureMapSet.end())
+                || useDepthFarRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DEPTH_FAR))
+                    || featureMapType == FeatureMapTypeVpt::DEPTH_FAR || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FAR) != featureMapSet.end())
                 || useDensityRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::DENSITY))
                     || featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end())
                 || useReprojUVRenderer != (denoiser->getUseFeatureMap(featureMapCorrespondence.getCorrespondenceDenoiser(FeatureMapTypeVpt::REPROJ_UV))
@@ -520,6 +534,7 @@ void VolumetricPathTracingPass::checkRecreateFeatureMaps() {
                 || useCloudOnlyRenderer != (featureMapType == FeatureMapTypeVpt::CLOUD_ONLY || featureMapSet.find(FeatureMapTypeVpt::CLOUD_ONLY) != featureMapSet.end())
                 || useBackgroundRenderer != (featureMapType == FeatureMapTypeVpt::BACKGROUND || featureMapSet.find(FeatureMapTypeVpt::BACKGROUND) != featureMapSet.end())
                 || useDepthRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH || featureMapSet.find(FeatureMapTypeVpt::DEPTH) != featureMapSet.end())
+                || useDepthFarRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_FAR || featureMapSet.find(FeatureMapTypeVpt::DEPTH_FAR) != featureMapSet.end())
                 || useDensityRenderer != (featureMapType == FeatureMapTypeVpt::DENSITY || featureMapSet.find(FeatureMapTypeVpt::DENSITY) != featureMapSet.end())
                 || useReprojUVRenderer != (featureMapType == FeatureMapTypeVpt::REPROJ_UV || featureMapSet.find(FeatureMapTypeVpt::REPROJ_UV) != featureMapSet.end())
                 || useDepthBlendedRenderer != (featureMapType == FeatureMapTypeVpt::DEPTH_BLENDED || featureMapSet.find(FeatureMapTypeVpt::DEPTH_BLENDED) != featureMapSet.end())
@@ -1606,6 +1621,9 @@ void VolumetricPathTracingPass::loadShader() {
     if (depthTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_MAP", ""));
     }
+    if (depthFarTexture) {
+        customPreprocessorDefines.insert(std::make_pair("WRITE_DEPTH_FAR_MAP", ""));
+    }
     if (densityTexture) {
         customPreprocessorDefines.insert(std::make_pair("WRITE_DENSITY_MAP", ""));
     }
@@ -1809,6 +1827,9 @@ void VolumetricPathTracingPass::createComputeData(
     }
     if (depthTexture) {
         computeData->setStaticImageView(depthTexture->getImageView(), "depthImage");
+    }
+    if (depthFarTexture) {
+        computeData->setStaticImageView(depthFarTexture->getImageView(), "depthFarImage");
     }
     if (densityTexture) {
         computeData->setStaticImageView(densityTexture->getImageView(), "densityImage");
@@ -2172,6 +2193,9 @@ void VolumetricPathTracingPass::_render() {
         if (depthTexture) {
             renderer->transitionImageLayout(depthTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
+        if (depthFarTexture) {
+            renderer->transitionImageLayout(depthFarTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
+        }
         if (densityTexture) {
             renderer->transitionImageLayout(densityTexture->getImage(), VK_IMAGE_LAYOUT_GENERAL);
         }
@@ -2327,6 +2351,10 @@ void VolumetricPathTracingPass::_render() {
         renderer->transitionImageLayout(depthTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         depthTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
+    } else if (featureMapType == FeatureMapTypeVpt::DEPTH_FAR) {
+        renderer->transitionImageLayout(depthFarTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        depthFarTexture->getImage()->blit(sceneImageView->getImage(), renderer->getVkCommandBuffer());
     } else if (featureMapType == FeatureMapTypeVpt::DENSITY) {
         renderer->transitionImageLayout(densityTexture->getImage(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         renderer->transitionImageLayout(sceneImageView->getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -2414,6 +2442,8 @@ sgl::vk::TexturePtr VolumetricPathTracingPass::getFeatureMapTexture(FeatureMapTy
         return cloudOnlyTexture;
     } else if (type == FeatureMapTypeVpt::DEPTH) {
         return depthTexture;
+    } else if (type == FeatureMapTypeVpt::DEPTH_FAR) {
+        return depthFarTexture;
     } else if (type == FeatureMapTypeVpt::DENSITY) {
         return densityTexture;
     } else if (type == FeatureMapTypeVpt::BACKGROUND) {

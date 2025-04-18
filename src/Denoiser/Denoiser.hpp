@@ -90,6 +90,7 @@ const char* const DENOISER_NAMES[] = {
     FEATURE_MAP(NORMAL_LEN_1,         "Normal (Length 1)",    3, 4) \
     FEATURE_MAP(CLOUDONLY,            "CloudOnly",            4, 4) \
     FEATURE_MAP(DEPTH,                "Depth",                2, 2) \
+    FEATURE_MAP(DEPTH_FAR,            "Depth Far",            1, 1) \
     FEATURE_MAP(DENSITY,              "Density",              2, 2) \
     FEATURE_MAP(BACKGROUND,           "Background",           4, 4) \
     FEATURE_MAP(REPROJ_UV,            "Reproj_UV",            2, 2) \

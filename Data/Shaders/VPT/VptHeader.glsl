@@ -202,18 +202,23 @@ layout (binding = 26, rgba32f) uniform image2D albedoImage;
 layout (binding = 27, r32ui) uniform uimage3D transmittanceVolumeImage;
 #endif
 
+// For modes like DLSS or XeSS. Contains information about the far plane pixels corresponding to the environment map.
+#ifdef WRITE_DEPTH_FAR_MAP
+layout (binding = 28, r32f) uniform image2D depthFarImage;
+#endif
+
 
 #ifdef USE_TRANSFER_FUNCTION
-layout(binding = 28) uniform sampler1DArray transferFunctionTexture;
+layout(binding = 29) uniform sampler1DArray transferFunctionTexture;
 #endif
 
 #if defined(ISOSURFACE_TYPE_GRADIENT) || (defined(ISOSURFACE_TYPE_DENSITY) && defined(ISOSURFACE_USE_TF) && defined(USE_TRANSFER_FUNCTION))
-layout(binding = 29) uniform sampler3D gradientImage;
+layout(binding = 30) uniform sampler3D gradientImage;
 #endif
 
 #ifdef USE_OCCUPANCY_GRID
 // The occupancy grid can be used for empty space skipping with next event tracking transmittance rays.
-layout(binding = 30, r8ui) uniform readonly uimage3D occupancyGridImage;
+layout(binding = 31, r8ui) uniform readonly uimage3D occupancyGridImage;
 #endif
 
 #if NUM_LIGHTS > 0
@@ -241,7 +246,7 @@ struct Light {
     vec3 spotDirection;
     float padding;
 };
-layout (binding = 31) uniform LightsBuffer {
+layout (binding = 32) uniform LightsBuffer {
     Light lights[NUM_LIGHTS];
 };
 #endif
@@ -254,7 +259,7 @@ layout (binding = 31) uniform LightsBuffer {
  * This port is released under the terms of the MIT License.
  */
 /*! This function implements complex multiplication.*/
-layout(std140, binding = 32) uniform MomentUniformData {
+layout(std140, binding = 33) uniform MomentUniformData {
     vec4 wrapping_zone_parameters;
 //float overestimation;
 //float moment_bias;
@@ -264,4 +269,3 @@ const float ABSORBANCE_MAX_VALUE = 10.0;
 vec2 Multiply(vec2 LHS, vec2 RHS) {
     return vec2(LHS.x * RHS.x - LHS.y * RHS.y, LHS.x * RHS.y + LHS.y * RHS.x);
 }
-
