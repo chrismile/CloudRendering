@@ -87,6 +87,8 @@ public:
     void setEmissionData(const CloudDataPtr& cloudData);
 
     void loadEnvironmentMapImage(const std::string& filename);
+    void loadEnvironmentMapImageFromLinearBuffer(
+            void* pixelData, uint32_t width, uint32_t height, VkFormat format, bool isLinearRgb);
     void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);
 

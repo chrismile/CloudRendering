@@ -158,6 +158,8 @@ public:
     void setReRender();
 
     void loadEnvironmentMapImage(const std::string& filename);
+    void loadEnvironmentMapImageFromLinearBuffer(
+            void* pixelData, uint32_t width, uint32_t height, VkFormat format, bool isLinearRgb);
     void setUseEnvironmentMapFlag(bool useEnvironmentMap);
     void setUseBuiltinEnvironmentMap(const std::string& envMapName);
     void setEnvironmentMapIntensityFactor(float intensityFactor);

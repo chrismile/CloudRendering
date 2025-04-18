@@ -39,6 +39,7 @@ MODULE_OP_API void loadCloudFile(const std::string& filename);
 MODULE_OP_API void loadEmissionFile(const std::string& filename);
 
 MODULE_OP_API void loadEnvironmentMap(const std::string& filename);
+MODULE_OP_API void loadEnvironmentMapFromTensor(torch::Tensor envMapTensor);
 MODULE_OP_API void setUseBuiltinEnvironmentMap(const std::string& envMapName);
 MODULE_OP_API void setEnvironmentMapIntensityFactor(double intensityFactor);
 MODULE_OP_API void setEnvironmentMapIntensityFactorRgb(std::vector<double> intensityFactor);

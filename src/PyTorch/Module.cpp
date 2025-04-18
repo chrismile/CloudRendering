@@ -26,6 +26,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <Math/half/half.hpp>
 #include <Utils/AppSettings.hpp>
 #include <Utils/File/FileUtils.hpp>
 #include <Graphics/Vulkan/Utils/Instance.hpp>
@@ -88,6 +89,7 @@ PYBIND11_MODULE(vpt, m) {
     m.def("load_volume_file", loadCloudFile, py::arg("filename"));
     m.def("load_emission_file", loadEmissionFile, py::arg("filename"));
     m.def("load_environment_map", loadEnvironmentMap, py::arg("filename"));
+    m.def("load_environment_map_from_tensor", loadEnvironmentMapFromTensor, py::arg("env_map_tensor"));
     m.def("set_use_builtin_environment_map", setUseBuiltinEnvironmentMap, py::arg("env_map_name"));
     m.def("set_environment_map_intensity", setEnvironmentMapIntensityFactor, py::arg("intensity_factor"));
     m.def("set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb, py::arg("intensity_factor"));
@@ -189,6 +191,7 @@ TORCH_LIBRARY(vpt, m) {
     m.def(MODULE_PREFIX "load_volume_file", loadCloudFile);
     m.def(MODULE_PREFIX "load_emission_file", loadEmissionFile);
     m.def(MODULE_PREFIX "load_environment_map", loadEnvironmentMap);
+    m.def(MODULE_PREFIX "load_environment_map_from_tensor", loadEnvironmentMapFromTensor);
     m.def(MODULE_PREFIX "set_use_builtin_environment_map", setUseBuiltinEnvironmentMap);
     m.def(MODULE_PREFIX "set_environment_map_intensity", setEnvironmentMapIntensityFactor);
     m.def(MODULE_PREFIX "set_environment_map_intensity_rgb", setEnvironmentMapIntensityFactorRgb);
@@ -868,6 +871,93 @@ bool parseQuaternion(const std::vector<double>& data, glm::quat& out) {
 void loadEnvironmentMap(const std::string& filename) {
     //std::cout << "loadEnvironmentMap from " << filename << std::endl;
     vptRenderer->loadEnvironmentMapImage(filename);
+}
+
+template<class T>
+void convertPixelData3To4Channel(T* dstData, const T* srcData, const size_t width, const size_t height) {
+    T alphaVal;
+    if constexpr(std::is_same_v<T, uint8_t>) {
+        alphaVal = T(255);
+    } else if constexpr(std::is_same_v<T, HalfFloat>) {
+        alphaVal = HalfFloat(1.0f);
+    } else {
+        alphaVal = T(1.0f);
+    }
+    const size_t numEntries = width * height;
+    for (size_t i = 0; i < numEntries; i++) {
+        const size_t dstOffset = i * 4;
+        const size_t srcOffset = i * 3;
+        dstData[dstOffset] = srcData[srcOffset];
+        dstData[dstOffset + 1] = srcData[srcOffset + 1];
+        dstData[dstOffset + 2] = srcData[srcOffset + 2];
+        dstData[dstOffset + 3] = alphaVal;
+    }
+}
+
+void loadEnvironmentMapFromTensor(torch::Tensor envMapTensor) {
+    const size_t channels = envMapTensor.size(0);
+    const size_t height = envMapTensor.size(1);
+    const size_t width = envMapTensor.size(2);
+    if (!envMapTensor.is_contiguous()) {
+        envMapTensor = envMapTensor.contiguous();
+    }
+    if (envMapTensor.device().type() != torch::DeviceType::CPU) {
+        sgl::Logfile::get()->writeError("Error in loadEnvironmentMapFromTensor: Expected tensor using CPU memory.");
+        return;
+    }
+    if (channels != 3 && channels != 4) {
+        sgl::Logfile::get()->writeError("Error in loadEnvironmentMapFromTensor: Number of channels must be 3 or 4.");
+    }
+
+    const void* rawPtr = envMapTensor.data_ptr();
+    void* pixelData = nullptr;
+    bool isLinearRgb = true;
+    VkFormat format = VK_FORMAT_UNDEFINED;
+    if (envMapTensor.dtype() == torch::kUInt8) {
+        format = VK_FORMAT_R8G8B8A8_UNORM;
+        auto* pixelDataTyped = new uint8_t[width * height * 4];
+        if (channels == 3) {
+            convertPixelData3To4Channel(pixelDataTyped, reinterpret_cast<const uint8_t*>(rawPtr), width, height);
+        } else {
+            memcpy(pixelDataTyped, rawPtr, width * height * 4);
+        }
+        pixelData = pixelDataTyped;
+    } else if (envMapTensor.dtype() == torch::kFloat16) {
+        format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        auto* pixelDataTyped = new HalfFloat[width * height * 4];
+        if (channels == 3) {
+            convertPixelData3To4Channel(pixelDataTyped, reinterpret_cast<const HalfFloat*>(rawPtr), width, height);
+        } else {
+            //memcpy(pixelDataTyped, pixelData, width * height * 8); //< no trivial copy-assignment warning.
+            size_t bufferSize = width * height;
+            const auto* rawPtrTyped = reinterpret_cast<const HalfFloat*>(rawPtr);
+            for (size_t i = 0; i < bufferSize; i++) {
+                pixelDataTyped[i] = rawPtrTyped[i];
+            }
+        }
+        pixelData = pixelDataTyped;
+   } else if (envMapTensor.dtype() == torch::kFloat32) {
+        format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        auto* pixelDataTyped = new float[width * height * 4];
+        if (channels == 3) {
+            convertPixelData3To4Channel(pixelDataTyped, reinterpret_cast<const float*>(rawPtr), width, height);
+        } else {
+            memcpy(pixelDataTyped, rawPtr, width * height * 16);
+        }
+        pixelData = pixelDataTyped;
+    } else {
+        sgl::Logfile::get()->writeError("Error in loadEnvironmentMapFromTensor: Unsupported pixel format.");
+    }
+
+    vptRenderer->loadEnvironmentMapImageFromLinearBuffer(
+            pixelData, uint32_t(width), uint32_t(height), format, isLinearRgb);
+    if (envMapTensor.dtype() == torch::kUInt8) {
+        delete[] reinterpret_cast<uint8_t*>(pixelData);
+    } else if (envMapTensor.dtype() == torch::kFloat16) {
+        delete[] reinterpret_cast<HalfFloat*>(pixelData);
+    } else if (envMapTensor.dtype() == torch::kFloat32) {
+        delete[] reinterpret_cast<float*>(pixelData);
+    }
 }
 
 void setUseBuiltinEnvironmentMap(const std::string& envMapName) {

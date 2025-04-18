@@ -220,6 +220,11 @@ void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImage(const std::str
     }
 }
 
+void VolumetricPathTracingModuleRenderer::loadEnvironmentMapImageFromLinearBuffer(
+        void* pixelData, uint32_t width, uint32_t height, VkFormat format, bool isLinearRgb) {
+    vptPass->loadEnvironmentMapImageFromLinearBuffer(pixelData, width, height, format, isLinearRgb);
+}
+
 void VolumetricPathTracingModuleRenderer::setUseBuiltinEnvironmentMap(const std::string& envMapName) {
     vptPass->setUseEnvironmentMapFlag(false);
     vptPass->setUseBuiltinEnvironmentMap(envMapName);

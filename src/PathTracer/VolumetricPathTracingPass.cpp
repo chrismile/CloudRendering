@@ -1470,6 +1470,71 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
     createEnvironmentMapOctahedralTexture(12);
 }
 
+void VolumetricPathTracingPass::loadEnvironmentMapImageFromLinearBuffer(
+        void* pixelData, uint32_t width, uint32_t height, VkFormat format, bool isLinearRgb) {
+    sgl::vk::Device* device = sgl::AppSettings::get()->getPrimaryDevice();
+
+    sgl::vk::ImageSettings imageSettings;
+    imageSettings.imageType = VK_IMAGE_TYPE_2D;
+    imageSettings.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+    sgl::vk::ImageSamplerSettings samplerSettings;
+    samplerSettings.addressModeU = samplerSettings.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    uint32_t bytesPerPixel;
+    if (format == VK_FORMAT_R8G8B8A8_UNORM) {
+        bytesPerPixel = 4;
+    } else if (format == VK_FORMAT_R16G16B16A16_SFLOAT) {
+        bytesPerPixel = 8; // 4 * half
+    } else if (format == VK_FORMAT_R32G32B32A32_SFLOAT) {
+        bytesPerPixel = 16;
+    } else {
+        sgl::Logfile::get()->throwError(
+                "Error in VolumetricPathTracingPass::loadEnvironmentMapImageFromLinearBuffer: Unsupported format.");
+        return;
+    }
+    imageSettings.width = width;
+    imageSettings.height = height;
+
+    environmentMapTexture = {};
+    if (imageSettings.format == VK_FORMAT_R16G16B16A16_SFLOAT) {
+        bool compress = shallCompressEnvMap && renderer->getDevice()->getSupportsFormat(VK_FORMAT_BC6H_UFLOAT_BLOCK);
+        if (compress) {
+            auto envMapImageView = sgl::compressImageVulkanBC6H(
+                    reinterpret_cast<uint16_t*>(pixelData), width, height, renderer);
+            if (!envMapImageView) {
+                sgl::Logfile::get()->throwError(
+                        "Error in VolumetricPathTracingPass::loadEnvironmentMapImageFromLinearBuffer: BC6H compression failed.");
+            }
+            environmentMapTexture = std::make_shared<sgl::vk::Texture>(envMapImageView, samplerSettings);
+        }
+    }
+
+    if (!environmentMapTexture) {
+        environmentMapTexture = std::make_shared<sgl::vk::Texture>(device, imageSettings, samplerSettings);
+        environmentMapTexture->getImage()->uploadData(width * height * bytesPerPixel, pixelData);
+    }
+    loadedEnvironmentMapFilename = "";
+    isEnvironmentMapLoaded = true;
+    frameInfo.frameCount = 0;
+
+    // Check whether the image is purely black.
+    if (bytesPerPixel == 4) {
+        isEnvMapImageBlack = computeIsImageBlack(reinterpret_cast<uint8_t*>(pixelData), width, height);
+    } else if (bytesPerPixel == 8) {
+        isEnvMapImageBlack = computeIsImageBlack(reinterpret_cast<HalfFloat*>(pixelData), width, height);
+    } else {
+        isEnvMapImageBlack = computeIsImageBlack(reinterpret_cast<float*>(pixelData), width, height);
+    }
+
+    if (envMapImageUsesLinearRgb != isLinearRgb) {
+        envMapImageUsesLinearRgb = isLinearRgb;
+        setShaderDirty();
+    }
+
+    createEnvironmentMapOctahedralTexture(12);
+}
+
 void VolumetricPathTracingPass::loadShader() {
     sgl::vk::ShaderManager->invalidateShaderCache();
     std::map<std::string, std::string> customPreprocessorDefines;

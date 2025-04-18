@@ -582,9 +582,9 @@ if (USE_DLSS)
     target_link_libraries(CloudRendering PRIVATE DLSS)
     target_compile_definitions(CloudRendering PRIVATE SUPPORT_DLSS)
     add_custom_command(TARGET CloudRendering
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSS_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
+            POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSS_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
     add_custom_command(TARGET CloudRendering
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSSD_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
+            POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_if_different "${DLSSD_LIBRARY}" "$<TARGET_FILE_DIR:CloudRendering>")
     if (${USE_GTEST})
         target_link_libraries(CloudRendering_test PRIVATE DLSS)
         target_compile_definitions(CloudRendering_test PRIVATE SUPPORT_DLSS)

@@ -33,7 +33,7 @@ import enum
 
 __all__ = [
     'initialize', 'cleanup', 'load_cloud_file', 'load_volume_file', 'load_emission_file', 'load_environment_map',
-    'set_use_builtin_environment_map', 'set_environment_map_intensity',
+    'load_environment_map_from_tensor', 'set_use_builtin_environment_map', 'set_environment_map_intensity',
     'set_environment_map_intensity_rgb', 'disable_env_map_rot', 'set_env_map_rot_camera',
     'set_env_map_rot_euler_angles', 'set_env_map_rot_yaw_pitch_roll', 'set_env_map_rot_angle_axis',
     'set_env_map_rot_quaternion', 'set_scattering_albedo', 'set_extinction_scale', 'set_extinction_base', 'set_phase_g',
@@ -71,6 +71,8 @@ def load_emission_file(filename: str) -> None:
     pass
 
 def load_environment_map(filename: str) -> None:
+    pass
+def load_environment_map_from_tensor(env_map_tensor: torch.Tensor) -> None:
     pass
 def set_use_builtin_environment_map(env_map_name: str) -> None:
     pass
