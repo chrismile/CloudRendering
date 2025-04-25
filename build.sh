@@ -108,8 +108,13 @@ do
       use_dlss=true
     elif [ ${!i} = "--use-pytorch" ]; then
       use_pytorch=true
-      pytorch_cmake_path="$(dirname $(python -c "import torch; print(torch.__file__)"))/share/cmake"
-      pytorch_is_cxx11="$(python -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
+      if command -v python3 &> /dev/null; then
+          python_cmd="python3"
+      else
+          python_cmd="python"
+      fi
+      pytorch_cmake_path="$(dirname $(${python_cmd} -c "import torch; print(torch.__file__)"))/share/cmake"
+      pytorch_is_cxx11="$(${python_cmd} -c "import torch; print(torch._C._GLIBCXX_USE_CXX11_ABI)")"
       if [[ "$pytorch_is_cxx11" == "True" ]]; then
           use_pre_cxx11_abi=false
       elif [[ "$pytorch_is_cxx11" == "False" ]]; then
