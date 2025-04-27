@@ -282,6 +282,7 @@ source_files += [
     'third_party/sgl/src/Math/Geometry/Ray3.cpp',
     'third_party/sgl/src/Utils/Dialog.cpp',
     'third_party/sgl/src/Utils/StringUtils.cpp',
+    'third_party/sgl/src/Utils/Env.cpp',
     'third_party/sgl/src/Utils/Convert.cpp',
     'third_party/sgl/src/Utils/AppSettings.cpp',
     'third_party/sgl/src/Utils/Timer.cpp',

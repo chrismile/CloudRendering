@@ -736,6 +736,7 @@ if $glibcxx_debug; then
     params+=(-DUSE_GLIBCXX_DEBUG=On)
 fi
 
+params_misc=()
 if [ $use_pytorch = true ]; then
     params+=(-DCMAKE_PREFIX_PATH="$pytorch_cmake_path")
     params+=(-DBUILD_PYTORCH_MODULE=On -DSUPPORT_PYTORCH_DENOISER=On -DBUILD_KPN_MODULE=On)
@@ -747,6 +748,7 @@ if [ $use_pytorch = true ]; then
         # Conda, this resulted in std::bad_alloc when the string constructor is called by boost::filesystem.
         params_sgl+=(-DUSE_PRE_CXX11_ABI=ON -DUSE_BOOST=OFF)
         params+=(-DUSE_PRE_CXX11_ABI=ON)
+        params_misc+=(-DUSE_PRE_CXX11_ABI=ON)
     fi
 fi
 
@@ -1102,12 +1104,15 @@ if $use_custom_jsoncpp; then
         if [ -d "./jsoncpp-src" ]; then
             rm -rf "./jsoncpp-src"
         fi
-        git clone --recursive https://github.com/open-source-parsers/jsoncpp.git jsoncpp-src
+        git clone --recursive https://github.com/chrismile/jsoncpp.git jsoncpp-src
+        pushd jsoncpp-src >/dev/null
+        git checkout precxx11-compat
+        popd >/dev/null
         mkdir -p jsoncpp-src/build
         pushd jsoncpp-src/build >/dev/null
         cmake .. ${params_gen[@]+"${params_gen[@]}"} -DBUILD_STATIC_LIBS=OFF -DBUILD_SHARED_LIBS=ON \
         -DCMAKE_BUILD_TYPE=Release -DJSONCPP_WITH_TESTS=OFF -DJSONCPP_WITH_POST_BUILD_UNITTEST=OFF \
-        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp"
+        -DCMAKE_INSTALL_PREFIX="${projectpath}/third_party/jsoncpp" ${params_misc[@]+"${params_misc[@]}"}
         make -j $(nproc)
         make install
         popd >/dev/null
