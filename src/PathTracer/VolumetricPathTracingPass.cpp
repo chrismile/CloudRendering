@@ -1483,6 +1483,11 @@ void VolumetricPathTracingPass::loadEnvironmentMapImage(const std::string& filen
 #endif
 
     createEnvironmentMapOctahedralTexture(12);
+
+    if (computeData) {
+        computeData->setStaticTextureOptional(environmentMapTexture, "environmentMapTexture");
+        computeData->setStaticTextureOptional(environmentMapOctahedralTexture, "environmentMapOctahedralTexture");
+    }
 }
 
 void VolumetricPathTracingPass::loadEnvironmentMapImageFromLinearBuffer(
@@ -2681,7 +2686,7 @@ bool VolumetricPathTracingPass::renderGuiPropertyEditorNodes(sgl::PropertyEditor
                     frameInfo.frameCount = 0;
                 }
                 if (renderer->getDevice()->getSupportsFormat(VK_FORMAT_BC6H_UFLOAT_BLOCK)) {
-                    if ( propertyEditor.addCheckbox(
+                    if (propertyEditor.addCheckbox(
                             "Compress Image", &shallCompressEnvMap)) {
                         loadEnvironmentMapImage(environmentMapFilenameGui);
                         reRender = true;
