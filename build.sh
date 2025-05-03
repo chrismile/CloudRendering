@@ -1253,10 +1253,33 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
     if $build_with_openvdb_support; then
         cp $(ldd $build_dir/libvpt.so | grep libopenvdb | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
     fi
-    if $use_custom_openexr; then
-        cp $(ldd $build_dir/libvpt.so | grep libOpenEXR | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
-        cp $(ldd $build_dir/libvpt.so | grep libIex | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
-        cp $(ldd $build_dir/libvpt.so | grep libIlmThread | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+    is_venv_openexr=false
+    #libopenexr_so_path=$(ldd "$install_dir/modules/libvpt.so" | grep libOpenEXR.so | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
+    #if [ "$libopenexr_so_path" = "not" ]; then
+    #    is_venv_openexr=true
+    #fi
+    if [ $use_custom_openexr = false ] && command -v conda &> /dev/null; then
+        libopenexr_so_path=$(ldd $build_dir/libvpt.so | grep libOpenEXR.so | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        if [[ "$libopenexr_so_path" == "$CONDA_PREFIX"* ]]; then
+            is_venv_openexr=true
+        fi
+    fi
+    if $use_custom_openexr || $is_venv_openexr; then
+        libopenexr_so_path=$(ldd $build_dir/libvpt.so | grep libOpenEXR.so | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        libiex_so_path=$(ldd $build_dir/libvpt.so | grep libIex | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        libimath_so_path=$(ldd $build_dir/libvpt.so | grep libImath | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        libilmthread_so_path=$(ldd $build_dir/libvpt.so | grep libIlmThread | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        libopenexrcore_so_path=$(ldd $build_dir/libvpt.so | grep libOpenEXRCore | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+        openexr_so_files="${libopenexr_so_path} ${libiex_so_path} ${libimath_so_path} ${libilmthread_so_path} ${libopenexrcore_so_path}"
+        if $is_venv_openexr; then
+            libdeflate_so_path=$(ldd $build_dir/libvpt.so | grep libdeflate | awk 'NF == 4 {print $3}; NF == 2 {print $1}')
+            openexr_so_files="${openexr_so_files} ${libdeflate_so_path}"
+        fi
+        for library in $openexr_so_files
+        do
+            cp "$library" "$install_dir/modules"
+            patchelf --set-rpath '$ORIGIN' "$install_dir/modules/$(basename "$library")"
+        done
     fi
     if $use_open_image_denoise; then
         cp $(ldd $build_dir/libvpt.so | grep OpenImage | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
