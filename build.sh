@@ -1132,7 +1132,7 @@ if $use_custom_openexr; then
         if [ -d "./openexr-src" ]; then
             rm -rf "./openexr-src"
         fi
-        git clone --recursive https://github.com/AcademySoftwareFoundation/openexr openexr-src
+        git clone --recursive https://github.com/chrismile/openexr openexr-src
         mkdir -p openexr-src/build
         pushd openexr-src/build >/dev/null
         cmake .. ${params_gen[@]+"${params_gen[@]}"}  -DCMAKE_BUILD_TYPE=Release \
