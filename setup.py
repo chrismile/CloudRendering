@@ -297,6 +297,7 @@ source_files += [
     'third_party/sgl/src/Utils/Events/EventManager.cpp',
     'third_party/sgl/src/Utils/Events/Stream/BinaryStream.cpp',
     'third_party/sgl/src/Utils/Events/Stream/StringStream.cpp',
+    'third_party/sgl/src/Utils/Json/SimpleJson.cpp',
     'third_party/sgl/src/Utils/Regex/Tokens.cpp',
     'third_party/sgl/src/Utils/Regex/TransformString.cpp',
     'third_party/sgl/src/Utils/Parallel/Histogram.cpp',
@@ -388,6 +389,7 @@ defines = [
     ('SUPPORT_GLSLANG_BACKEND',),
     ('SUPPORT_TINYXML2',),
     ('DISABLE_IMGUI',),
+    ('DISABLE_DEVICE_SELECTION_SUPPORT',),
     ('BUILD_PYTHON_MODULE',),
     ('BUILD_PYTHON_MODULE_NEW',),
     ('CUDA_HOST_COMPILER_COMPATIBLE',),
@@ -545,7 +547,7 @@ def check_dlss():
     print()
     license_bytes = urlopen('https://github.com/NVIDIA/DLSS/raw/refs/heads/main/LICENSE.txt').read()
     # Replace Unicode quotation marks with '"' and '\'' to avoid UnicodeDecodeError.
-    license_bytes = license_bytes.replace(b'\x93', b'"').replace(b'\x94', b'"').replace(b'\x92', b'\'')
+    license_bytes = license_bytes.replace(b'\x93', b'"').replace(b'\x94', b'"').replace(b'\x92', b'\'').replace(b'\x99', b'(TM)')
     license_string = license_bytes.decode('utf-8', errors='replace')
     print(f'{license_string}')
     if not prompt_yes_no('Accept NVIDIA DLSS license and download DLSS SDK (y/n)?\n'):
@@ -564,7 +566,7 @@ if use_dlss:
     source_files.append('src/Denoiser/DLSSDenoiser.cpp')
     defines.append(('SUPPORT_DLSS',))
     if IS_WINDOWS:
-        extra_objects.append('third_party/DLSS/lib/Windows_x86_64/x64/nvsdk_ngx_s.lib')
+        extra_objects.append('third_party/DLSS/lib/Windows_x86_64/x64/nvsdk_ngx_d.lib')
         if not uses_pip:
             data_files.append('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll')
             data_files.append('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlssd.dll')
@@ -620,7 +622,7 @@ if uses_pip:
         shutil.rmtree('vpt')
     Path('vpt/Data').mkdir(parents=True, exist_ok=True)
     shutil.copy('src/PyTorch/vpt.pyi', 'vpt/__init__.pyi')
-    shutil.copy('LICENSE', 'pysrg/LICENSE')
+    shutil.copy('LICENSE', 'vpt/LICENSE')
     shutil.copytree('docs', 'vpt/docs')
     shutil.copytree('Data/Shaders', 'vpt/Data/Shaders')
     shutil.copytree('Data/TransferFunctions', 'vpt/Data/TransferFunctions')
@@ -639,13 +641,13 @@ if uses_pip:
     if use_dlss:
         if IS_WINDOWS:
             pkg_data.append('**/*.dll')
-            shutil.copy('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll', 'pysrg/nvngx_dlss.dll')
-            shutil.copy('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlssd.dll', 'pysrg/nvngx_dlssd.dll')
+            shutil.copy('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlss.dll', 'vpt/nvngx_dlss.dll')
+            shutil.copy('third_party/DLSS/lib/Windows_x86_64/rel/nvngx_dlssd.dll', 'vpt/nvngx_dlssd.dll')
         else:
             pkg_data.append(f'**/{os.path.basename(nvidia_ngx_so_path)}')
-            shutil.copy(nvidia_ngx_so_path, f'pysrg/{os.path.basename(nvidia_ngx_so_path)}')
+            shutil.copy(nvidia_ngx_so_path, f'vpt/{os.path.basename(nvidia_ngx_so_path)}')
             pkg_data.append(f'**/{os.path.basename(nvidia_ngx_rr_so_path)}')
-            shutil.copy(nvidia_ngx_rr_so_path, f'pysrg/{os.path.basename(nvidia_ngx_rr_so_path)}')
+            shutil.copy(nvidia_ngx_rr_so_path, f'vpt/{os.path.basename(nvidia_ngx_rr_so_path)}')
     ext_modules = [
         CUDAExtension(
             'vpt.vpt',

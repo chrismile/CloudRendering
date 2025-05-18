@@ -45,6 +45,7 @@
 #include <Graphics/Window.hpp>
 #include <Graphics/Vulkan/Utils/Instance.hpp>
 #include <Graphics/Vulkan/Utils/ScreenshotReadbackHelper.hpp>
+#include <Graphics/Vulkan/Utils/DeviceSelectionVulkan.hpp>
 #include <Graphics/Vulkan/Render/Renderer.hpp>
 
 #include <ImGui/ImGuiWrapper.hpp>

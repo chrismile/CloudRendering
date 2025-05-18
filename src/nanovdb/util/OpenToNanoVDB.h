@@ -513,7 +513,10 @@ GridHandle<BufferT> OpenToNanoVDB<OpenBuildT,  NanoBuildT,  OracleT, BufferT>::
     mArray0.clear();
     mArray1.clear();
     mArray2.clear();
-#if OPENVDB_ABI_VERSION_NUMBER >= 7
+    // Christoph Neuhauser 2ß25-05-18: Patch for OPENVDB_ABI_VERSION_NUMBER >= 12.
+#if OPENVDB_ABI_VERSION_NUMBER >= 12
+    std::vector<uint64_t> nodeCount = openTree.nodeCount();
+#elif OPENVDB_ABI_VERSION_NUMBER >= 7
     std::vector<uint32_t> nodeCount = openTree.nodeCount();
 #else
     std::vector<uint32_t> nodeCount(openTree.treeDepth());
