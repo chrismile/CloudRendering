@@ -51,6 +51,10 @@
 #include "Widgets/ReplayWidget.hpp"
 #endif
 
+namespace sgl {
+class DeviceSelectorVulkan;
+}
+
 class DataView;
 typedef std::shared_ptr<DataView> DataViewPtr;
 
@@ -89,6 +93,9 @@ private:
     bool showRendererWindow = true;
     DataViewPtr dataView;
     sgl::CameraPtr cameraHandle;
+
+    // Vulkan device selector.
+    sgl::DeviceSelectorVulkan* deviceSelector = nullptr;
 
     /// Scene data (e.g., camera, main framebuffer, ...).
     int subsamplingFactor = 1;

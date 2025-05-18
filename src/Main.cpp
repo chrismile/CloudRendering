@@ -121,6 +121,7 @@ int main(int argc, char *argv[]) {
     auto physicalDeviceCheckCallback = getDlssPhysicalDeviceCheckCallback(instance);
     device->setPhysicalDeviceCheckCallback(physicalDeviceCheckCallback);
 #endif
+    device->setUseAppDeviceSelector();
     device->createDeviceSwapchain(
             instance, window,
             {
