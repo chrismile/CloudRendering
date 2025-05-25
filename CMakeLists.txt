@@ -560,11 +560,26 @@ if (USE_DLSS)
         )
     elseif(WIN32)
         # /MT (static) or /MD (dynamic); see: https://stackoverflow.com/questions/14172856/compile-with-mt-instead-of-md-using-cmake
-        set(MSVC_RUNTIME_LIBRARY_STATIC 1)
+        # At this point, we have no control anymore over how to build sgl.
+        # We will assume it has been built in dynamic (DLL) mode.
+        # TODO: Check VCPKG_TARGET_TRIPLET for the used mode.
+        set(MSVC_RUNTIME_LIBRARY_STATIC 0)
         if(${MSVC_RUNTIME_LIBRARY_STATIC})
+            #set_target_properties(sgl PROPERTIES
+            #        MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>
+            #)
+            set_target_properties(pysrg_test PROPERTIES
+                    MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>
+            )
             set(DLSS_STATIC_LIBRARY_DEBUG "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_s_dbg.lib")
             set(DLSS_STATIC_LIBRARY_RELEASE "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_s.lib")
         else()
+            #set_target_properties(sgl PROPERTIES
+            #        MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL
+            #)
+            set_target_properties(pysrg_test PROPERTIES
+                    MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL
+            )
             set(DLSS_STATIC_LIBRARY_DEBUG "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib")
             set(DLSS_STATIC_LIBRARY_RELEASE "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d.lib")
         endif()
