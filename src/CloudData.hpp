@@ -216,7 +216,7 @@ private:
      * Loading function for the .nii file format. For more details see
      * - https://github.com/NIFTI-Imaging/nifti_clib
      * - https://nifti.nimh.nih.gov/nifti-1/
-     * @param filename The filename of the .mhd file to load.
+     * @param filename The filename of the .nii file to load.
      * @return Whether the file was loaded successfully.
      */
     bool loadFromNiiFile(const std::string& filename);
