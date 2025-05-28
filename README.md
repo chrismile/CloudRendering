@@ -170,6 +170,8 @@ Supported formats currently are:
   which store sparse voxel grids. For OpenVDB support, the flag `--use-openvdb` needs to be passed to the build script.
 - .dat/.raw and .mhd/.raw files, which store density grids with metadata in arbitrary precision.
   For more details see: src/CloudData.cpp, CloudData::loadFromDatRawFile and CloudData::loadFromMhdRawFile.
+- .nhdr/.raw files, which use the NRRD detached headers format.
+  For more details see: https://teem.sourceforge.net/nrrd/format.html
 - .nii files using the NIfTI file format. For more details on this format, please refer to
   https://github.com/NIFTI-Imaging/nifti_clib and https://nifti.nimh.nih.gov/nifti-1/.
 

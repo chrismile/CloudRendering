@@ -643,7 +643,7 @@ void MainApp::openFileDialog() {
 #ifdef USE_OPENVDB
             ".vdb,"
 #endif
-            ".dat,.raw,.mhd,.nii",
+            ".dat,.raw,.mhd,.nhdr,.nii",
             fileDialogDirectory.c_str(),
             "", 1, nullptr,
             ImGuiFileDialogFlags_None);
@@ -862,6 +862,7 @@ bool MainApp::checkHasValidExtension(const std::string& filenameLower) {
             || sgl::endsWith(filenameLower, ".dat")
             || sgl::endsWith(filenameLower, ".raw")
             || sgl::endsWith(filenameLower, ".mhd")
+            || sgl::endsWith(filenameLower, ".nhdr")
             || sgl::endsWith(filenameLower, ".nii")) {
         return true;
     }

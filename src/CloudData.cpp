@@ -222,6 +222,8 @@ bool CloudData::loadFromFile(const std::string& filename) {
         return loadFromDatRawFile(filename);
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".mhd")) {
         return loadFromMhdRawFile(filename);
+    } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".nhdr")) {
+        return loadFromNhdrRawFile(filename);
     } else if (sgl::FileUtils::get()->hasExtension(filename.c_str(), ".nii")) {
         return loadFromNiiFile(filename);
     } else {
@@ -812,6 +814,232 @@ bool CloudData::loadFromMhdRawFile(const std::string& filename) {
             transposeField(densityFieldHalf, xs, ys, zs, mirrorAxes);
         }
         densityField = std::make_shared<DensityField>(totalSize, densityFieldHalf);
+    }
+
+    transposeIfNecessary();
+    computeGridBounds();
+
+    return true;
+}
+
+bool CloudData::loadFromNhdrRawFile(const std::string& filename) {
+    std::string nhdrFilePath;
+    std::string rawFilePath;
+
+    if (sgl::endsWith(filename, ".nhdr")) {
+        nhdrFilePath = filename;
+    }
+    if (sgl::endsWith(filename, ".raw")) {
+        rawFilePath = filename;
+
+        // We need to find the corresponding .nhdr file.
+        std::string rawFileDirectory = sgl::FileUtils::get()->getPathToFile(rawFilePath);
+        std::vector<std::string> filesInDir = sgl::FileUtils::get()->getFilesInDirectoryVector(rawFileDirectory);
+        for (const std::string& filePath : filesInDir) {
+            if (sgl::endsWith(filePath, ".nhdr")) {
+                nhdrFilePath = filePath;
+                break;
+            }
+        }
+        if (nhdrFilePath.empty()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromNhdrRawFile::load: No .dat file found for \"" + rawFilePath + "\".");
+        }
+    }
+
+    // Load the .dat metadata file.
+    uint8_t* bufferDat = nullptr;
+    size_t lengthDat = 0;
+    bool loadedDat = sgl::loadFileFromSource(nhdrFilePath, bufferDat, lengthDat, false);
+    if (!loadedDat) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Couldn't open file \"" + nhdrFilePath + "\".");
+    }
+    char* fileBuffer = reinterpret_cast<char*>(bufferDat);
+
+    std::string lineBuffer;
+    std::string stringBuffer;
+    std::vector<std::string> splitLineString;
+    std::map<std::string, std::string> datDict;
+    for (size_t charPtr = 0; charPtr < lengthDat; ) {
+        lineBuffer.clear();
+        while (charPtr < lengthDat) {
+            char currentChar = fileBuffer[charPtr];
+            if (currentChar == '\n' || currentChar == '\r') {
+                charPtr++;
+                break;
+            }
+            lineBuffer.push_back(currentChar);
+            charPtr++;
+        }
+
+        if (lineBuffer.empty() || lineBuffer.front() == '#') {
+            continue;
+        }
+        if (sgl::startsWith(lineBuffer, "NRRD")) {
+            continue;
+        }
+
+        splitLineString.clear();
+        sgl::splitString(lineBuffer, ':', splitLineString);
+        if (splitLineString.empty()) {
+            continue;
+        }
+        if (splitLineString.size() != 2) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromNhdrRawFile::load: Invalid entry in file \"" + nhdrFilePath + "\".");
+        }
+
+        std::string datKey = splitLineString.at(0);
+        std::string datValue = splitLineString.at(1);
+        sgl::stringTrim(datKey);
+        sgl::toLower(datKey);
+        sgl::stringTrim(datValue);
+        datDict.insert(std::make_pair(datKey, datValue));
+    }
+    delete[] bufferDat;
+
+    // Next, process the metadata.
+    if (rawFilePath.empty()) {
+        auto it = datDict.find("data file");
+        if (it == datDict.end()) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromNhdrRawFile::load: Entry 'data file' missing in \""
+                    + nhdrFilePath + "\".");
+        }
+        rawFilePath = it->second;
+        bool isAbsolutePath = sgl::FileUtils::get()->getIsPathAbsolute(rawFilePath);
+        if (!isAbsolutePath) {
+            rawFilePath = sgl::FileUtils::get()->getPathToFile(nhdrFilePath) + rawFilePath;
+        }
+    }
+
+    auto itEncoding = datDict.find("encoding");
+    if (itEncoding == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'encoding' missing in \"" + nhdrFilePath + "\".");
+    }
+    if (itEncoding->second != "raw") {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'encoding' not set to 'raw' in \"" + nhdrFilePath + "\".");
+    }
+
+    auto itEndianness = datDict.find("endian");
+    if (itEndianness == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'endian' missing in \"" + nhdrFilePath + "\".");
+    }
+    if (itEndianness->second != "little") {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'endian' not set to 'little' in \"" + nhdrFilePath + "\".");
+    }
+
+    auto itDimension = datDict.find("dimension");
+    if (itDimension == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'dimension' missing in \"" + nhdrFilePath + "\".");
+    }
+    if (itDimension->second != "3") {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'dimension' not set to '3' in \"" + nhdrFilePath + "\".");
+    }
+
+    auto itSizes = datDict.find("sizes");
+    if (itSizes == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'sizes' missing in \"" + nhdrFilePath + "\".");
+    }
+    std::vector<std::string> sizesSplit;
+    sgl::splitStringWhitespace(itSizes->second, sizesSplit);
+    if (sizesSplit.size() != 3) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'sizes' in \"" + nhdrFilePath
+                + "\" does not have three values.");
+    }
+    auto xs = sgl::fromString<uint32_t>(sizesSplit.at(0));
+    auto ys = sgl::fromString<uint32_t>(sizesSplit.at(1));
+    auto zs = sgl::fromString<uint32_t>(sizesSplit.at(2));
+    float maxDimension = float(std::max(xs - 1, std::max(ys - 1, zs - 1)));
+    float cellStep = 1.0f / maxDimension;
+
+    gridSizeX = xs;
+    gridSizeY = ys;
+    gridSizeZ = zs;
+    voxelSizeX = cellStep;
+    voxelSizeY = cellStep;
+    voxelSizeZ = cellStep;
+
+    auto itSliceThickness = datDict.find("thickness");
+    if (itSliceThickness != datDict.end()) {
+        std::vector<std::string> sliceThicknessList;
+        sgl::splitStringWhitespace(itSliceThickness->second, sliceThicknessList);
+        if (sliceThicknessList.size() != 3) {
+            sgl::Logfile::get()->throwError(
+                    "Error in loadFromNhdrRawFile::load: Inconsistent entry 'thickness' in \"" + nhdrFilePath + "\".");
+        }
+        auto tx = sgl::fromString<float>(sliceThicknessList.at(0));
+        auto ty = sgl::fromString<float>(sliceThicknessList.at(1));
+        auto tz = sgl::fromString<float>(sliceThicknessList.at(2));
+        voxelSizeX *= tx;
+        voxelSizeY *= ty;
+        voxelSizeZ *= tz;
+    }
+
+    auto itType = datDict.find("type");
+    if (itType == datDict.end()) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Entry 'type' missing in \"" + nhdrFilePath + "\".");
+    }
+    std::string formatString = sgl::toLowerCopy(itType->second);
+    size_t bytesPerEntry = 0;
+    if (formatString == "float") {
+        bytesPerEntry = 4;
+    } else if (formatString == "uint8" || formatString == "uint8_t"
+            || formatString == "uchar" || formatString == "unsigned char"
+            || formatString == "int8" || formatString == "int8_t"
+            || formatString == "signed char") {
+        bytesPerEntry = 1;
+    } else if (formatString == "uint16" || formatString == "uint16_t"
+            || formatString == "ushort" || formatString == "unsigned short"
+            || formatString == "unsigned short int" || formatString == "short"
+            || formatString == "signed short" || formatString == "signed short int"
+            || formatString == "int16" || formatString == "int16_t") {
+        bytesPerEntry = 2;
+    } else {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Unsupported format '" + formatString + "' in file \""
+                + nhdrFilePath + "\".");
+    }
+
+    // Finally, load the data from the .raw file.
+    uint8_t* bufferRaw = nullptr;
+    size_t lengthRaw = 0;
+    bool loadedRaw = sgl::loadFileFromSource(rawFilePath, bufferRaw, lengthRaw, true);
+    if (!loadedRaw) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Couldn't open file \"" + rawFilePath + "\".");
+    }
+
+    size_t numBytesData = lengthRaw;
+    size_t totalSize = size_t(xs) * size_t(ys) * size_t(zs);
+    if (numBytesData != totalSize * bytesPerEntry) {
+        sgl::Logfile::get()->throwError(
+                "Error in loadFromNhdrRawFile::load: Invalid number of entries for file \""
+                + rawFilePath + "\".");
+    }
+
+    if (bytesPerEntry == 4) {
+        auto* densityFieldFloat = new float[totalSize];
+        memcpy(densityFieldFloat, bufferRaw, sizeof(float) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldFloat);
+    } else if (bytesPerEntry == 1) {
+        auto* densityFieldUchar = new uint8_t[totalSize];
+        memcpy(densityFieldUchar, bufferRaw, sizeof(uint8_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUchar);
+    } else if (bytesPerEntry == 2) {
+        auto* densityFieldUshort = new uint16_t[totalSize];
+        memcpy(densityFieldUshort, bufferRaw, sizeof(uint16_t) * totalSize);
+        densityField = std::make_shared<DensityField>(totalSize, densityFieldUshort);
     }
 
     transposeIfNecessary();

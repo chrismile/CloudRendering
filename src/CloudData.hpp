@@ -213,6 +213,15 @@ private:
      */
     bool loadFromMhdRawFile(const std::string& filename);
     /**
+     * Loading function for pairs of .nhdr and .raw files.
+     * .nhdr files store metadata about the grid, while .raw files store the data.
+     * Documentation for the NRRD format: http://teem.sourceforge.net/nrrd/format.html
+     * Currently, only detached headers are supported.
+     * @param filename The filename of the .nhdr file to load.
+     * @return Whether the file was loaded successfully.
+     */
+    bool loadFromNhdrRawFile(const std::string& filename);
+    /**
      * Loading function for the .nii file format. For more details see
      * - https://github.com/NIFTI-Imaging/nifti_clib
      * - https://nifti.nimh.nih.gov/nifti-1/
