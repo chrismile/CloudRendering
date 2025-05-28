@@ -1116,7 +1116,7 @@ bool CloudData::loadFromNiiFile(const std::string& filename) {
 
     if (header->datatype == DT_DOUBLE) {
         auto* scalarAttributeFieldDouble = reinterpret_cast<double*>(scalarAttributeField);
-        scalarAttributeField = new uint8_t[imageSizeInBytes];
+        scalarAttributeField = new uint8_t[xs * ys * zs * sizeof(float)];
         auto* scalarAttributeFieldFloat = reinterpret_cast<float*>(scalarAttributeField);
         ptrdiff_t numEntries = imageSizeInBytes / ptrdiff_t(sizeof(double));
         for (ptrdiff_t i = 0; i < numEntries; i++) {
@@ -1155,7 +1155,13 @@ bool CloudData::loadFromNiiFile(const std::string& filename) {
         delete[] scalarAttributeFieldOld;
     }
 
-    densityField = std::make_shared<DensityField>(xs * ys * zs, reinterpret_cast<float*>(scalarAttributeField));
+    if (header->datatype == DT_FLOAT || header->datatype == DT_DOUBLE) {
+        densityField = std::make_shared<DensityField>(xs * ys * zs, reinterpret_cast<float*>(scalarAttributeField));
+    } else if (header->datatype == DT_SIGNED_SHORT) {
+        densityField = std::make_shared<DensityField>(xs * ys * zs, reinterpret_cast<uint16_t*>(scalarAttributeField));
+    } else if (header->datatype == DT_UNSIGNED_CHAR) {
+        densityField = std::make_shared<DensityField>(xs * ys * zs, reinterpret_cast<uint8_t*>(scalarAttributeField));
+    }
     delete[] buffer;
 
     transposeIfNecessary();
