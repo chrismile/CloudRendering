@@ -342,6 +342,9 @@ elif $use_macos && command -v brew &> /dev/null && [ ! -d $build_dir_debug ] && 
     if ! is_installed_brew "curl"; then
         brew install curl
     fi
+    if ! is_installed_brew "wget"; then
+        brew install wget
+    fi
     if ! is_installed_brew "pkg-config"; then
         brew install pkg-config
     fi
