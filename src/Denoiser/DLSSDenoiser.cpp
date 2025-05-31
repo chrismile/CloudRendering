@@ -316,6 +316,22 @@ void DLSSDenoiser::setTemporalDenoisingEnabled(bool enabled) {
 
 void DLSSDenoiser::denoise() {
     renderer->transitionImageLayout(outputImageVulkan, VK_IMAGE_LAYOUT_GENERAL);
+    if (inputImageVulkan->getImage()->getVkImageLayout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        renderer->transitionImageLayout(inputImageVulkan, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (depthImageVulkan->getImage()->getVkImageLayout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        renderer->transitionImageLayout(depthImageVulkan, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (flowImageVulkan->getImage()->getVkImageLayout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        renderer->transitionImageLayout(flowImageVulkan, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (normalImageVulkan->getImage()->getVkImageLayout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        renderer->transitionImageLayout(normalImageVulkan, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    if (albedoImageVulkan->getImage()->getVkImageLayout() != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        renderer->transitionImageLayout(albedoImageVulkan, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    renderer->syncWithCpu();
     apply(
             inputImageVulkan,
             outputImageVulkan,
@@ -326,6 +342,7 @@ void DLSSDenoiser::denoise() {
             albedoImageVulkan,
             roughnessImageView,
             renderer->getVkCommandBuffer());
+    renderer->syncWithCpu();
 }
 
 void DLSSDenoiser::recreateSwapchain(uint32_t width, uint32_t height) {
