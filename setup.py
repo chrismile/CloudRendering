@@ -440,6 +440,7 @@ else:
 # TODO: Add support for not using CUDA.
 defines.append(('SUPPORT_CUDA_INTEROP',))
 defines.append(('USE_CUDA',))
+source_files.append('third_party/sgl/src/Graphics/Utils/InteropCuda.cpp')
 source_files.append('third_party/sgl/src/Graphics/Vulkan/Utils/InteropCuda.cpp')
 
 

@@ -165,8 +165,8 @@ VolumetricPathTracingModuleRenderer::~VolumetricPathTracingModuleRenderer() {
     }
 #endif
 #ifdef SUPPORT_CUDA_INTEROP
-    if (sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
-        sgl::vk::freeCudaDeviceApiFunctionTable();
+    if (sgl::getIsCudaDeviceApiFunctionTableInitialized()) {
+        sgl::freeCudaDeviceApiFunctionTable();
     }
 #endif
 
@@ -401,21 +401,21 @@ void VolumetricPathTracingModuleRenderer::setRenderingResolution(
     }
 #ifdef SUPPORT_CUDA_INTEROP
     else if (torchDevice.type() == torch::DeviceType::CUDA) {
-        if (!sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
-            bool success = sgl::vk::initializeCudaDeviceApiFunctionTable();
+        if (!sgl::getIsCudaDeviceApiFunctionTableInitialized()) {
+            bool success = sgl::initializeCudaDeviceApiFunctionTable();
             if (!success) {
                 sgl::Logfile::get()->throwError(
                         "Error in VolumetricPathTracingModuleRenderer::setRenderingResolution: "
-                        "sgl::vk::initializeCudaDeviceApiFunctionTable() failed.", false);
+                        "sgl::initializeCudaDeviceApiFunctionTable() failed.", false);
             }
 #if defined(SUPPORT_OPTIX) || (defined(SUPPORT_CUDA_INTEROP) && defined(SUPPORT_OPEN_IMAGE_DENOISE))
             if (device->getDeviceDriverId() == VK_DRIVER_ID_NVIDIA_PROPRIETARY
-                    && sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+                    && sgl::getIsCudaDeviceApiFunctionTableInitialized()) {
                 CUcontext cuContext = {};
                 CUdevice cuDevice = {};
-                sgl::vk::checkCUresult(sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxGetCurrent(
+                sgl::checkCUresult(sgl::g_cudaDeviceApiFunctionTable.cuCtxGetCurrent(
                         &cuContext), "Error in cuCtxGetCurrent: ");
-                sgl::vk::checkCUresult(sgl::vk::g_cudaDeviceApiFunctionTable.cuCtxGetDevice(
+                sgl::checkCUresult(sgl::g_cudaDeviceApiFunctionTable.cuCtxGetDevice(
                         &cuDevice), "Error in cuCtxGetDevice: ");
 #ifdef SUPPORT_OPTIX
                 optixInitialized = OptixVptDenoiser::initGlobal(cuContext, cuDevice);
@@ -586,10 +586,10 @@ float* VolumetricPathTracingModuleRenderer::renderFrameVulkan(uint32_t numFrames
 
 #ifdef SUPPORT_CUDA_INTEROP
 float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) {
-    if (!sgl::vk::getIsCudaDeviceApiFunctionTableInitialized()) {
+    if (!sgl::getIsCudaDeviceApiFunctionTableInitialized()) {
         sgl::Logfile::get()->throwError(
                 "Error in VolumetricPathTracingModuleRenderer::renderFrameCuda: "
-                "sgl::vk::getIsCudaDeviceApiFunctionTableInitialized() returned false.", false);
+                "sgl::getIsCudaDeviceApiFunctionTableInitialized() returned false.", false);
     }
 
     uint32_t numImages = std::min(numFrames, maxNumFramesInFlight);
@@ -616,7 +616,7 @@ float* VolumetricPathTracingModuleRenderer::renderFrameCuda(uint32_t numFrames) 
         const uint32_t imageIndex = frameIndex % maxNumFramesInFlight;
         auto& fence = frameFences.at(imageIndex);
         if (frameIndex == maxNumFramesInFlight) {
-            sgl::vk::g_cudaDeviceApiFunctionTable.cuStreamSynchronize(stream);
+            sgl::g_cudaDeviceApiFunctionTable.cuStreamSynchronize(stream);
         }
         if (frameIndex != 0 && imageIndex == 0) {
             waitValue = timelineValue;
