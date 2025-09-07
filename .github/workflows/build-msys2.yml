@@ -28,7 +28,7 @@ jobs:
           msystem: ${{ matrix.msystem }}
           update: true
           install: >-
-            ${{ matrix.prefix }}-openvdb
+            ${{ matrix.pkg_prefix }}-openvdb
 
       - uses: actions/checkout@v2
         with:
