@@ -11,15 +11,24 @@ env:
 
 jobs:
   build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { msystem: MINGW64, pkg_prefix: mingw-w64-x86_64 }
+          - { msystem: UCRT64,  pkg_prefix: mingw-w64-ucrt-x86_64 }
+          - { msystem: CLANG64, pkg_prefix: mingw-w64-clang-x86_64 }
+
     runs-on: windows-2022
-    name: "${{ github.workflow }}"
+    name: "${{ github.workflow }} (${{ matrix.msystem }})"
 
     steps:
       - uses: msys2/setup-msys2@v2
         with:
+          msystem: ${{ matrix.msystem }}
           update: true
           install: >-
-            mingw64/mingw-w64-x86_64-openvdb
+            ${{ matrix.prefix }}-openvdb
 
       - uses: actions/checkout@v2
         with:
