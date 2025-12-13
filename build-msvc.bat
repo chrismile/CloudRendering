@@ -103,7 +103,7 @@ if defined VisualStudioVersion (
 )
 :: Visual Studio 2026 changed the directory naming from, e.g., "C:\Program Files\Microsoft Visual Studio\2022" to
 :: "C:\Program Files\Microsoft Visual Studio\18".
-if VsVersionNumber LSS 18 (
+if %VsVersionNumber% LSS 18 (
     if defined VCINSTALLDIR (
         set VCINSTALLDIR_ESC=%VCINSTALLDIR:\=\\%
     )

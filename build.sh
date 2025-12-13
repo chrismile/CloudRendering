@@ -336,18 +336,19 @@ if $use_msys && command -v pacman &> /dev/null && [ ! -d $build_dir_debug ] && [
             || ! is_installed_pacman "${pkg_prefix}-glew" || ! is_installed_pacman "${pkg_prefix}-vulkan-headers" \
             || ! is_installed_pacman "${pkg_prefix}-vulkan-loader" \
             || ! is_installed_pacman "${pkg_prefix}-vulkan-validation-layers" \
-            || ! is_installed_pacman "${pkg_prefix}-shaderc" || ! is_installed_pacman "${pkg_prefix}-opencl-headers" \
-            || ! is_installed_pacman "${pkg_prefix}-opencl-icd" || ! is_installed_pacman "${pkg_prefix}-jsoncpp" \
-            || ! is_installed_pacman "${pkg_prefix}-openexr" || ! is_installed_pacman "${pkg_prefix}-openvdb" \
-            || ! is_installed_pacman "${pkg_prefix}-tbb" || ! is_installed_pacman "${pkg_prefix}-blosc"; then
+            || ! is_installed_pacman "${pkg_prefix}-shaderc" || ! is_installed_pacman "${pkg_prefix}-glslang" \
+            || ! is_installed_pacman "${pkg_prefix}-opencl-headers" || ! is_installed_pacman "${pkg_prefix}-opencl-icd" \
+            || ! is_installed_pacman "${pkg_prefix}-jsoncpp" || ! is_installed_pacman "${pkg_prefix}-openexr" \
+            || ! is_installed_pacman "${pkg_prefix}-openvdb" || ! is_installed_pacman "${pkg_prefix}-tbb" \
+            || ! is_installed_pacman "${pkg_prefix}-blosc"; then
         echo "------------------------"
         echo "installing dependencies "
         echo "------------------------"
         pacman --noconfirm --needed -S ${pkg_prefix}-boost ${pkg_prefix}-icu ${pkg_prefix}-glm ${pkg_prefix}-libarchive \
         ${pkg_prefix}-tinyxml2 ${pkg_prefix}-libpng ${pkg_prefix}-sdl3 ${pkg_prefix}-sdl3-image ${pkg_prefix}-glew \
         ${pkg_prefix}-vulkan-headers ${pkg_prefix}-vulkan-loader ${pkg_prefix}-vulkan-validation-layers \
-        ${pkg_prefix}-shaderc ${pkg_prefix}-opencl-headers ${pkg_prefix}-opencl-icd ${pkg_prefix}-jsoncpp \
-        ${pkg_prefix}-openexr ${pkg_prefix}-openvdb ${pkg_prefix}-tbb ${pkg_prefix}-blosc
+        ${pkg_prefix}-shaderc ${pkg_prefix}-glslang ${pkg_prefix}-opencl-headers ${pkg_prefix}-opencl-icd \
+        ${pkg_prefix}-jsoncpp ${pkg_prefix}-openexr ${pkg_prefix}-openvdb ${pkg_prefix}-tbb ${pkg_prefix}-blosc
     fi
 elif $use_msys && command -v pacman &> /dev/null; then
     :
@@ -541,14 +542,14 @@ elif command -v pacman &> /dev/null && ! $use_conda; then
                 || ! is_installed_pacman "libarchive" || ! is_installed_pacman "tinyxml2" \
                 || ! is_installed_pacman "libpng" || ! is_installed_pacman "glew" \
                 || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
-                || ! is_installed_pacman "opencl-headers" || ! is_installed_pacman "ocl-icd" \
-                || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" || ! is_installed_pacman "onetbb" \
-                || ! is_installed_pacman "blosc"; then
+                || ! is_installed_pacman "glslang" || ! is_installed_pacman "opencl-headers" \
+                || ! is_installed_pacman "ocl-icd" || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" \
+                || ! is_installed_pacman "onetbb" || ! is_installed_pacman "blosc"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
             sudo pacman --noconfirm --needed -S boost icu glm libarchive tinyxml2 libpng glew vulkan-devel shaderc \
-            opencl-headers ocl-icd jsoncpp openexr onetbb blosc
+            glslang opencl-headers ocl-icd jsoncpp openexr onetbb blosc
         fi
         if is_available_pacman "sdl3"; then
             if ! is_installed_pacman "sdl3"; then
@@ -577,7 +578,7 @@ elif command -v yum &> /dev/null && ! $use_conda; then
                 || ! is_installed_rpm "autoconf" || ! is_installed_rpm "automake" \
                 || ! is_installed_rpm "autoconf-archive" || ! is_installed_rpm "mesa-libGLU-devel" \
                 || ! is_installed_rpm "glew-devel" || ! is_installed_rpm "libXext-devel" \
-                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "vulkan-loader" \
+                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "vulkan-loader-devel" \
                 || ! is_installed_rpm "vulkan-tools" || ! is_installed_rpm "vulkan-validation-layers" \
                 || ! is_installed_rpm "libshaderc-devel" || ! is_installed_rpm "libXinerama-devel" \
                 || ! is_installed_rpm "libXrandr-devel" || ! is_installed_rpm "libXcursor-devel" \
@@ -588,7 +589,7 @@ elif command -v yum &> /dev/null && ! $use_conda; then
             echo "installing dependencies "
             echo "------------------------"
             sudo yum install -y perl libstdc++-devel libstdc++-static autoconf automake autoconf-archive \
-            mesa-libGLU-devel glew-devel libXext-devel vulkan-headers vulkan-loader vulkan-tools \
+            mesa-libGLU-devel glew-devel libXext-devel vulkan-headers vulkan-loader-devel vulkan-tools \
             vulkan-validation-layers libshaderc-devel libXinerama-devel libXrandr-devel libXcursor-devel libXi-devel \
             wayland-devel libxkbcommon-devel wayland-protocols-devel extra-cmake-modules
         fi
@@ -596,7 +597,8 @@ elif command -v yum &> /dev/null && ! $use_conda; then
         if ! is_installed_rpm "boost-devel" || ! is_installed_rpm "libicu-devel" || ! is_installed_rpm "glm-devel" \
                 || ! is_installed_rpm "libarchive-devel" || ! is_installed_rpm "tinyxml2-devel" \
                 || ! is_installed_rpm "libpng-devel" || ! is_installed_rpm "glew-devel" \
-                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "libshaderc-devel" \
+                || ! is_installed_rpm "vulkan-headers" || ! is_installed_rpm "vulkan-loader-devel" \
+                || ! is_installed_rpm "libshaderc-devel" || ! is_installed_rpm "glslang-devel" \
                 || ! is_installed_rpm "opencl-headers" || ! is_installed_rpm "ocl-icd" \
                 || ! is_installed_rpm "jsoncpp-devel" || ! is_installed_rpm "openexr-devel" \
                 || ! is_installed_rpm "tbb-devel" || ! is_installed_rpm "blosc-devel"; then
@@ -604,8 +606,8 @@ elif command -v yum &> /dev/null && ! $use_conda; then
             echo "installing dependencies "
             echo "------------------------"
             sudo yum install -y boost-devel libicu-devel glm-devel libarchive-devel tinyxml2-devel libpng-devel \
-            glew-devel vulkan-headers libshaderc-devel opencl-headers ocl-icd jsoncpp-devel openexr-devel tbb-devel \
-            blosc-devel
+            glew-devel vulkan-headers vulkan-loader-devel libshaderc-devel glslang-devel opencl-headers ocl-icd \
+            jsoncpp-devel openexr-devel tbb-devel blosc-devel
         fi
         if is_available_yum "SDL3-devel"; then
             if ! is_installed_rpm "SDL3-devel"; then
@@ -684,8 +686,8 @@ elif $use_conda && ! $use_macos; then
             || ! list_contains "$conda_pkg_list" "xorg-libxfixes" || ! list_contains "$conda_pkg_list" "xorg-libxau" \
             || ! list_contains "$conda_pkg_list" "xorg-libxrandr" || ! list_contains "$conda_pkg_list" "patchelf" \
             || ! list_contains "$conda_pkg_list" "libvulkan-headers" || ! list_contains "$conda_pkg_list" "shaderc" \
-            || ! list_contains "$conda_pkg_list" "jsoncpp" || ! list_contains "$conda_pkg_list" "openexr" \
-            || ! list_contains "$conda_pkg_list" "conda-forge::tbb" \
+            || ! list_contains "$conda_pkg_list" "glslang" || ! list_contains "$conda_pkg_list" "jsoncpp" \
+            || ! list_contains "$conda_pkg_list" "openexr" || ! list_contains "$conda_pkg_list" "conda-forge::tbb" \
             || ! list_contains "$conda_pkg_list" "conda-forge::tbb-devel" \
             || ! list_contains "$conda_pkg_list" "blosc"; then
         echo "------------------------"
@@ -695,7 +697,7 @@ elif $use_conda && ! $use_macos; then
         make cmake pkg-config gdb git mesa-libgl-devel-cos7-x86_64 libglvnd-glx-cos7-x86_64 \
         mesa-dri-drivers-cos7-aarch64 libxau-devel-cos7-aarch64 libselinux-devel-cos7-aarch64 \
         libxdamage-devel-cos7-aarch64 libxxf86vm-devel-cos7-aarch64 libxext-devel-cos7-aarch64 xorg-libxfixes \
-        xorg-libxau xorg-libxrandr patchelf libvulkan-headers shaderc jsoncpp openexr conda-forge::tbb \
+        xorg-libxau xorg-libxrandr patchelf libvulkan-headers shaderc glslang jsoncpp openexr conda-forge::tbb \
         conda-forge::tbb-devel blosc
     fi
 else
