@@ -79,6 +79,11 @@ use_download_swapchain=false
 use_custom_jsoncpp=false
 use_custom_openexr=false
 use_open_image_denoise=true
+if ([ $use_msys = false ] && command -v pacman &> /dev/null) || (command -v yum &> /dev/null); then
+    is_oidn_installed=true
+else
+    is_oidn_installed=false
+fi
 
 # Check if a conda environment is already active.
 if $use_conda; then
@@ -539,18 +544,19 @@ elif command -v pacman &> /dev/null && ! $use_conda; then
             autoconf-archive libxinerama libxcursor pkgconf libxkbcommon wayland-protocols wayland extra-cmake-modules
         fi
     else
-        if ! is_installed_pacman "boost" || ! is_installed_pacman "icu" || ! is_installed_pacman "glm" \
-                || ! is_installed_pacman "libarchive" || ! is_installed_pacman "tinyxml2" \
+        if ! is_installed_pacman "boost" || ! is_installed_pacman "boost-libs" || ! is_installed_pacman "icu" \
+                || ! is_installed_pacman "glm" || ! is_installed_pacman "libarchive" || ! is_installed_pacman "tinyxml2" \
                 || ! is_installed_pacman "libpng" || ! is_installed_pacman "glew" \
                 || ! is_installed_pacman "vulkan-devel" || ! is_installed_pacman "shaderc" \
                 || ! is_installed_pacman "glslang" || ! is_installed_pacman "opencl-headers" \
                 || ! is_installed_pacman "ocl-icd" || ! is_installed_pacman "jsoncpp" || ! is_installed_pacman "openexr" \
-                || ! is_installed_pacman "onetbb" || ! is_installed_pacman "blosc"; then
+                || ! is_installed_pacman "openimagedenoise" || ! is_installed_pacman "onetbb" \
+                || ! is_installed_pacman "blosc"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
-            sudo pacman --noconfirm --needed -S boost icu glm libarchive tinyxml2 libpng glew vulkan-devel shaderc \
-            glslang opencl-headers ocl-icd jsoncpp openexr onetbb blosc
+            sudo pacman --noconfirm --needed -S boost boost-libs icu glm libarchive tinyxml2 libpng glew vulkan-devel \
+            shaderc glslang opencl-headers ocl-icd jsoncpp openexr openimagedenoise onetbb blosc
         fi
         if is_available_pacman "sdl3"; then
             if ! is_installed_pacman "sdl3"; then
@@ -602,13 +608,14 @@ elif command -v yum &> /dev/null && ! $use_conda; then
                 || ! is_installed_rpm "libshaderc-devel" || ! is_installed_rpm "glslang-devel" \
                 || ! is_installed_rpm "opencl-headers" || ! is_installed_rpm "ocl-icd" \
                 || ! is_installed_rpm "jsoncpp-devel" || ! is_installed_rpm "openexr-devel" \
-                || ! is_installed_rpm "tbb-devel" || ! is_installed_rpm "blosc-devel"; then
+                || ! is_installed_rpm "oidn-devel" || ! is_installed_rpm "tbb-devel" \
+                || ! is_installed_rpm "blosc-devel"; then
             echo "------------------------"
             echo "installing dependencies "
             echo "------------------------"
             sudo yum install -y boost-devel libicu-devel glm-devel libarchive-devel tinyxml2-devel libpng-devel \
             glew-devel vulkan-headers vulkan-loader-devel libshaderc-devel glslang-devel opencl-headers ocl-icd \
-            jsoncpp-devel openexr-devel tbb-devel blosc-devel
+            jsoncpp-devel openexr-devel oidn-devel tbb-devel blosc-devel
         fi
         if is_available_yum "SDL3-devel"; then
             if ! is_installed_rpm "SDL3-devel"; then
@@ -728,6 +735,10 @@ if [ ! -d "submodules/IsosurfaceCpp/src" ]; then
     echo "------------------------"
     git submodule init
     git submodule update
+fi
+
+if $use_vcpkg; then
+    is_oidn_installed=false
 fi
 
 [ -d "./third_party/" ] || mkdir "./third_party/"
@@ -1174,7 +1185,7 @@ if $use_custom_openexr; then
     params+=(-DOpenEXR_DIR="${projectpath}/third_party/openexr/lib/cmake/OpenEXR")
 fi
 
-if $use_open_image_denoise; then
+if $use_open_image_denoise && ! $is_oidn_installed; then
     oidn_version="2.3.3"
     if $use_msys; then
         oidn_folder_name="oidn-${oidn_version}.x64.windows"
@@ -1314,7 +1325,7 @@ if [ $use_pytorch = true ] && [ $install_module = true ]; then
             patchelf --set-rpath '$ORIGIN' "$install_dir/modules/$(basename "$library")"
         done
     fi
-    if $use_open_image_denoise; then
+    if $use_open_image_denoise && ! $is_oidn_installed; then
         cp $(ldd $build_dir/libvpt.so | grep OpenImage | awk 'NF == 4 {print $3}; NF == 2 {print $1}') "$install_dir/modules"
         if [ $use_macos = false ] && [ $use_vcpkg = false ]; then
             for oidn_file in "$install_dir/modules/libOpenImageDenoise."*; do
@@ -1386,7 +1397,7 @@ else
       export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${projectpath}/third_party/sgl/$install_dir/lib"
   fi
 fi
-if $use_open_image_denoise; then
+if $use_open_image_denoise && ! $is_oidn_installed; then
     if $use_msys; then
         if [[ -z "${PATH+x}" ]]; then
             export PATH="${projectpath}/third_party/${oidn_folder_name}/bin"
@@ -1423,7 +1434,7 @@ if $use_msys; then
 
     # Copy all dependencies of the application to the destination directory.
     ldd_output="$(ntldd -R $build_dir/CloudRendering.exe)"
-    if $use_open_image_denoise; then
+    if $use_open_image_denoise && ! $is_oidn_installed; then
         # Copy OpenImageDenoise device libraries.
         for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/bin/OpenImageDenoise_device_"*; do
             ldd_output="$ldd_output ${oidn_lib_file}"
@@ -1559,7 +1570,7 @@ else
     # Copy all dependencies of the application to the destination directory.
     ldd_output="$(ldd $build_dir/CloudRendering)"
 
-    if $use_open_image_denoise; then
+    if $use_open_image_denoise && ! $is_oidn_installed; then
         # Copy OpenImageDenoise device libraries.
         for oidn_lib_file in "${projectpath}/third_party/${oidn_folder_name}/lib/libOpenImageDenoise_device_"*; do
             ldd_output="$ldd_output ${oidn_lib_file}"
