@@ -68,6 +68,7 @@ use_conda=false
 conda_env_name="cloudrendering"
 link_dynamic=false
 use_custom_vcpkg_triplet=false
+standalone=false
 custom_glslang=false
 build_with_openvdb_support=false
 use_dlss=false
@@ -1027,7 +1028,7 @@ if [ -f "./sgl/$build_dir/CMakeCache.txt" ]; then
     fi
 fi
 
-if [ ! -d "./sgl/$install_dir" ]; then
+if [ ! -d "./sgl/$install_dir" ] && ! $standalone; then
     echo "------------------------"
     echo "     building sgl       "
     echo "------------------------"

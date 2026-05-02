@@ -36,6 +36,7 @@ set clean=false
 set build_dir=.build
 set destination_dir=Shipping
 set vcpkg_triplet="x64-windows"
+set standalone=false
 :: Leave empty to let cmake try to find the correct paths
 set optix_install_dir=""
 set build_with_openvdb_support=false
@@ -162,15 +163,19 @@ IF "%VULKAN_SDK%"=="" (
 )
 :vulkan_finished
 
+SET use_vcpkg=false
 IF "%toolchain_file%"=="" (
     SET use_vcpkg=true
-) ELSE (
+)
+IF %standalone% == true (
     SET use_vcpkg=false
 )
 IF "%toolchain_file%"=="" SET toolchain_file="vcpkg/scripts/buildsystems/vcpkg.cmake"
 
-set cmake_args=%cmake_args% -DCMAKE_TOOLCHAIN_FILE="third_party/%toolchain_file%" ^
-               -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/"
+if %use_vcpkg% == true (
+    set cmake_args=%cmake_args% -DCMAKE_TOOLCHAIN_FILE="third_party/%toolchain_file%" ^
+                   -Dsgl_DIR="third_party/sgl/install/lib/cmake/sgl/"
+)
 
 set cmake_args_general=%cmake_args_general% -DCMAKE_TOOLCHAIN_FILE="%third_party_dir%/%toolchain_file%"
 
@@ -194,7 +199,13 @@ if not exist .\sgl (
     git clone --depth 1 https://github.com/chrismile/sgl.git   || exit /b 1
 )
 
+set build_sgl=false
 if not exist .\sgl\install (
+    if %standalone% == false (
+        set build_sgl=true
+    )
+)
+if %build_sgl% == true (
     echo ------------------------
     echo      building sgl
     echo ------------------------
